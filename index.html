@@ -3,20 +3,25 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#102c38" />
+    <meta name="theme-color" content="#f3f5f2" />
     <meta name="description" content="Вордик — личный словарь английских слов и тренировка с карточками." />
     <title>Вордик — учить слова</title>
-    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="./favicon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="./favicon.png" />
+    <link rel="manifest" href="./site.webmanifest" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <div class="app-shell">
-      <header class="topbar">
-        <div class="brand" aria-label="Вордик">
-          <span class="brand-mark" aria-hidden="true">в<span>·</span></span>
-          <span>вордик</span>
+      <header class="utility-header" aria-label="Состояние приложения">
+        <button id="notifications-button" class="utility-button" type="button" aria-label="Уведомления" title="Уведомления">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9Z"/><path d="M10 21h4"/></svg>
+        </button>
+        <div id="streak-widget" class="streak-widget" role="status" aria-live="polite" aria-label="0 дней подряд" title="День засчитывается после запуска тренировки">
+          <span class="streak-flame" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 22c4.4 0 7-3.1 7-7.1 0-3.5-2-5.3-3.3-6.9.2 2.6-1.2 3.6-2 3.9.3-3.5-1.8-5.5-2.2-9.9C9.7 5.8 5 9.6 5 14.9 5 18.9 7.6 22 12 22Z" fill="#f4a15a" stroke="#df7e3c" stroke-width="1.2" stroke-linejoin="round"/></svg></span>
+          <strong id="streak-count">0</strong>
+          <span id="streak-label">дней подряд</span>
         </div>
-        <span class="topbar-note">слова остаются с вами</span>
       </header>
 
       <main class="workspace">
@@ -109,7 +114,7 @@
 
               <div id="study-play" class="study-play" hidden>
                 <div class="play-header">
-                  <span class="stage-kicker">ТРЕНИРОВКА</span>
+                  <button id="exit-study-button" class="exit-study-button" type="button" aria-label="Выйти из тренировки" title="Выйти из тренировки">←</button>
                   <span id="progress-text" class="progress-text">01 / 03</span>
                 </div>
                 <div class="progress-track" aria-hidden="true"><span id="progress-fill"></span></div>
@@ -137,7 +142,7 @@
           </div>
         </section>
       </main>
-      <nav class="bottom-nav" aria-label="Основное меню">
+      <nav class="bottom-nav" data-active="home" aria-label="Основное меню">
         <button class="nav-item is-active" type="button" data-tab="home" aria-current="page">
           <img src="./icons/home.svg" alt="" width="24" height="24" />
           <span>Главная</span>

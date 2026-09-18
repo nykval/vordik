@@ -2,6 +2,7 @@
   'use strict';
 
   const STORAGE_KEY = 'vordik.words.v1';
+  const STUDY_DAYS_KEY = 'vordik.studyDays.v1';
   const sampleWords = [
     { id: 'sample-horizon', english: 'horizon', russian: 'горизонт' },
     { id: 'sample-curious', english: 'curious', russian: 'любопытный' },
@@ -9,9 +10,67 @@
   ];
   const $ = (id) => document.getElementById(id);
   const words = loadWords();
+  const studyDays = loadStudyDays();
   const session = { mode: 'english', ids: [], index: 0, flipped: false, phase: 'setup' };
   let activeTab = 'home';
   let toastTimer;
+
+  function localDateKey(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return [year, month, day].join('-');
+  }
+
+  function loadStudyDays() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(STUDY_DAYS_KEY) ?? '[]');
+      if (!Array.isArray(saved)) return [];
+      return [...new Set(saved.filter((day) => typeof day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(day)))].sort();
+    } catch { return []; }
+  }
+
+  function streakLength() {
+    const days = new Set(studyDays);
+    const cursor = new Date();
+    cursor.setHours(12, 0, 0, 0);
+    if (!days.has(localDateKey(cursor))) cursor.setDate(cursor.getDate() - 1);
+    let count = 0;
+    while (days.has(localDateKey(cursor))) {
+      count += 1;
+      cursor.setDate(cursor.getDate() - 1);
+    }
+    return count;
+  }
+
+  function streakDayLabel(count) {
+    if (count % 100 >= 11 && count % 100 <= 14) return 'дней подряд';
+    if (count % 10 === 1) return 'день подряд';
+    if (count % 10 >= 2 && count % 10 <= 4) return 'дня подряд';
+    return 'дней подряд';
+  }
+
+  function renderStreak() {
+    const count = streakLength();
+    const label = streakDayLabel(count);
+    $('streak-count').textContent = count;
+    $('streak-label').textContent = label;
+    $('streak-widget').setAttribute('aria-label', String(count) + ' ' + label);
+  }
+
+  function recordStudyDay() {
+    const today = localDateKey(new Date());
+    if (studyDays.includes(today)) { renderStreak(); return; }
+    studyDays.push(today);
+    studyDays.sort();
+    try {
+      localStorage.setItem(STUDY_DAYS_KEY, JSON.stringify(studyDays));
+    } catch {
+      studyDays.splice(studyDays.indexOf(today), 1);
+      showToast('Не удалось сохранить серию занятий на устройстве');
+    }
+    renderStreak();
+  }
 
   function loadWords() {
     try {
@@ -132,6 +191,7 @@
 
   function switchTab(tab) {
     activeTab = tab;
+    document.querySelector('.bottom-nav').dataset.active = tab;
     document.querySelectorAll('[data-tab]').forEach((button) => {
       const selected = button.dataset.tab === tab;
       button.classList.toggle('is-active', selected);
@@ -155,13 +215,16 @@
 
   function setPhase(phase) {
     session.phase = phase;
+    document.body.classList.toggle('is-studying', phase === 'play');
     $('study-setup').hidden = phase !== 'setup';
     $('study-play').hidden = phase !== 'play';
     $('study-finish').hidden = phase !== 'finish';
+    if (phase === 'play') window.scrollTo(0, 0);
   }
 
   function startStudy() {
     if (!words.length) return;
+    recordStudyDay();
     session.ids = words.map((word) => word.id);
     session.index = 0;
     session.flipped = false;
@@ -212,6 +275,9 @@
     renderCard();
   }
 
+  $('notifications-button').addEventListener('click', () => showToast('Уведомлений пока нет'));
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) renderStreak(); });
+
   $('add-form').addEventListener('submit', (event) => {
     event.preventDefault();
     try {
@@ -227,12 +293,14 @@
   $('start-button').addEventListener('click', startStudy);
   $('flashcard').addEventListener('click', () => { session.flipped = !session.flipped; renderCard(); });
   $('next-button').addEventListener('click', nextCard);
+  $('exit-study-button').addEventListener('click', () => setPhase('setup'));
   $('previous-button').addEventListener('click', previousCard);
   $('change-mode-button').addEventListener('click', () => setPhase('setup'));
   $('repeat-button').addEventListener('click', startStudy);
   $('finish-mode-button').addEventListener('click', () => setPhase('setup'));
   document.addEventListener('keydown', (event) => {
     if (activeTab !== 'cards' || session.phase !== 'play' || /INPUT|TEXTAREA/.test(document.activeElement.tagName)) return;
+    if (event.key === 'Escape') { event.preventDefault(); setPhase('setup'); }
     if (event.key === 'ArrowRight') { event.preventDefault(); nextCard(); }
     if (event.key === 'ArrowLeft') { event.preventDefault(); previousCard(); }
     if (event.key === ' ' && document.activeElement === document.body) { event.preventDefault(); $('flashcard').click(); }
@@ -242,9 +310,10 @@
   window.addEventListener('load', () => {
     const webApp = window.Telegram?.WebApp;
     if (!webApp) return;
+    if (webApp.initData) document.documentElement.classList.add('telegram-app');
     webApp.ready();
     webApp.expand();
-    webApp.setHeaderColor?.('#102c38');
+    webApp.setHeaderColor?.('#f3f5f2');
     webApp.setBackgroundColor?.('#f3f5f2');
   });
 
@@ -272,5 +341,6 @@
   }
 
   renderDictionary();
+  renderStreak();
   setMode('english');
 })();

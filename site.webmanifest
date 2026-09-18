@@ -1,0 +1,17 @@
+{
+  "name": "Вордик",
+  "short_name": "Вордик",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f3f5f2",
+  "theme_color": "#f3f5f2",
+  "icons": [
+    {
+      "src": "./favicon.png",
+      "sizes": "1400x1400",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
