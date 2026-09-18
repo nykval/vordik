@@ -4,7 +4,7 @@ import { networkInterfaces } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-const root = join(dirname(fileURLToPath(import.meta.url)), 'dist');
+const root = dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PORT) || 4173;
 const files = new Map([
   ['/', ['index.html', 'text/html; charset=utf-8']],
@@ -12,6 +12,9 @@ const files = new Map([
   ['/styles.css', ['styles.css', 'text/css; charset=utf-8']],
   ['/app.js', ['app.js', 'text/javascript; charset=utf-8']],
   ['/favicon.svg', ['favicon.svg', 'image/svg+xml']],
+  ['/icons/home.svg', ['icons/home.svg', 'image/svg+xml']],
+  ['/icons/dictionary.svg', ['icons/dictionary.svg', 'image/svg+xml']],
+  ['/icons/learn.svg', ['icons/learn.svg', 'image/svg+xml']],
 ]);
 
 createServer(async (request, response) => {
