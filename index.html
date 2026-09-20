@@ -47,97 +47,146 @@
         </section>
 
         <section id="dictionary-view" class="view" aria-labelledby="dictionary-title" hidden>
-          <div class="dictionary-grid">
-            <section class="add-panel" aria-labelledby="add-title">
-              <div class="panel-heading">
-                <span class="section-number">01 / СОХРАНИТЬ</span>
-                <h2 id="add-title">Новое слово</h2>
-                <p>Запишите слово и его перевод. Оно сразу появится в тренировке.</p>
+          <div class="dictionary-shell">
+            <div class="dictionary-page-heading">
+              <div>
+                <span class="section-number">МОЙ СЛОВАРЬ</span>
+                <h2 id="dictionary-title">Слова</h2>
               </div>
+              <button id="add-word-toggle" class="dictionary-add-toggle" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="add-overlay"><span aria-hidden="true">＋</span> Добавить</button>
+            </div>
+
+            <section class="dictionary-collection" aria-labelledby="word-count-heading">
+              <div class="dictionary-collection-heading">
+                <h3 id="word-count-heading"><span id="word-count">3</span> <span id="word-count-noun">слова</span></h3>
+                <button id="sort-button" class="sort-button" type="button" aria-haspopup="dialog" aria-controls="sort-overlay">Сортировка <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h11M4 17h6"/></svg></button>
+              </div>
+              <div id="word-list" class="dictionary-word-list" role="list"></div>
+              <div id="dictionary-empty" class="dictionary-empty" hidden>
+                <div class="dictionary-empty-art">
+                  <img src="./icons/dictionary-empty.png" alt="Пока ни одного слова" width="2400" height="1400" />
+                </div>
+                <button id="empty-add-button" class="primary-button" type="button">Добавить слова</button>
+              </div>
+            </section>
+          </div>
+
+          <div id="add-overlay" class="add-overlay" hidden>
+            <button class="add-backdrop" type="button" data-add-close tabindex="-1" aria-label="Закрыть добавление слова"></button>
+            <section id="add-panel" class="dictionary-add-panel" role="dialog" aria-modal="true" aria-labelledby="add-title">
+              <div class="dictionary-add-heading">
+                <h3 id="add-title">Новое слово</h3>
+                <button id="close-add-panel" class="dictionary-panel-close" type="button" data-add-close aria-label="Закрыть добавление слова"><img src="./icons/close.svg" alt="" aria-hidden="true" /></button>
+              </div>
+              <p>Добавьте слово и его перевод — оно сразу появится в словаре.</p>
               <form id="add-form" autocomplete="off">
-                <label for="english-input">Слово на английском</label>
-                <input id="english-input" name="english" type="text" maxlength="80" placeholder="Например, wonder" required spellcheck="false" />
-                <label for="russian-input">Перевод</label>
-                <input id="russian-input" name="russian" type="text" maxlength="120" placeholder="Например, удивляться" required />
-                <button class="primary-button add-button" type="submit"><span aria-hidden="true">＋</span> Добавить слово</button>
+                <div class="dictionary-form-fields">
+                  <div>
+                    <label for="english-input">Слово на английском</label>
+                    <input id="english-input" name="english" type="text" maxlength="80" placeholder="Например, wonder" required spellcheck="false" autocapitalize="none" />
+                  </div>
+                  <div>
+                    <label for="russian-input">Перевод</label>
+                    <input id="russian-input" name="russian" type="text" maxlength="120" placeholder="Например, удивляться" required />
+                  </div>
+                </div>
+                <button class="primary-button dictionary-submit" type="submit">Добавить слово</button>
               </form>
             </section>
+          </div>
 
-            <section class="list-panel" aria-labelledby="dictionary-title">
-              <div class="list-heading">
-                <div>
-                  <span class="section-number">02 / ПОВТОРЯТЬ</span>
-                  <h2 id="dictionary-title">Мой словарь <span id="word-count" class="heading-count">3</span></h2>
-                </div>
-                <span class="list-meta">EN → RU</span>
+          <div id="sort-overlay" class="sort-overlay" hidden>
+            <button class="sort-backdrop" type="button" data-sort-close tabindex="-1" aria-label="Закрыть сортировку"></button>
+            <div class="sort-sheet" role="dialog" aria-modal="true" aria-labelledby="sort-title">
+              <span class="sort-handle" aria-hidden="true"></span>
+              <div class="sort-sheet-heading">
+                <h2 id="sort-title">Сортировка</h2>
+                <button class="sort-close" type="button" data-sort-close aria-label="Закрыть сортировку"><img src="./icons/close.svg" alt="" aria-hidden="true" /></button>
               </div>
-              <p class="list-help" id="list-help">Начните с примеров или добавьте свои слова.</p>
-              <div id="word-list" class="word-list"></div>
-              <div id="dictionary-empty" class="empty-state" hidden>
-                <span class="empty-glyph" aria-hidden="true">Aa</span>
-                <h3>Пока ни одного слова</h3>
-                <p>Добавьте первое слово слева, и оно появится здесь.</p>
+              <div class="sort-options">
+                <button class="sort-option" type="button" data-sort="recent" aria-pressed="true">Сначала новые <span class="sort-check" aria-hidden="true"><img src="./icons/check.svg" alt="" /></span></button>
+                <button class="sort-option" type="button" data-sort="alphabetical" aria-pressed="false">По алфавиту <span class="sort-check" aria-hidden="true"><img src="./icons/check.svg" alt="" /></span></button>
               </div>
-            </section>
+            </div>
           </div>
         </section>
 
         <section id="cards-view" class="view" aria-labelledby="cards-title" hidden>
-          <div class="study-layout">
-            <div class="study-copy">
-              <span class="section-number">03 / ЗАПОМИНАТЬ</span>
-              <h2 id="cards-title">Время<br /><em>повторить.</em></h2>
-              <p>Сначала вспомните ответ сами. Затем нажмите на карточку и проверьте себя.</p>
-              <div class="study-rule" aria-hidden="true"></div>
-              <p class="study-small">Карточки составлены из вашего словаря.</p>
+          <div id="study-feed" class="study-feed">
+            <div class="study-feed-heading">
+              <h2 id="cards-title">Учить слова</h2>
+              <p>выбирай подходящую механику для себя</p>
             </div>
 
-            <div class="study-stage">
-              <div id="study-setup" class="study-panel">
-                <span class="stage-kicker">НАСТРОЙКА ТРЕНИРОВКИ</span>
-                <h3>Что показывать первым?</h3>
-                <div class="mode-options" role="group" aria-label="Первая сторона карточки">
-                  <button type="button" class="mode-option is-selected" data-mode="english" aria-pressed="true">
-                    <span class="mode-symbol" aria-hidden="true">EN</span>
-                    <span><strong>Английское слово</strong><small>Вспомнить перевод</small></span>
-                    <span class="mode-check" aria-hidden="true">✓</span>
-                  </button>
-                  <button type="button" class="mode-option" data-mode="russian" aria-pressed="false">
-                    <span class="mode-symbol" aria-hidden="true">RU</span>
-                    <span><strong>Перевод</strong><small>Вспомнить слово</small></span>
-                    <span class="mode-check" aria-hidden="true">✓</span>
-                  </button>
-                </div>
-                <button id="start-button" class="primary-button start-button" type="button">Начать тренировку <span aria-hidden="true">↗</span></button>
-                <p id="setup-note" class="setup-note"></p>
+            <div class="study-method-list" aria-label="Способы тренировки">
+              <button class="study-method study-method-cover" type="button" data-study="cards" aria-label="Флеш-карточки: начать тренировку">
+                <img src="./icons/flashcards-cover.svg" alt="" width="200" height="65" />
+              </button>
+              <button id="quiz-start" class="study-method study-method-cover" type="button" data-study="quiz" aria-label="Выбрать перевод: начать тренировку">
+                <img src="./icons/quiz-cover.svg" alt="" width="200" height="65" />
+              </button>
+              <button id="typing-start" class="study-method study-method-cover" type="button" data-study="typing" aria-label="Написать слово: начать тренировку">
+                <img src="./icons/typing-cover.svg" alt="" width="200" height="65" />
+              </button>
+            </div>
+            <div id="study-empty-hint" class="study-empty-hint" hidden>
+              Добавьте первое слово, чтобы начать.
+              <button type="button" data-go="dictionary">Открыть словарь →</button>
+            </div>
+          </div>
+
+          <div class="study-stage">
+            <div id="study-play" class="study-play" hidden>
+              <div class="play-header">
+                <span id="progress-text" class="progress-text">1/3</span>
+                <button id="exit-study-button" class="exit-study-button" type="button" aria-label="Закрыть тренировку" title="Закрыть тренировку">
+                  <img src="./icons/close.svg" alt="" aria-hidden="true" width="24" height="24" />
+                </button>
               </div>
 
-              <div id="study-play" class="study-play" hidden>
-                <div class="play-header">
-                  <button id="exit-study-button" class="exit-study-button" type="button" aria-label="Выйти из тренировки" title="Выйти из тренировки">←</button>
-                  <span id="progress-text" class="progress-text">01 / 03</span>
-                </div>
-                <div class="progress-track" aria-hidden="true"><span id="progress-fill"></span></div>
+              <div id="flashcard-activity">
                 <button id="flashcard" class="flashcard" type="button" aria-label="Перевернуть карточку">
                   <span id="card-side" class="card-side">АНГЛИЙСКОЕ СЛОВО</span>
                   <span id="card-term" class="card-term">horizon</span>
-                  <span id="card-hint" class="card-hint">Нажмите, чтобы увидеть перевод <span aria-hidden="true">↻</span></span>
+                  <span id="card-hint" class="card-hint">Нажмите, чтобы увидеть перевод</span>
                 </button>
                 <div class="card-actions">
-                  <button id="previous-button" class="secondary-button" type="button">← Назад</button>
-                  <button id="next-button" class="primary-button" type="button">Дальше →</button>
+                  <button id="next-button" class="primary-button study-next-button" type="button">
+                    <span id="next-button-label">Дальше</span>
+                  </button>
                 </div>
-                <button id="change-mode-button" class="text-button" type="button">Изменить сторону карточки</button>
               </div>
 
-              <div id="study-finish" class="study-panel finish-panel" hidden>
-                <span class="stage-kicker">ТРЕНИРОВКА ЗАВЕРШЕНА</span>
-                <span class="finish-symbol" aria-hidden="true">✳</span>
-                <h3>Отлично,<br />все карточки пройдены.</h3>
-                <p>Повторение помогает словам остаться в памяти.</p>
-                <button id="repeat-button" class="primary-button start-button" type="button">Повторить ещё раз ↗</button>
-                <button id="finish-mode-button" class="text-button" type="button">Выбрать другую сторону</button>
+              <div id="quiz-activity" class="question-card" hidden>
+                <span class="stage-kicker">ВЫБЕРИТЕ ПЕРЕВОД</span>
+                <strong id="quiz-prompt" class="question-word"></strong>
+                <div id="quiz-options" class="answer-options" role="group" aria-label="Варианты перевода"></div>
+                <p id="quiz-feedback" class="answer-feedback" role="status" aria-live="polite"></p>
+                <button id="quiz-next-button" class="primary-button answer-next study-next-button" type="button" disabled>
+                  <span id="quiz-next-label">Дальше</span>
+                </button>
               </div>
+
+              <div id="typing-activity" class="question-card" hidden>
+                <span class="stage-kicker">НАПИШИТЕ ПО-АНГЛИЙСКИ</span>
+                <strong id="typing-prompt" class="question-word"></strong>
+                <form id="typing-form" class="typing-form" autocomplete="off">
+                  <label for="typing-input">Ваш ответ</label>
+                  <input id="typing-input" type="text" required spellcheck="false" autocapitalize="off" autocomplete="off" maxlength="80" placeholder="Введите слово" />
+                  <button id="typing-check-button" class="primary-button" type="submit">Проверить</button>
+                </form>
+                <p id="typing-feedback" class="answer-feedback" role="status" aria-live="polite"></p>
+                <button id="typing-next-button" class="primary-button answer-next" type="button" hidden>Дальше</button>
+              </div>
+            </div>
+
+            <div id="study-finish" class="study-panel finish-panel" hidden>
+              <span class="stage-kicker">ТРЕНИРОВКА ЗАВЕРШЕНА</span>
+              <span class="finish-symbol" aria-hidden="true"><img src="./icons/check.svg" alt="" /></span>
+              <h3 id="finish-title">Готово!</h3>
+              <p id="finish-copy"></p>
+              <button id="repeat-button" class="primary-button start-button" type="button">Повторить ещё раз ↗</button>
+              <button id="finish-mode-button" class="text-button" type="button">Выбрать другой способ</button>
             </div>
           </div>
         </section>

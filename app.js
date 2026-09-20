@@ -11,9 +11,13 @@
   const $ = (id) => document.getElementById(id);
   const words = loadWords();
   const studyDays = loadStudyDays();
-  const session = { mode: 'english', ids: [], index: 0, flipped: false, phase: 'setup' };
+  const session = { mechanic: 'cards', ids: [], index: 0, flipped: false, answered: false, correctCount: 0, phase: 'feed' };
   let activeTab = 'home';
   let toastTimer;
+  let activeUtterance = null;
+  let sortMode = 'recent';
+  let sortCloseTimer;
+  let sortOpenFrame;
 
   function localDateKey(date) {
     const year = date.getFullYear();
@@ -109,36 +113,165 @@
     toastTimer = setTimeout(() => { toast.hidden = true; }, action ? 6500 : 3500);
   }
 
+  function speakWord(english) {
+    const synth = window.speechSynthesis;
+    if (!synth || typeof SpeechSynthesisUtterance === 'undefined') {
+      showToast('Озвучка недоступна в этом браузере');
+      return;
+    }
+    try {
+      const utterance = new SpeechSynthesisUtterance(english);
+      utterance.lang = 'en-US';
+      utterance.rate = 0.9;
+      const voices = synth.getVoices();
+      const voice = voices.find((item) => /^en[-_]US/i.test(item.lang)) ?? voices.find((item) => /^en/i.test(item.lang));
+      if (voice) utterance.voice = voice;
+      activeUtterance = utterance;
+      utterance.onend = () => { if (activeUtterance === utterance) activeUtterance = null; };
+      utterance.onerror = (event) => {
+        if (activeUtterance === utterance) activeUtterance = null;
+        if (event.error !== 'canceled' && event.error !== 'interrupted') showToast('Не удалось озвучить слово');
+      };
+      synth.cancel();
+      synth.speak(utterance);
+    } catch {
+      activeUtterance = null;
+      showToast('Не удалось озвучить слово');
+    }
+  }
+
+  function setAddPanel(open, restoreFocus = true) {
+    $('add-overlay').hidden = !open;
+    document.body.classList.toggle('is-add-open', open);
+    $('add-word-toggle').setAttribute('aria-expanded', String(open));
+    if (open) $('english-input').focus();
+    else if (restoreFocus && activeTab === 'dictionary') $('add-word-toggle').focus();
+  }
+
+  function setSortOpen(open, restoreFocus = true) {
+    const overlay = $('sort-overlay');
+    const sheet = overlay.querySelector('.sort-sheet');
+    clearTimeout(sortCloseTimer);
+    if (sortOpenFrame) cancelAnimationFrame(sortOpenFrame);
+    sheet.classList.remove('is-dragging');
+    sheet.style.removeProperty('--sort-drag-y');
+    if (open) {
+      overlay.hidden = false;
+      document.body.classList.add('is-sort-open');
+      sortOpenFrame = requestAnimationFrame(() => {
+        sortOpenFrame = requestAnimationFrame(() => overlay.classList.add('is-visible'));
+      });
+      overlay.querySelector('[data-sort="recent"]').focus();
+      return;
+    }
+    overlay.classList.remove('is-visible');
+    const duration = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 320;
+    sortCloseTimer = setTimeout(() => {
+      overlay.hidden = true;
+      document.body.classList.remove('is-sort-open');
+    }, duration);
+    if (restoreFocus && activeTab === 'dictionary') $('sort-button').focus();
+  }
+
+  function enableSortSwipe() {
+    const overlay = $('sort-overlay');
+    const sheet = overlay.querySelector('.sort-sheet');
+    let startY = 0;
+    let startX = 0;
+    let startTime = 0;
+    let distance = 0;
+    let dragging = false;
+    sheet.addEventListener('touchstart', (event) => {
+      if (event.touches.length !== 1 || !overlay.classList.contains('is-visible')) return;
+      startY = event.touches[0].clientY;
+      startX = event.touches[0].clientX;
+      startTime = Date.now();
+      distance = 0;
+      dragging = false;
+    }, { passive: true });
+    sheet.addEventListener('touchmove', (event) => {
+      if (event.touches.length !== 1 || !overlay.classList.contains('is-visible')) return;
+      const vertical = event.touches[0].clientY - startY;
+      const horizontal = event.touches[0].clientX - startX;
+      if (vertical <= 0 || vertical <= Math.abs(horizontal)) return;
+      event.preventDefault();
+      dragging = true;
+      distance = Math.min(vertical, sheet.offsetHeight);
+      sheet.classList.add('is-dragging');
+      sheet.style.setProperty('--sort-drag-y', `${distance}px`);
+    }, { passive: false });
+    sheet.addEventListener('touchend', () => {
+      if (!dragging) return;
+      const speed = distance / Math.max(Date.now() - startTime, 1);
+      if (distance > 80 || (distance > 30 && speed > 0.55)) setSortOpen(false);
+      else {
+        sheet.classList.remove('is-dragging');
+        sheet.style.removeProperty('--sort-drag-y');
+      }
+      dragging = false;
+    });
+    sheet.addEventListener('touchcancel', () => {
+      sheet.classList.remove('is-dragging');
+      sheet.style.removeProperty('--sort-drag-y');
+      dragging = false;
+    });
+  }
+
   function renderDictionary() {
     $('home-word-count').textContent = words.length;
     $('word-count').textContent = words.length;
-    $('list-help').hidden = words.length === 0;
+    $('word-count-noun').textContent = wordNoun(words.length);
     $('dictionary-empty').hidden = words.length !== 0;
+    $('word-list').hidden = words.length === 0;
+    const displayedWords = sortMode === 'alphabetical'
+      ? [...words].sort((a, b) => a.english.localeCompare(b.english, 'en', { sensitivity: 'base' }))
+      : words;
     const fragment = document.createDocumentFragment();
-    words.forEach((word, index) => {
+    displayedWords.forEach((word) => {
       const row = document.createElement('div');
-      row.className = 'word-row';
-      const number = document.createElement('span');
-      number.className = 'word-index';
-      number.textContent = String(index + 1).padStart(2, '0');
+      row.className = 'dictionary-word-row';
+      row.setAttribute('role', 'listitem');
+      const listen = document.createElement('button');
+      listen.className = 'listen-button';
+      listen.type = 'button';
+      listen.setAttribute('aria-label', `Произнести ${word.english}`);
+      listen.title = `Произнести ${word.english}`;
+      const speaker = document.createElement('img');
+      speaker.src = './icons/speaker.svg';
+      speaker.alt = '';
+      speaker.setAttribute('aria-hidden', 'true');
+      listen.append(speaker);
+      listen.addEventListener('click', () => speakWord(word.english));
+      const copy = document.createElement('div');
+      copy.className = 'dictionary-word-copy';
       const english = document.createElement('strong');
-      english.className = 'word-english';
+      english.className = 'dictionary-word-english';
+      english.lang = 'en';
       english.textContent = word.english;
       const russian = document.createElement('span');
-      russian.className = 'word-russian';
+      russian.className = 'dictionary-word-russian';
       russian.textContent = word.russian;
+      copy.append(english, russian);
       const remove = document.createElement('button');
-      remove.className = 'delete-button';
+      remove.className = 'dictionary-delete-button';
       remove.type = 'button';
-      remove.textContent = '×';
+      const closeIcon = document.createElement('img');
+      closeIcon.src = './icons/close.svg';
+      closeIcon.alt = '';
+      closeIcon.setAttribute('aria-hidden', 'true');
+      remove.append(closeIcon);
       remove.setAttribute('aria-label', `Удалить ${word.english}`);
       remove.addEventListener('click', () => removeWord(word.id));
-      row.append(number, english, russian, remove);
+      row.append(listen, copy, remove);
       fragment.append(row);
     });
     $('word-list').replaceChildren(fragment);
-    $('start-button').disabled = words.length === 0;
-    $('setup-note').textContent = words.length ? `В тренировке ${words.length} ${wordNoun(words.length)}.` : 'Добавьте слово в словарь, чтобы начать.';
+    $('typing-start').disabled = words.length === 0;
+    document.querySelector('[data-study="cards"]').disabled = words.length === 0;
+    const hasQuizOptions = new Set(words.map((word) => word.russian.toLocaleLowerCase())).size >= 2;
+    $('quiz-start').disabled = !hasQuizOptions;
+    $('quiz-start').setAttribute('aria-label', hasQuizOptions ? 'Выбрать перевод: начать тренировку' : 'Для выбора перевода нужны хотя бы два разных перевода в словаре');
+    $('study-empty-hint').hidden = words.length !== 0;
   }
 
   function wordNoun(count) {
@@ -190,6 +323,8 @@
   }
 
   function switchTab(tab) {
+    if (tab !== 'dictionary' && !$('sort-overlay').hidden) setSortOpen(false, false);
+    if (tab !== 'dictionary' && !$('add-overlay').hidden) setAddPanel(false, false);
     activeTab = tab;
     document.querySelector('.bottom-nav').dataset.active = tab;
     document.querySelectorAll('[data-tab]').forEach((button) => {
@@ -204,75 +339,165 @@
     window.scrollTo(0, 0);
   }
 
-  function setMode(mode) {
-    session.mode = mode;
-    document.querySelectorAll('[data-mode]').forEach((button) => {
-      const selected = button.dataset.mode === mode;
-      button.classList.toggle('is-selected', selected);
-      button.setAttribute('aria-pressed', String(selected));
-    });
-  }
-
   function setPhase(phase) {
     session.phase = phase;
     document.body.classList.toggle('is-studying', phase === 'play');
-    $('study-setup').hidden = phase !== 'setup';
+    document.body.classList.toggle('is-quiz-studying', phase === 'play' && session.mechanic === 'quiz');
+    document.body.classList.toggle('is-card-studying', phase === 'play' && session.mechanic === 'cards');
+    $('study-feed').hidden = phase !== 'feed';
     $('study-play').hidden = phase !== 'play';
     $('study-finish').hidden = phase !== 'finish';
-    if (phase === 'play') window.scrollTo(0, 0);
+    $('flashcard-activity').hidden = phase !== 'play' || session.mechanic !== 'cards';
+    $('quiz-activity').hidden = phase !== 'play' || session.mechanic !== 'quiz';
+    $('typing-activity').hidden = phase !== 'play' || session.mechanic !== 'typing';
+    if (phase === 'finish') {
+      $('finish-copy').textContent = session.mechanic === 'cards'
+        ? `Вы повторили ${session.ids.length} ${wordNoun(session.ids.length)}.`
+        : `Верных ответов: ${session.correctCount} из ${session.ids.length}.`;
+    }
+    window.scrollTo(0, 0);
   }
 
-  function startStudy() {
+  function shuffled(items) {
+    const result = [...items];
+    for (let index = result.length - 1; index > 0; index -= 1) {
+      const randomIndex = Math.floor(Math.random() * (index + 1));
+      [result[index], result[randomIndex]] = [result[randomIndex], result[index]];
+    }
+    return result;
+  }
+
+  function startStudy(mechanic = session.mechanic) {
     if (!words.length) return;
-    recordStudyDay();
+    if (mechanic === 'quiz' && new Set(words.map((word) => word.russian.toLocaleLowerCase())).size < 2) return;
+    session.mechanic = mechanic;
     session.ids = words.map((word) => word.id);
     session.index = 0;
     session.flipped = false;
+    session.answered = false;
+    session.correctCount = 0;
+    recordStudyDay();
     setPhase('play');
-    renderCard();
+    renderExercise();
   }
 
   function syncSession() {
     if (session.phase !== 'play') return;
     session.ids = session.ids.filter((id) => words.some((word) => word.id === id));
-    if (!session.ids.length) { setPhase('setup'); return; }
+    if (!session.ids.length) { setPhase('feed'); return; }
     session.index = Math.min(session.index, session.ids.length - 1);
-    renderCard();
+    renderExercise();
   }
 
-  function renderCard() {
+  function renderProgress() {
+    $('progress-text').textContent = `${session.index + 1}/${session.ids.length}`;
+  }
+
+  function renderExercise() {
     const word = words.find((entry) => entry.id === session.ids[session.index]);
     if (!word) return;
-    const firstIsEnglish = session.mode === 'english';
-    const englishSide = session.flipped ? !firstIsEnglish : firstIsEnglish;
+    renderProgress();
+    if (session.mechanic === 'cards') renderCard(word);
+    if (session.mechanic === 'quiz') renderQuiz(word);
+    if (session.mechanic === 'typing') renderTyping(word);
+  }
+
+  function renderCard(word) {
+    const englishSide = session.flipped;
     $('card-term').textContent = englishSide ? word.english : word.russian;
-    $('card-side').textContent = englishSide ? 'АНГЛИЙСКОЕ СЛОВО' : 'ПЕРЕВОД';
-    $('card-hint').replaceChildren(document.createTextNode(session.flipped ? 'Нажмите, чтобы вернуться ' : `Нажмите, чтобы увидеть ${englishSide ? 'перевод' : 'слово'} `));
-    const glyph = document.createElement('span');
-    glyph.setAttribute('aria-hidden', 'true');
-    glyph.textContent = '↻';
-    $('card-hint').append(glyph);
+    $('card-side').textContent = englishSide ? 'СЛОВО' : 'ПЕРЕВОД';
+    $('card-hint').textContent = session.flipped ? 'Нажмите, чтобы вернуться' : `Нажмите, чтобы увидеть ${englishSide ? 'перевод' : 'слово'}`;
     $('flashcard').classList.toggle('is-flipped', session.flipped);
     $('flashcard').setAttribute('aria-label', `${englishSide ? 'Английское слово' : 'Перевод'}: ${englishSide ? word.english : word.russian}. Перевернуть карточку`);
-    $('progress-text').textContent = `${String(session.index + 1).padStart(2, '0')} / ${String(session.ids.length).padStart(2, '0')}`;
-    $('progress-fill').style.width = `${((session.index + 1) / session.ids.length) * 100}%`;
-    $('previous-button').disabled = session.index === 0;
-    $('next-button').textContent = session.index === session.ids.length - 1 ? 'Завершить →' : 'Дальше →';
+    $('next-button-label').textContent = session.index === session.ids.length - 1 ? 'Завершить' : 'Дальше';
+  }
+
+  function renderQuiz(word) {
+    session.answered = false;
+    $('quiz-prompt').textContent = word.english;
+    $('quiz-feedback').textContent = '';
+    $('quiz-feedback').removeAttribute('data-result');
+    $('quiz-next-button').disabled = true;
+    $('quiz-next-label').textContent = session.index === session.ids.length - 1 ? 'Завершить' : 'Дальше';
+    const translations = [...new Map(words.map((entry) => [entry.russian.toLocaleLowerCase(), entry.russian])).values()];
+    const distractors = shuffled(translations.filter((answer) => answer.toLocaleLowerCase() !== word.russian.toLocaleLowerCase())).slice(0, 2);
+    const options = shuffled([...distractors, word.russian]);
+    const fragment = document.createDocumentFragment();
+    options.forEach((answer) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'answer-option';
+      button.dataset.answer = answer;
+      button.setAttribute('aria-pressed', 'false');
+      const label = document.createElement('span');
+      label.textContent = answer;
+      const radio = document.createElement('span');
+      radio.className = 'answer-option-radio';
+      radio.setAttribute('aria-hidden', 'true');
+      const check = document.createElement('img');
+      check.src = './icons/check.svg';
+      check.alt = '';
+      radio.append(check);
+      button.append(label, radio);
+      button.addEventListener('click', () => answerQuiz(answer, word.russian));
+      fragment.append(button);
+    });
+    $('quiz-options').replaceChildren(fragment);
+  }
+
+  function answerQuiz(answer, correctAnswer) {
+    if (session.answered) return;
+    session.answered = true;
+    const correct = answer.toLocaleLowerCase() === correctAnswer.toLocaleLowerCase();
+    if (correct) session.correctCount += 1;
+    $('quiz-options').querySelectorAll('button').forEach((button) => {
+      button.disabled = true;
+      const selected = button.dataset.answer === answer;
+      button.setAttribute('aria-pressed', String(selected));
+      if (selected) button.classList.add('is-selected');
+      if (button.dataset.answer.toLocaleLowerCase() === correctAnswer.toLocaleLowerCase()) button.classList.add('is-correct');
+    });
+    $('quiz-feedback').textContent = correct ? 'Верно!' : `Правильный ответ: ${correctAnswer}`;
+    $('quiz-feedback').dataset.result = correct ? 'correct' : 'incorrect';
+    $('quiz-next-button').disabled = false;
+  }
+
+  function renderTyping(word) {
+    session.answered = false;
+    $('typing-prompt').textContent = word.russian;
+    $('typing-input').value = '';
+    $('typing-input').disabled = false;
+    $('typing-check-button').hidden = false;
+    $('typing-feedback').textContent = '';
+    $('typing-feedback').removeAttribute('data-result');
+    $('typing-next-button').hidden = true;
+    $('typing-next-button').textContent = session.index === session.ids.length - 1 ? 'Завершить' : 'Дальше';
+  }
+
+  function answerTyping() {
+    if (session.answered) return;
+    const word = words.find((entry) => entry.id === session.ids[session.index]);
+    if (!word) return;
+    const answer = $('typing-input').value.trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+    if (!answer) return;
+    session.answered = true;
+    const correct = answer === word.english.trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+    if (correct) session.correctCount += 1;
+    $('typing-input').disabled = true;
+    $('typing-check-button').hidden = true;
+    $('typing-feedback').textContent = correct ? 'Верно!' : `Правильный ответ: ${word.english}`;
+    $('typing-feedback').dataset.result = correct ? 'correct' : 'incorrect';
+    $('typing-next-button').hidden = false;
   }
 
   function nextCard() {
     if (session.phase !== 'play') return;
+    if (session.mechanic !== 'cards' && !session.answered) return;
     if (session.index >= session.ids.length - 1) { setPhase('finish'); return; }
     session.index += 1;
     session.flipped = false;
-    renderCard();
-  }
-
-  function previousCard() {
-    if (session.phase !== 'play' || session.index === 0) return;
-    session.index -= 1;
-    session.flipped = false;
-    renderCard();
+    session.answered = false;
+    renderExercise();
   }
 
   $('notifications-button').addEventListener('click', () => showToast('Уведомлений пока нет'));
@@ -283,26 +508,55 @@
     try {
       addWord($('english-input').value, $('russian-input').value);
       $('add-form').reset();
-      $('english-input').focus();
+      setAddPanel(false);
       showToast('Слово добавлено');
     } catch (error) { showToast(error.message); }
   });
+  $('add-word-toggle').addEventListener('click', () => setAddPanel($('add-overlay').hidden));
+  document.querySelectorAll('[data-add-close]').forEach((button) => button.addEventListener('click', () => setAddPanel(false)));
+  $('empty-add-button').addEventListener('click', () => setAddPanel(true));
+  enableSortSwipe();
+  $('sort-button').addEventListener('click', () => setSortOpen(true));
+  document.querySelectorAll('[data-sort-close]').forEach((button) => button.addEventListener('click', () => setSortOpen(false)));
+  document.querySelectorAll('[data-sort]').forEach((button) => button.addEventListener('click', () => {
+    sortMode = button.dataset.sort;
+    document.querySelectorAll('[data-sort]').forEach((option) => option.setAttribute('aria-pressed', String(option === button)));
+    renderDictionary();
+    setSortOpen(false);
+  }));
+  document.addEventListener('keydown', (event) => {
+    const addOpen = !$('add-overlay').hidden;
+    const overlay = addOpen ? $('add-overlay') : ($('sort-overlay').classList.contains('is-visible') ? $('sort-overlay') : null);
+    if (!overlay) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      if (addOpen) setAddPanel(false);
+      else setSortOpen(false);
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const focusable = [...overlay.querySelectorAll('button, input')].filter((item) => item.tabIndex !== -1);
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  });
   document.querySelectorAll('[data-tab]').forEach((button) => button.addEventListener('click', () => switchTab(button.dataset.tab)));
   document.querySelectorAll('[data-go]').forEach((button) => button.addEventListener('click', () => switchTab(button.dataset.go)));
-  document.querySelectorAll('[data-mode]').forEach((button) => button.addEventListener('click', () => setMode(button.dataset.mode)));
-  $('start-button').addEventListener('click', startStudy);
-  $('flashcard').addEventListener('click', () => { session.flipped = !session.flipped; renderCard(); });
+  document.querySelectorAll('[data-study]').forEach((button) => button.addEventListener('click', () => startStudy(button.dataset.study)));
+  $('flashcard').addEventListener('click', () => { session.flipped = !session.flipped; renderExercise(); });
   $('next-button').addEventListener('click', nextCard);
-  $('exit-study-button').addEventListener('click', () => setPhase('setup'));
-  $('previous-button').addEventListener('click', previousCard);
-  $('change-mode-button').addEventListener('click', () => setPhase('setup'));
-  $('repeat-button').addEventListener('click', startStudy);
-  $('finish-mode-button').addEventListener('click', () => setPhase('setup'));
+  $('quiz-next-button').addEventListener('click', nextCard);
+  $('typing-next-button').addEventListener('click', nextCard);
+  $('typing-form').addEventListener('submit', (event) => { event.preventDefault(); answerTyping(); });
+  $('exit-study-button').addEventListener('click', () => setPhase('feed'));
+  $('repeat-button').addEventListener('click', () => startStudy());
+  $('finish-mode-button').addEventListener('click', () => setPhase('feed'));
   document.addEventListener('keydown', (event) => {
-    if (activeTab !== 'cards' || session.phase !== 'play' || /INPUT|TEXTAREA/.test(document.activeElement.tagName)) return;
-    if (event.key === 'Escape') { event.preventDefault(); setPhase('setup'); }
+    if (activeTab !== 'cards' || session.phase !== 'play') return;
+    if (event.key === 'Escape') { event.preventDefault(); setPhase('feed'); return; }
+    if (session.mechanic !== 'cards' || /INPUT|TEXTAREA/.test(document.activeElement.tagName)) return;
     if (event.key === 'ArrowRight') { event.preventDefault(); nextCard(); }
-    if (event.key === 'ArrowLeft') { event.preventDefault(); previousCard(); }
     if (event.key === ' ' && document.activeElement === document.body) { event.preventDefault(); $('flashcard').click(); }
   });
 
@@ -342,5 +596,4 @@
 
   renderDictionary();
   renderStreak();
-  setMode('english');
 })();
