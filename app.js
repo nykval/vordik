@@ -567,6 +567,7 @@
     if (webApp.initData) document.documentElement.classList.add('telegram-app');
     webApp.ready();
     webApp.expand();
+    if (!webApp.isFullscreen) webApp.requestFullscreen?.();
     webApp.disableVerticalSwipes?.();
     webApp.setHeaderColor?.('#f3f5f2');
     webApp.setBackgroundColor?.('#f3f5f2');
