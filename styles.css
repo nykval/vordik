@@ -3,8 +3,8 @@
 :root { font-family: 'Raleway', Arial, sans-serif; color: #17323e; background: #f3f5f2; font-synthesis: none; --brand-blue: #0C6DF8; --brand-lime: #d9ed74; --app-top-safe-area: max(env(safe-area-inset-top, 0px), var(--tg-safe-area-inset-top, 0px), var(--tg-content-safe-area-inset-top, 0px)); }
 html.telegram-app { --app-top-safe-area: max(88px, env(safe-area-inset-top, 0px), var(--tg-safe-area-inset-top, 0px), var(--tg-content-safe-area-inset-top, 0px)); }
 * { box-sizing: border-box; }
-html { min-width: 320px; overscroll-behavior-y: none; }
-body { margin: 0; overscroll-behavior-y: none; }
+html { min-width: 320px; overscroll-behavior-y: none; touch-action: pan-x pan-y; }
+body { margin: 0; overscroll-behavior-y: none; touch-action: pan-x pan-y; }
 button, input { font: inherit; }
 button { cursor: pointer; }
 button:focus-visible, input:focus-visible { outline: 3px solid #85b8d1; outline-offset: 3px; }

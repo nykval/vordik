@@ -560,6 +560,14 @@
     if (event.key === ' ' && document.activeElement === document.body) { event.preventDefault(); $('flashcard').click(); }
   });
 
+  // Keep the Mini App at its native scale inside Telegram's iOS WebView.
+  ['gesturestart', 'gesturechange', 'gestureend'].forEach((eventName) => {
+    document.addEventListener(eventName, (event) => event.preventDefault(), { passive: false });
+  });
+  document.addEventListener('touchmove', (event) => {
+    if (event.touches.length > 1) event.preventDefault();
+  }, { passive: false });
+
   // Telegram provides this object when the page is opened from a bot's Web App button.
   window.addEventListener('load', () => {
     const webApp = window.Telegram?.WebApp;
