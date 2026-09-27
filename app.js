@@ -3,6 +3,8 @@
 
   const STORAGE_KEY = 'vordik.words.v1';
   const STUDY_DAYS_KEY = 'vordik.studyDays.v1';
+  const PROFILE_KEY = 'vordik.profile.v1';
+  const PROFILE_STATS_KEY = 'vordik.profileStats.v1';
   const QUICK_PICK_KNOWN_KEY = 'vordik.quickPickKnown.v1';
   const QUICK_PICK_SESSION_KEY = 'vordik.quickPickSession.v1';
   const sampleWords = [
@@ -15,9 +17,11 @@
   const $ = (id) => document.getElementById(id);
   const words = loadWords();
   const studyDays = loadStudyDays();
+  const userProfile = loadProfile();
+  const profileStats = loadProfileStats();
   const quickPickKnown = loadQuickPickKnown();
   let quickPickSession = loadQuickPickSession();
-  const session = { mechanic: 'cards', ids: [], index: 0, flipped: false, answered: false, correctCount: 0, phase: 'feed' };
+  const session = { mechanic: 'cards', ids: [], index: 0, flipped: false, answered: false, correctCount: 0, attemptCount: 0, phase: 'feed', startedAt: 0, statsRecorded: false };
   let activeTab = 'home';
   let toastTimer;
   let activeUtterance = null;
@@ -30,11 +34,20 @@
   let deleteCloseTimer;
   let deleteOpenFrame;
   let pendingDeleteId = null;
+  let wordCardCloseTimer;
+  let wordCardOpenFrame;
+  let activeWordCardId = null;
+  let timedInterval;
+  let timedAdvanceTimer;
+  let timedDeadline = 0;
+  let timedLocked = false;
   let quickPickAnimating = false;
   let quickPickFlipped = false;
   let quickPickSuppressClick = false;
   let quickPickResetArmed = false;
   let quickPickResetTimer;
+  let quickPickCountCloseTimer;
+  let quickPickCountOpenFrame;
 
   function localDateKey(date) {
     const year = date.getFullYear();
@@ -49,6 +62,112 @@
       if (!Array.isArray(saved)) return [];
       return [...new Set(saved.filter((day) => typeof day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(day)))].sort();
     } catch { return []; }
+  }
+
+  function loadProfile() {
+    const fallback = { name: 'Пользователь Вордик', joinedAt: new Date().toISOString() };
+    try {
+      const saved = JSON.parse(localStorage.getItem(PROFILE_KEY) ?? 'null');
+      const profile = {
+        name: typeof saved?.name === 'string' && saved.name.trim() ? saved.name.trim().slice(0, 80) : fallback.name,
+        joinedAt: typeof saved?.joinedAt === 'string' && !Number.isNaN(Date.parse(saved.joinedAt)) ? saved.joinedAt : fallback.joinedAt,
+      };
+      localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+      return profile;
+    } catch { return fallback; }
+  }
+
+  function loadProfileStats() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(PROFILE_STATS_KEY) ?? 'null');
+      return {
+        sessionsCompleted: Math.max(0, Math.floor(Number(saved?.sessionsCompleted) || 0)),
+        totalSessionMs: Math.max(0, Math.floor(Number(saved?.totalSessionMs) || 0)),
+      };
+    } catch { return { sessionsCompleted: 0, totalSessionMs: 0 }; }
+  }
+
+  function saveProfile() {
+    try { localStorage.setItem(PROFILE_KEY, JSON.stringify(userProfile)); } catch { /* Profile remains available for this visit. */ }
+  }
+
+  function saveProfileStats() {
+    try { localStorage.setItem(PROFILE_STATS_KEY, JSON.stringify(profileStats)); } catch { /* Stats remain available for this visit. */ }
+  }
+
+  function syncTelegramProfile(webApp) {
+    const telegramUser = webApp?.initDataUnsafe?.user;
+    if (!telegramUser) return;
+    const telegramName = [telegramUser.first_name, telegramUser.last_name].filter(Boolean).join(' ').trim();
+    if (!telegramName) return;
+    userProfile.name = telegramName.slice(0, 80);
+    saveProfile();
+    renderProfile();
+  }
+
+  function profileInitials(name) {
+    const parts = String(name).trim().split(/\s+/).filter(Boolean);
+    return (parts.slice(0, 2).map((part) => part[0]).join('') || 'В').toLocaleUpperCase('ru-RU');
+  }
+
+  function joinedLabel(isoDate) {
+    const date = new Date(isoDate);
+    const months = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+    return `Вместе с Вордиком с ${months[date.getMonth()]} ${date.getFullYear()}`;
+  }
+
+  function durationLabel(milliseconds) {
+    if (!milliseconds) return '0 мин';
+    const seconds = Math.max(1, Math.round(milliseconds / 1000));
+    if (seconds < 60) return `${seconds} сек`;
+    const minutes = Math.round(seconds / 60);
+    if (minutes < 60) return `${minutes} мин`;
+    const hours = Math.floor(minutes / 60);
+    const remainder = minutes % 60;
+    return remainder ? `${hours} ч ${remainder} мин` : `${hours} ч`;
+  }
+
+  function sessionNoun(count) {
+    const ending = count % 100;
+    if (ending >= 11 && ending <= 14) return 'тренировок';
+    if (count % 10 === 1) return 'тренировка';
+    if (count % 10 >= 2 && count % 10 <= 4) return 'тренировки';
+    return 'тренировок';
+  }
+
+  function renderProfile() {
+    if (!$('profile-view')) return;
+    const sessions = profileStats.sessionsCompleted;
+    const averageMs = sessions ? profileStats.totalSessionMs / sessions : 0;
+    const streak = streakLength();
+    const target = Math.max(50, Math.ceil(Math.max(words.length, 1) / 50) * 50);
+    const progress = Math.min(100, Math.round((words.length / target) * 100));
+    $('profile-name').textContent = userProfile.name;
+    $('profile-initials').textContent = profileInitials(userProfile.name);
+    $('profile-joined').textContent = joinedLabel(userProfile.joinedAt);
+    $('profile-average-time').textContent = durationLabel(averageMs);
+    $('profile-total-time').textContent = durationLabel(profileStats.totalSessionMs);
+    $('profile-session-count').textContent = `${sessions} ${sessionNoun(sessions)}`;
+    $('profile-word-count').textContent = words.length;
+    $('profile-word-goal').textContent = `из ${target} слов`;
+    $('profile-progress-percent').textContent = `${progress}%`;
+    $('profile-progress-bar').style.width = `${progress}%`;
+    const remaining = Math.max(0, target - words.length);
+    $('profile-progress-message').textContent = remaining
+      ? `До следующей цели осталось ${remaining} ${wordNoun(remaining)}.`
+      : 'Цель достигнута — пора выбрать следующую!';
+    $('profile-streak-message').textContent = streak
+      ? 'Продолжайте заниматься каждый день, чтобы сохранить серию.'
+      : 'Начните занятие сегодня — первый день серии уже близко.';
+  }
+
+  function recordCompletedSession() {
+    if (session.statsRecorded || !session.startedAt) return;
+    profileStats.sessionsCompleted += 1;
+    profileStats.totalSessionMs += Math.max(1000, Date.now() - session.startedAt);
+    session.statsRecorded = true;
+    saveProfileStats();
+    renderProfile();
   }
 
   function loadQuickPickKnown() {
@@ -108,11 +227,17 @@
   }
 
   function renderStreak() {
+    if (!$('streak-widget')) return;
     const count = streakLength();
     const label = streakDayLabel(count);
     $('streak-count').textContent = count;
     $('streak-label').textContent = label;
     $('streak-widget').setAttribute('aria-label', String(count) + ' ' + label);
+    if ($('profile-streak-message')) {
+      $('profile-streak-message').textContent = count
+        ? 'Продолжайте заниматься каждый день, чтобы сохранить серию.'
+        : 'Начните занятие сегодня — первый день серии уже близко.';
+    }
   }
 
   function recordStudyDay() {
@@ -142,7 +267,7 @@
           english: normalizeDictionaryText(word.english, 'en-US').slice(0, 80),
           russian: normalizeDictionaryText(word.russian, 'ru-RU').slice(0, 120),
         }))
-        .filter((word) => word.english && word.russian);
+        .filter((word) => word.english && word.russian && !/\s/.test(word.english));
       if (JSON.stringify(normalized) !== JSON.stringify(parsed)) {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
       }
@@ -292,23 +417,103 @@
     return wordCollections.find((collection) => collection.id === activeCollectionId) ?? null;
   }
 
+  const collectionCardThemes = [
+    ['#d9ed74', '#0c6df8', '#ffffff'],
+    ['#ffdc61', '#ff6d2d', '#17323e'],
+    ['#8fd8ff', '#0c6df8', '#d9ed74'],
+    ['#ffb7d4', '#f04f88', '#fff5d9'],
+    ['#8be0bd', '#008c54', '#fffdf8'],
+    ['#bfb5ff', '#7454e8', '#ffdc61'],
+    ['#ffd08b', '#ff7a1a', '#17323e'],
+    ['#abdcec', '#17323e', '#ffffff'],
+    ['#ffaaa6', '#df454d', '#fffdf8'],
+    ['#c7e890', '#4b8a55', '#fffdf8'],
+  ];
+
   function renderReadyCollections() {
     const fragment = document.createDocumentFragment();
-    wordCollections.forEach((collection) => {
+    wordCollections.forEach((collection, index) => {
       const button = document.createElement('button');
       button.className = 'ready-collection-card';
       button.type = 'button';
       button.dataset.collectionId = collection.id;
       button.setAttribute('aria-label', `Открыть подборку «${collection.title}»`);
+      const [cover, accent, detail] = collectionCardThemes[index % collectionCardThemes.length];
+      button.style.setProperty('--collection-cover', cover);
+      button.style.setProperty('--collection-accent', accent);
+      button.style.setProperty('--collection-detail', detail);
+
+      const visual = document.createElement('span');
+      visual.className = 'ready-collection-visual';
+      visual.setAttribute('aria-hidden', 'true');
+      const visualCircle = document.createElement('span');
+      visualCircle.className = 'ready-collection-visual-circle';
+      const visualPill = document.createElement('span');
+      visualPill.className = 'ready-collection-visual-pill';
+      const visualDot = document.createElement('span');
+      visualDot.className = 'ready-collection-visual-dot';
+      const visualNumber = document.createElement('span');
+      visualNumber.className = 'ready-collection-visual-number';
+      visualNumber.textContent = String(index + 1).padStart(2, '0');
+      visual.append(visualCircle, visualPill, visualDot, visualNumber);
+
+      const copy = document.createElement('span');
+      copy.className = 'ready-collection-copy';
       const title = document.createElement('strong');
       title.textContent = collection.title;
       const description = document.createElement('span');
+      description.className = 'ready-collection-description';
       description.textContent = collection.description;
-      button.append(title, description);
+      const meta = document.createElement('span');
+      meta.className = 'ready-collection-meta';
+      const wordCount = document.createElement('span');
+      wordCount.textContent = `${collection.words.length} слов`;
+      const openMark = document.createElement('span');
+      openMark.className = 'ready-collection-open-mark';
+      openMark.setAttribute('aria-hidden', 'true');
+      openMark.textContent = '↗';
+      meta.append(wordCount, openMark);
+      copy.append(title, description, meta);
+      button.append(visual, copy);
       button.addEventListener('click', () => setCollectionOpen(true, collection.id));
       fragment.append(button);
     });
     $('ready-collection-list').replaceChildren(fragment);
+    requestAnimationFrame(updateCollectionCarouselControls);
+  }
+
+  function collectionCarouselStep() {
+    const list = $('ready-collection-list');
+    const card = list.querySelector('.ready-collection-card');
+    if (!card) return list.clientWidth;
+    const styles = getComputedStyle(list);
+    const gap = Number.parseFloat(styles.columnGap || styles.gap) || 0;
+    return card.getBoundingClientRect().width + gap;
+  }
+
+  function updateCollectionCarouselControls() {
+    const list = $('ready-collection-list');
+    const previous = $('collection-carousel-prev');
+    const next = $('collection-carousel-next');
+    const maxScroll = Math.max(0, list.scrollWidth - list.clientWidth);
+    previous.disabled = list.scrollLeft <= 2;
+    next.disabled = list.scrollLeft >= maxScroll - 2;
+  }
+
+  function scrollCollectionCarousel(direction) {
+    $('ready-collection-list').scrollBy({ left: collectionCarouselStep() * direction, behavior: 'smooth' });
+  }
+
+  function setupCollectionCarousel() {
+    const list = $('ready-collection-list');
+    let updateFrame;
+    list.addEventListener('scroll', () => {
+      cancelAnimationFrame(updateFrame);
+      updateFrame = requestAnimationFrame(updateCollectionCarouselControls);
+    }, { passive: true });
+    window.addEventListener('resize', updateCollectionCarouselControls);
+    $('collection-carousel-prev').addEventListener('click', () => scrollCollectionCarousel(-1));
+    $('collection-carousel-next').addEventListener('click', () => scrollCollectionCarousel(1));
   }
 
   function updateCollectionAction() {
@@ -367,7 +572,7 @@
       overlay.hidden = true;
       document.body.classList.remove('is-collection-open');
     }, duration);
-    if (restoreFocus && activeTab === 'dictionary') {
+    if (restoreFocus && activeTab === 'home') {
       const trigger = [...document.querySelectorAll('[data-collection-id]')].find((button) => button.dataset.collectionId === activeCollectionId);
       trigger?.focus();
     }
@@ -472,13 +677,17 @@
       listen.setAttribute('aria-label', `Произнести ${word.english}`);
       listen.title = `Произнести ${word.english}`;
       const speaker = document.createElement('img');
-      speaker.src = './icons/speaker.svg';
+      speaker.src = './icons/speaker-user.svg';
       speaker.alt = '';
       speaker.setAttribute('aria-hidden', 'true');
       listen.append(speaker);
       listen.addEventListener('click', () => speakWord(word.english));
-      const copy = document.createElement('div');
+      const copy = document.createElement('button');
       copy.className = 'dictionary-word-copy';
+      copy.type = 'button';
+      copy.dataset.wordCardId = word.id;
+      copy.setAttribute('aria-label', `Открыть карточку слова ${word.english}`);
+      copy.addEventListener('click', () => setWordCardOpen(true, word.id));
       const english = document.createElement('strong');
       english.className = 'dictionary-word-english';
       english.lang = 'en';
@@ -487,18 +696,7 @@
       russian.className = 'dictionary-word-russian';
       russian.textContent = word.russian;
       copy.append(english, russian);
-      const remove = document.createElement('button');
-      remove.className = 'dictionary-delete-button';
-      remove.type = 'button';
-      const deleteIcon = document.createElement('img');
-      deleteIcon.src = './icons/delete.svg';
-      deleteIcon.alt = '';
-      deleteIcon.setAttribute('aria-hidden', 'true');
-      remove.append(deleteIcon);
-      remove.dataset.deleteWordId = word.id;
-      remove.setAttribute('aria-label', `Удалить ${word.english}`);
-      remove.addEventListener('click', () => setDeleteConfirm(true, word.id));
-      row.append(listen, copy, remove);
+      row.append(listen, copy);
       fragment.append(row);
     });
     $('word-list').replaceChildren(fragment);
@@ -507,6 +705,9 @@
     const hasQuizOptions = new Set(words.map((word) => word.russian.toLocaleLowerCase())).size >= 2;
     $('quiz-start').disabled = !hasQuizOptions;
     $('quiz-start').setAttribute('aria-label', hasQuizOptions ? 'Выбрать перевод: начать тренировку' : 'Для выбора перевода нужны хотя бы два разных перевода в словаре');
+    const hasTimedOptions = new Set(words.map((word) => word.english.toLocaleLowerCase())).size >= 2;
+    $('timed-start').disabled = !hasTimedOptions;
+    $('timed-start').setAttribute('aria-label', hasTimedOptions ? 'Перевод на время: начать тренировку с запасом 15 секунд' : 'Для перевода на время нужны хотя бы два разных слова в словаре');
     $('study-empty-hint').hidden = words.length !== 0;
   }
 
@@ -522,6 +723,7 @@
     const english = normalizeDictionaryText(englishValue, 'en-US');
     const russian = normalizeDictionaryText(russianValue, 'ru-RU');
     if (!english || !russian || english.length > 80 || russian.length > 120) throw new Error('Заполните оба поля: слово и перевод.');
+    if (/\s/.test(english)) throw new Error('Можно добавить только одно английское слово без пробелов.');
     if (words.some((word) => word.english.toLocaleLowerCase() === english.toLocaleLowerCase() && word.russian.toLocaleLowerCase() === russian.toLocaleLowerCase())) {
       throw new Error('Это слово с таким переводом уже есть в словаре.');
     }
@@ -533,6 +735,146 @@
     }
     renderDictionary();
     return word;
+  }
+
+  function setWordCardOpen(open, wordId = activeWordCardId, restoreFocus = true, preserveDrag = false) {
+    const overlay = $('word-card-overlay');
+    const dialog = overlay.querySelector('.word-card-dialog');
+    clearTimeout(wordCardCloseTimer);
+    if (wordCardOpenFrame) cancelAnimationFrame(wordCardOpenFrame);
+    overlay.classList.remove('is-dragging');
+    dialog.classList.remove('is-dragging');
+    if (!preserveDrag) {
+      dialog.style.removeProperty('--word-card-drag-y');
+      overlay.style.removeProperty('--word-card-backdrop-opacity');
+    }
+    if (open) {
+      const word = words.find((item) => item.id === wordId);
+      if (!word) return;
+      activeWordCardId = word.id;
+      $('word-card-english').textContent = word.english;
+      $('word-card-russian').textContent = word.russian;
+      $('word-card-listen').setAttribute('aria-label', `Произнести ${word.english}`);
+      $('word-card-delete').setAttribute('aria-label', `Удалить ${word.english}`);
+      overlay.hidden = false;
+      document.body.classList.add('is-word-card-open');
+      wordCardOpenFrame = requestAnimationFrame(() => {
+        wordCardOpenFrame = requestAnimationFrame(() => overlay.classList.add('is-visible'));
+      });
+      overlay.querySelector('[data-word-card-close]:not([tabindex="-1"])').focus();
+      return;
+    }
+    const previousId = activeWordCardId;
+    overlay.classList.remove('is-visible');
+    const duration = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 300;
+    wordCardCloseTimer = setTimeout(() => {
+      overlay.hidden = true;
+      document.body.classList.remove('is-word-card-open');
+      dialog.style.removeProperty('--word-card-drag-y');
+      overlay.style.removeProperty('--word-card-backdrop-opacity');
+      if (activeWordCardId === previousId) activeWordCardId = null;
+    }, duration);
+    if (restoreFocus && activeTab === 'dictionary') {
+      const trigger = [...document.querySelectorAll('[data-word-card-id]')].find((button) => button.dataset.wordCardId === previousId);
+      trigger?.focus();
+    }
+  }
+
+  function listenToActiveWordCard() {
+    const word = words.find((item) => item.id === activeWordCardId);
+    if (word) speakWord(word.english);
+  }
+
+  function enableWordCardSwipe() {
+    const overlay = $('word-card-overlay');
+    const dialog = overlay.querySelector('.word-card-dialog');
+    let pointerId = null;
+    let startX = 0;
+    let startY = 0;
+    let startTime = 0;
+    let distance = 0;
+    let dragging = false;
+    let dragFrame = null;
+
+    function paintDrag() {
+      dragFrame = null;
+      dialog.style.setProperty('--word-card-drag-y', `${distance}px`);
+      const progress = Math.min(distance / Math.max(window.innerHeight * .65, 1), 1);
+      overlay.style.setProperty('--word-card-backdrop-opacity', String(1 - (progress * .72)));
+    }
+
+    function releasePointer() {
+      if (pointerId === null || !dialog.hasPointerCapture?.(pointerId)) return;
+      try { dialog.releasePointerCapture(pointerId); } catch { /* The pointer may already be released. */ }
+    }
+
+    function resetDrag() {
+      if (dragFrame) cancelAnimationFrame(dragFrame);
+      dragFrame = null;
+      releasePointer();
+      overlay.classList.remove('is-dragging');
+      dialog.classList.remove('is-dragging');
+      dialog.style.removeProperty('--word-card-drag-y');
+      overlay.style.removeProperty('--word-card-backdrop-opacity');
+      pointerId = null;
+      dragging = false;
+      distance = 0;
+    }
+
+    dialog.addEventListener('pointerdown', (event) => {
+      const interactive = event.target instanceof Element && event.target.closest('button');
+      if (!overlay.classList.contains('is-visible') || event.button !== 0 || interactive) return;
+      pointerId = event.pointerId;
+      startX = event.clientX;
+      startY = event.clientY;
+      startTime = performance.now();
+      distance = 0;
+      dragging = false;
+      dialog.setPointerCapture?.(pointerId);
+    });
+
+    dialog.addEventListener('pointermove', (event) => {
+      if (event.pointerId !== pointerId || !overlay.classList.contains('is-visible')) return;
+      const vertical = event.clientY - startY;
+      const horizontal = event.clientX - startX;
+      if (!dragging) {
+        if (Math.max(Math.abs(vertical), Math.abs(horizontal)) < 4) return;
+        if (vertical <= 0 || vertical <= Math.abs(horizontal)) {
+          resetDrag();
+          return;
+        }
+        dragging = true;
+        overlay.classList.add('is-dragging');
+        dialog.classList.add('is-dragging');
+      }
+      event.preventDefault();
+      distance = Math.min(Math.max(vertical, 0), window.innerHeight);
+      if (!dragFrame) dragFrame = requestAnimationFrame(paintDrag);
+    });
+
+    dialog.addEventListener('pointerup', (event) => {
+      if (event.pointerId !== pointerId) return;
+      if (dragFrame) {
+        cancelAnimationFrame(dragFrame);
+        paintDrag();
+      }
+      const speed = distance / Math.max(performance.now() - startTime, 1);
+      const closeDistance = Math.min(100, dialog.offsetHeight * .24);
+      if (dragging && (distance > closeDistance || (distance > 30 && speed > 0.55))) {
+        releasePointer();
+        overlay.classList.remove('is-dragging');
+        dialog.classList.remove('is-dragging');
+        dialog.style.setProperty('--word-card-drag-y', `${Math.max(window.innerHeight, dialog.offsetHeight)}px`);
+        overlay.style.setProperty('--word-card-backdrop-opacity', '0');
+        pointerId = null;
+        dragging = false;
+        setWordCardOpen(false, activeWordCardId, true, true);
+        return;
+      }
+      resetDrag();
+    });
+
+    dialog.addEventListener('pointercancel', resetDrag);
   }
 
   function setDeleteConfirm(open, wordId = pendingDeleteId, restoreFocus = true) {
@@ -562,14 +904,18 @@
       if (pendingDeleteId === previousId) pendingDeleteId = null;
     }, duration);
     if (restoreFocus && activeTab === 'dictionary') {
-      const trigger = [...document.querySelectorAll('[data-delete-word-id]')].find((button) => button.dataset.deleteWordId === previousId);
-      trigger?.focus();
+      if (activeWordCardId === previousId && $('word-card-overlay').classList.contains('is-visible')) $('word-card-delete').focus();
+      else {
+        const trigger = [...document.querySelectorAll('[data-word-card-id]')].find((button) => button.dataset.wordCardId === previousId);
+        trigger?.focus();
+      }
     }
   }
 
   function confirmDelete() {
     const wordId = pendingDeleteId;
     if (!wordId) return;
+    if (activeWordCardId === wordId) setWordCardOpen(false, wordId, false);
     setDeleteConfirm(false, wordId, false);
     removeWord(wordId);
   }
@@ -600,10 +946,13 @@
   function switchTab(tab) {
     if (tab !== 'dictionary' && !$('sort-overlay').hidden) setSortOpen(false, false);
     if (tab !== 'dictionary' && !$('add-overlay').hidden) setAddPanel(false, false);
-    if (tab !== 'dictionary' && !$('collection-overlay').hidden) setCollectionOpen(false, activeCollectionId, false);
+    if (tab !== 'home' && !$('collection-overlay').hidden) setCollectionOpen(false, activeCollectionId, false);
+    if (tab !== 'home' && !$('quick-pick-count-overlay').hidden) setQuickPickCountOpen(false, false);
     if (tab !== 'dictionary' && !$('delete-overlay').hidden) setDeleteConfirm(false, pendingDeleteId, false);
-    if (tab !== 'cards' && !$('quick-pick-screen').hidden) closeQuickPick();
+    if (tab !== 'dictionary' && !$('word-card-overlay').hidden) setWordCardOpen(false, activeWordCardId, false);
+    if (tab !== 'home' && !$('quick-pick-screen').hidden) closeQuickPick();
     activeTab = tab;
+    document.body.classList.toggle('is-profile', tab === 'profile');
     document.querySelector('.bottom-nav').dataset.active = tab;
     document.querySelectorAll('[data-tab]').forEach((button) => {
       const selected = button.dataset.tab === tab;
@@ -614,24 +963,34 @@
     $('home-view').hidden = tab !== 'home';
     $('dictionary-view').hidden = tab !== 'dictionary';
     $('cards-view').hidden = tab !== 'cards';
+    $('profile-view').hidden = tab !== 'profile';
+    $('profile-button').setAttribute('aria-pressed', String(tab === 'profile'));
+    if (tab === 'profile') renderProfile();
     window.scrollTo(0, 0);
   }
 
   function setPhase(phase) {
+    if (phase !== 'play' || session.mechanic !== 'timed') stopTimedRound();
     session.phase = phase;
+    if (phase === 'finish') recordCompletedSession();
     document.body.classList.toggle('is-studying', phase === 'play');
     document.body.classList.toggle('is-quiz-studying', phase === 'play' && session.mechanic === 'quiz');
     document.body.classList.toggle('is-card-studying', phase === 'play' && session.mechanic === 'cards');
+    document.body.classList.toggle('is-timed-studying', phase === 'play' && session.mechanic === 'timed');
     $('study-feed').hidden = phase !== 'feed';
     $('study-play').hidden = phase !== 'play';
     $('study-finish').hidden = phase !== 'finish';
     $('flashcard-activity').hidden = phase !== 'play' || session.mechanic !== 'cards';
     $('quiz-activity').hidden = phase !== 'play' || session.mechanic !== 'quiz';
     $('typing-activity').hidden = phase !== 'play' || session.mechanic !== 'typing';
+    $('timed-activity').hidden = phase !== 'play' || session.mechanic !== 'timed';
     if (phase === 'finish') {
+      $('finish-title').textContent = session.mechanic === 'timed' ? 'Время вышло!' : 'Готово!';
       $('finish-copy').textContent = session.mechanic === 'cards'
         ? `Вы повторили ${session.ids.length} ${wordNoun(session.ids.length)}.`
-        : `Верных ответов: ${session.correctCount} из ${session.ids.length}.`;
+        : (session.mechanic === 'timed'
+            ? `Верных ответов: ${session.correctCount}. Всего ответов: ${session.attemptCount}.`
+            : `Верных ответов: ${session.correctCount} из ${session.ids.length}.`);
     }
     window.scrollTo(0, 0);
   }
@@ -657,23 +1016,78 @@
     if (!quickPickResetArmed) $('quick-pick-reset').textContent = 'Сбросить результаты';
   }
 
-  function createQuickPickSession() {
+  function availableQuickPickWords() {
     const dictionaryWords = new Set(words.map((word) => normalizeDictionaryText(word.english, 'en-US')));
-    const available = quickPickWords.filter((word) => {
+    return quickPickWords.filter((word) => {
       const english = normalizeDictionaryText(word.english, 'en-US');
       return !dictionaryWords.has(english) && !quickPickKnown.has(word.id);
     });
-    const deck = shuffled(available).slice(0, 20).map((word) => word.id);
+  }
+
+  function setQuickPickCountOpen(open, restoreFocus = true) {
+    const overlay = $('quick-pick-count-overlay');
+    clearTimeout(quickPickCountCloseTimer);
+    if (quickPickCountOpenFrame) cancelAnimationFrame(quickPickCountOpenFrame);
+    if (open) {
+      const hasProgress = Boolean(quickPickSession);
+      const remaining = hasProgress ? Math.max(quickPickSession.deck.length - quickPickSession.index, 0) : 0;
+      $('quick-pick-continue').hidden = !hasProgress;
+      $('quick-pick-count-divider').hidden = !hasProgress;
+      $('quick-pick-count-description').textContent = hasProgress
+        ? 'Продолжите текущий подбор или начните новый.'
+        : 'Выберите размер подборки. Слова будут показаны по одному.';
+      if (hasProgress) $('quick-pick-continue-caption').textContent = `Осталось: ${remaining} из ${quickPickSession.deck.length}`;
+      overlay.hidden = false;
+      document.body.classList.add('is-quick-pick-count-open');
+      quickPickCountOpenFrame = requestAnimationFrame(() => {
+        quickPickCountOpenFrame = requestAnimationFrame(() => overlay.classList.add('is-visible'));
+      });
+      (hasProgress ? $('quick-pick-continue') : overlay.querySelector('[data-quick-pick-count]')).focus();
+      return;
+    }
+    overlay.classList.remove('is-visible');
+    const duration = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 260;
+    quickPickCountCloseTimer = setTimeout(() => {
+      overlay.hidden = true;
+      document.body.classList.remove('is-quick-pick-count-open');
+    }, duration);
+    if (restoreFocus && activeTab === 'home') $('quick-pick-start').focus();
+  }
+
+  function createQuickPickSession(wordCount) {
+    const count = Math.min(Math.max(Number(wordCount) || 20, 1), 30);
+    const deck = shuffled(availableQuickPickWords()).slice(0, count).map((word) => word.id);
     quickPickSession = { deck, index: 0, unknown: [], history: [], selected: null };
     saveQuickPickSession();
   }
 
+  function requestQuickPick() {
+    if (!quickPickSession && availableQuickPickWords().length === 0) {
+      showToast('Для новой подборки пока нет доступных слов');
+      return;
+    }
+    setQuickPickCountOpen(true);
+  }
+
+  function startQuickPick(wordCount) {
+    createQuickPickSession(wordCount);
+    setQuickPickCountOpen(false, false);
+    openQuickPick();
+  }
+
+  function continueQuickPick() {
+    if (!quickPickSession) return;
+    setQuickPickCountOpen(false, false);
+    openQuickPick();
+  }
+
   function openQuickPick() {
-    if (!quickPickSession) createQuickPickSession();
+    if (!quickPickSession) {
+      setQuickPickCountOpen(true);
+      return;
+    }
     recordStudyDay();
     document.body.classList.add('is-picking');
-    $('study-feed').hidden = true;
-    document.querySelector('.study-stage').hidden = true;
     $('quick-pick-screen').hidden = false;
     if (quickPickSession.index >= quickPickSession.deck.length) renderQuickPickReview();
     else renderQuickPickCard();
@@ -684,8 +1098,6 @@
     saveQuickPickSession();
     document.body.classList.remove('is-picking');
     $('quick-pick-screen').hidden = true;
-    $('study-feed').hidden = false;
-    document.querySelector('.study-stage').hidden = false;
     updateQuickPickLaunch();
     window.scrollTo(0, 0);
   }
@@ -887,7 +1299,7 @@
     quickPickSession = null;
     saveQuickPickSession();
     showToast('Результаты подбора сброшены');
-    openQuickPick();
+    setQuickPickCountOpen(true);
   }
 
   function setupQuickPickGestures() {
@@ -946,15 +1358,21 @@
   function startStudy(mechanic = session.mechanic) {
     if (!words.length) return;
     if (mechanic === 'quiz' && new Set(words.map((word) => word.russian.toLocaleLowerCase())).size < 2) return;
+    if (mechanic === 'timed' && new Set(words.map((word) => word.english.toLocaleLowerCase())).size < 2) return;
+    stopTimedRound();
     session.mechanic = mechanic;
-    session.ids = words.map((word) => word.id);
+    session.ids = mechanic === 'timed' ? shuffled(words.map((word) => word.id)) : words.map((word) => word.id);
     session.index = 0;
     session.flipped = false;
     session.answered = false;
     session.correctCount = 0;
+    session.attemptCount = 0;
+    session.startedAt = Date.now();
+    session.statsRecorded = false;
     recordStudyDay();
     setPhase('play');
     renderExercise();
+    if (mechanic === 'timed') startTimedRound();
   }
 
   function syncSession() {
@@ -966,7 +1384,9 @@
   }
 
   function renderProgress() {
-    $('progress-text').textContent = `${session.index + 1}/${session.ids.length}`;
+    $('progress-text').textContent = session.mechanic === 'timed'
+      ? `${session.correctCount} верных`
+      : `${session.index + 1}/${session.ids.length}`;
   }
 
   function renderExercise() {
@@ -976,6 +1396,7 @@
     if (session.mechanic === 'cards') renderCard(word);
     if (session.mechanic === 'quiz') renderQuiz(word);
     if (session.mechanic === 'typing') renderTyping(word);
+    if (session.mechanic === 'timed') renderTimed(word);
   }
 
   function renderCard(word) {
@@ -1066,6 +1487,106 @@
     $('typing-next-button').hidden = false;
   }
 
+  function stopTimedRound() {
+    clearInterval(timedInterval);
+    clearTimeout(timedAdvanceTimer);
+    timedInterval = null;
+    timedAdvanceTimer = null;
+    timedLocked = false;
+  }
+
+  function updateTimedClock() {
+    if (session.phase !== 'play' || session.mechanic !== 'timed') return;
+    const remaining = Math.max(0, timedDeadline - Date.now());
+    const seconds = Math.ceil(remaining / 1000);
+    $('timed-seconds').textContent = String(seconds);
+    $('timed-clock').setAttribute('aria-label', `Осталось ${seconds} секунд`);
+    $('timed-clock').classList.toggle('is-critical', remaining <= 5000);
+    if (remaining <= 0) setPhase('finish');
+  }
+
+  function startTimedRound() {
+    stopTimedRound();
+    timedDeadline = Date.now() + 15000;
+    updateTimedClock();
+    timedInterval = setInterval(updateTimedClock, 100);
+  }
+
+  function renderTimed(word) {
+    timedLocked = false;
+    $('timed-prompt').textContent = word.russian;
+    $('timed-score').textContent = String(session.correctCount);
+    $('timed-feedback').textContent = '';
+    $('timed-feedback').removeAttribute('data-result');
+    $('timed-clock').classList.remove('is-rewarded', 'is-penalized');
+    const englishWords = [...new Map(words.map((entry) => [entry.english.toLocaleLowerCase(), entry.english])).values()];
+    const distractors = shuffled(englishWords.filter((answer) => answer.toLocaleLowerCase() !== word.english.toLocaleLowerCase())).slice(0, 2);
+    const options = shuffled([...distractors, word.english]);
+    const fragment = document.createDocumentFragment();
+    options.forEach((answer) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'answer-option timed-answer-option';
+      button.dataset.answer = answer;
+      button.setAttribute('aria-pressed', 'false');
+      const label = document.createElement('span');
+      label.textContent = answer;
+      const radio = document.createElement('span');
+      radio.className = 'answer-option-radio';
+      radio.setAttribute('aria-hidden', 'true');
+      const check = document.createElement('img');
+      check.src = './icons/check.svg';
+      check.alt = '';
+      radio.append(check);
+      button.append(label, radio);
+      button.addEventListener('click', () => answerTimed(answer, word.english));
+      fragment.append(button);
+    });
+    $('timed-options').replaceChildren(fragment);
+    requestAnimationFrame(() => {
+      if (session.phase === 'play' && session.mechanic === 'timed' && !timedLocked) $('timed-options').querySelector('button')?.focus();
+    });
+  }
+
+  function advanceTimedWord() {
+    if (session.phase !== 'play' || session.mechanic !== 'timed' || !session.ids.length) return;
+    const previousId = session.ids[session.index];
+    if (session.index < session.ids.length - 1) session.index += 1;
+    else {
+      session.ids = shuffled(session.ids);
+      if (session.ids.length > 1 && session.ids[0] === previousId) session.ids.push(session.ids.shift());
+      session.index = 0;
+    }
+    session.answered = false;
+    renderExercise();
+  }
+
+  function answerTimed(answer, correctAnswer) {
+    if (timedLocked || session.phase !== 'play' || session.mechanic !== 'timed') return;
+    const correct = answer.toLocaleLowerCase() === correctAnswer.toLocaleLowerCase();
+    timedLocked = true;
+    session.answered = true;
+    session.attemptCount += 1;
+    if (correct) session.correctCount += 1;
+    timedDeadline += correct ? 3000 : -3000;
+    $('timed-score').textContent = String(session.correctCount);
+    renderProgress();
+    $('timed-options').querySelectorAll('button').forEach((button) => {
+      button.disabled = true;
+      const selected = button.dataset.answer === answer;
+      button.setAttribute('aria-pressed', String(selected));
+      if (selected) button.classList.add('is-selected');
+      if (button.dataset.answer.toLocaleLowerCase() === correctAnswer.toLocaleLowerCase()) button.classList.add('is-correct');
+    });
+    $('timed-feedback').textContent = correct ? '+3 секунды' : `−3 секунды · Правильно: ${correctAnswer}`;
+    $('timed-feedback').dataset.result = correct ? 'correct' : 'incorrect';
+    $('timed-clock').classList.remove('is-rewarded', 'is-penalized');
+    $('timed-clock').classList.add(correct ? 'is-rewarded' : 'is-penalized');
+    updateTimedClock();
+    if (session.phase !== 'play') return;
+    timedAdvanceTimer = setTimeout(advanceTimedWord, correct ? 350 : 650);
+  }
+
   function nextCard() {
     if (session.phase !== 'play') return;
     if (session.mechanic !== 'cards' && !session.answered) return;
@@ -1076,8 +1597,13 @@
     renderExercise();
   }
 
-  $('notifications-button').addEventListener('click', () => showToast('Уведомлений пока нет'));
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) renderStreak(); });
+  $('profile-button').addEventListener('click', () => switchTab(activeTab === 'profile' ? 'home' : 'profile'));
+  document.querySelectorAll('[data-profile-close]').forEach((button) => button.addEventListener('click', () => switchTab('home')));
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) return;
+    renderStreak();
+    updateTimedClock();
+  });
 
   $('add-form').addEventListener('submit', (event) => {
     event.preventDefault();
@@ -1093,9 +1619,13 @@
   $('empty-add-button').addEventListener('click', () => setAddPanel(true));
   enableSortSwipe();
   enableCollectionSwipe();
+  enableWordCardSwipe();
   $('collection-add-button').addEventListener('click', addActiveCollection);
   document.querySelectorAll('[data-collection-close]').forEach((button) => button.addEventListener('click', () => setCollectionOpen(false)));
   document.querySelectorAll('[data-delete-cancel]').forEach((button) => button.addEventListener('click', () => setDeleteConfirm(false)));
+  document.querySelectorAll('[data-word-card-close]').forEach((button) => button.addEventListener('click', () => setWordCardOpen(false)));
+  $('word-card-listen').addEventListener('click', listenToActiveWordCard);
+  $('word-card-delete').addEventListener('click', () => setDeleteConfirm(true, activeWordCardId));
   $('confirm-delete-button').addEventListener('click', confirmDelete);
   $('sort-button').addEventListener('click', () => setSortOpen(true));
   document.querySelectorAll('[data-sort-close]').forEach((button) => button.addEventListener('click', () => setSortOpen(false)));
@@ -1108,16 +1638,20 @@
   document.addEventListener('keydown', (event) => {
     const addOpen = !$('add-overlay').hidden;
     const collectionOpen = $('collection-overlay').classList.contains('is-visible');
+    const quickPickCountOpen = $('quick-pick-count-overlay').classList.contains('is-visible');
+    const wordCardOpen = $('word-card-overlay').classList.contains('is-visible');
     const deleteOpen = $('delete-overlay').classList.contains('is-visible');
     const overlay = deleteOpen
       ? $('delete-overlay')
-      : (addOpen ? $('add-overlay') : (collectionOpen ? $('collection-overlay') : ($('sort-overlay').classList.contains('is-visible') ? $('sort-overlay') : null)));
+      : (wordCardOpen ? $('word-card-overlay') : (addOpen ? $('add-overlay') : (collectionOpen ? $('collection-overlay') : (quickPickCountOpen ? $('quick-pick-count-overlay') : ($('sort-overlay').classList.contains('is-visible') ? $('sort-overlay') : null)))));
     if (!overlay) return;
     if (event.key === 'Escape') {
       event.preventDefault();
       if (deleteOpen) setDeleteConfirm(false);
+      else if (wordCardOpen) setWordCardOpen(false);
       else if (addOpen) setAddPanel(false);
       else if (collectionOpen) setCollectionOpen(false);
+      else if (quickPickCountOpen) setQuickPickCountOpen(false);
       else setSortOpen(false);
       return;
     }
@@ -1132,7 +1666,10 @@
   document.querySelectorAll('[data-go]').forEach((button) => button.addEventListener('click', () => switchTab(button.dataset.go)));
   document.querySelectorAll('[data-study]').forEach((button) => button.addEventListener('click', () => startStudy(button.dataset.study)));
   setupQuickPickGestures();
-  $('quick-pick-start').addEventListener('click', openQuickPick);
+  $('quick-pick-start').addEventListener('click', requestQuickPick);
+  $('quick-pick-continue').addEventListener('click', continueQuickPick);
+  document.querySelectorAll('[data-quick-pick-count]').forEach((button) => button.addEventListener('click', () => startQuickPick(button.dataset.quickPickCount)));
+  document.querySelectorAll('[data-quick-pick-count-close]').forEach((button) => button.addEventListener('click', () => setQuickPickCountOpen(false)));
   $('quick-pick-close').addEventListener('click', closeQuickPick);
   $('quick-pick-review-close').addEventListener('click', closeQuickPick);
   $('quick-pick-known').addEventListener('click', () => animateQuickPickChoice('known'));
@@ -1172,11 +1709,14 @@
   window.addEventListener('load', () => {
     const webApp = window.Telegram?.WebApp;
     if (!webApp) return;
-    if (webApp.initData) document.documentElement.classList.add('telegram-app');
+    if (webApp.initData) {
+      document.documentElement.classList.add('telegram-app');
+      syncTelegramProfile(webApp);
+    }
     webApp.ready();
     webApp.expand();
-    if (!webApp.isFullscreen) webApp.requestFullscreen?.();
-    webApp.disableVerticalSwipes?.();
+    if (webApp.isVersionAtLeast?.('8.0') && !webApp.isFullscreen) webApp.requestFullscreen?.();
+    if (webApp.isVersionAtLeast?.('7.7')) webApp.disableVerticalSwipes?.();
     webApp.setHeaderColor?.('#f3f5f2');
     webApp.setBackgroundColor?.('#f3f5f2');
   });
@@ -1204,8 +1744,10 @@
     } catch { /* Browser support is optional. */ }
   }
 
+  setupCollectionCarousel();
   renderReadyCollections();
   renderDictionary();
   renderStreak();
+  renderProfile();
   updateQuickPickLaunch();
 })();

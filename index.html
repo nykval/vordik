@@ -14,14 +14,9 @@
   <body>
     <div class="app-shell">
       <header class="utility-header" aria-label="Состояние приложения">
-        <button id="notifications-button" class="utility-button" type="button" aria-label="Уведомления" title="Уведомления">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9Z"/><path d="M10 21h4"/></svg>
+        <button id="profile-button" class="utility-button profile-button" type="button" aria-label="Профиль пользователя" title="Профиль">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5.5 20a6.5 6.5 0 0 1 13 0"/></svg>
         </button>
-        <div id="streak-widget" class="streak-widget" role="status" aria-live="polite" aria-label="0 дней подряд" title="День засчитывается после запуска тренировки">
-          <span class="streak-flame" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 22c4.4 0 7-3.1 7-7.1 0-3.5-2-5.3-3.3-6.9.2 2.6-1.2 3.6-2 3.9.3-3.5-1.8-5.5-2.2-9.9C9.7 5.8 5 9.6 5 14.9 5 18.9 7.6 22 12 22Z" fill="#f4a15a" stroke="#df7e3c" stroke-width="1.2" stroke-linejoin="round"/></svg></span>
-          <strong id="streak-count">0</strong>
-          <span id="streak-label">дней подряд</span>
-        </div>
       </header>
 
       <main class="workspace">
@@ -43,6 +38,73 @@
                 <button class="secondary-button" type="button" data-go="cards">Учить слова <span aria-hidden="true">↗</span></button>
               </div>
             </div>
+          </div>
+
+          <section class="home-quick-pick" aria-label="Быстрый подбор слов">
+            <div class="quick-pick-entry">
+              <button id="quick-pick-start" class="quick-pick-launch" type="button" aria-haspopup="dialog" aria-controls="quick-pick-count-overlay">
+                <span>БЫСТРЫЙ ПОДБОР</span>
+                <strong id="quick-pick-launch-title">Найдите новые слова</strong>
+                <small>Свайпайте карточки и добавляйте незнакомые слова в свой словарь.</small>
+              </button>
+              <button id="quick-pick-reset" class="quick-pick-reset" type="button" hidden>Сбросить результаты</button>
+            </div>
+          </section>
+
+          <div id="quick-pick-count-overlay" class="quick-pick-count-overlay" hidden>
+            <button class="quick-pick-count-backdrop" type="button" data-quick-pick-count-close tabindex="-1" aria-label="Закрыть выбор количества слов"></button>
+            <section class="quick-pick-count-dialog" role="dialog" aria-modal="true" aria-labelledby="quick-pick-count-title" aria-describedby="quick-pick-count-description">
+              <div class="quick-pick-count-heading">
+                <div>
+                  <span class="section-number">БЫСТРЫЙ ПОДБОР</span>
+                  <h2 id="quick-pick-count-title">Сколько слов найти?</h2>
+                </div>
+                <button class="quick-pick-count-close" type="button" data-quick-pick-count-close aria-label="Закрыть"><img src="./icons/close.svg" alt="" aria-hidden="true" /></button>
+              </div>
+              <p id="quick-pick-count-description">Выберите размер подборки. Слова будут показаны по одному.</p>
+              <button id="quick-pick-continue" class="quick-pick-continue" type="button" hidden>
+                <strong>Продолжить текущий подбор</strong>
+                <span id="quick-pick-continue-caption"></span>
+              </button>
+              <div id="quick-pick-count-divider" class="quick-pick-count-divider" hidden><span>или начать новый</span></div>
+              <div class="quick-pick-count-options" role="group" aria-label="Количество слов">
+                <button type="button" data-quick-pick-count="10"><strong>10</strong><span>слов</span></button>
+                <button type="button" data-quick-pick-count="20"><strong>20</strong><span>слов</span></button>
+                <button type="button" data-quick-pick-count="30"><strong>30</strong><span>слов</span></button>
+              </div>
+            </section>
+          </div>
+
+          <section class="ready-collections" aria-labelledby="ready-collections-title">
+            <div class="ready-collections-heading">
+              <div>
+                <span class="section-number">ГОТОВЫЕ ПОДБОРКИ</span>
+                <h2 id="ready-collections-title">Выберите тему</h2>
+              </div>
+              <div class="ready-collection-controls" aria-label="Навигация по темам">
+                <button id="collection-carousel-prev" type="button" aria-label="Предыдущие темы" aria-controls="ready-collection-list">
+                  <span aria-hidden="true">←</span>
+                </button>
+                <button id="collection-carousel-next" type="button" aria-label="Следующие темы" aria-controls="ready-collection-list">
+                  <span aria-hidden="true">→</span>
+                </button>
+              </div>
+            </div>
+            <div id="ready-collection-list" class="ready-collection-list" aria-label="Темы готовых подборок"></div>
+          </section>
+
+          <div id="collection-overlay" class="collection-overlay" hidden>
+            <button class="collection-backdrop" type="button" data-collection-close tabindex="-1" aria-label="Закрыть подборку"></button>
+            <section class="collection-sheet" role="dialog" aria-modal="true" aria-labelledby="collection-title">
+              <span class="collection-swipe-handle" aria-hidden="true"><span></span></span>
+              <div class="collection-sheet-heading">
+                <h2 id="collection-title"></h2>
+                <button class="collection-close" type="button" data-collection-close aria-label="Закрыть подборку"><img src="./icons/close.svg" alt="" aria-hidden="true" /></button>
+              </div>
+              <p id="collection-description" class="collection-description"></p>
+              <div id="collection-word-list" class="collection-word-list" role="list"></div>
+              <button id="collection-add-button" class="primary-button collection-add-button" type="button">Добавить в словарь</button>
+            </section>
           </div>
         </section>
 
@@ -70,13 +132,6 @@
               </div>
             </section>
 
-            <section class="ready-collections" aria-labelledby="ready-collections-title">
-              <div class="ready-collections-heading">
-                <span class="section-number">ГОТОВЫЕ ПОДБОРКИ</span>
-                <h3 id="ready-collections-title">Выберите тему</h3>
-              </div>
-              <div id="ready-collection-list" class="ready-collection-list"></div>
-            </section>
           </div>
 
           <div id="add-overlay" class="add-overlay" hidden>
@@ -118,17 +173,22 @@
             </div>
           </div>
 
-          <div id="collection-overlay" class="collection-overlay" hidden>
-            <button class="collection-backdrop" type="button" data-collection-close tabindex="-1" aria-label="Закрыть подборку"></button>
-            <section class="collection-sheet" role="dialog" aria-modal="true" aria-labelledby="collection-title">
-              <span class="collection-swipe-handle" aria-hidden="true"><span></span></span>
-              <div class="collection-sheet-heading">
-                <h2 id="collection-title"></h2>
-                <button class="collection-close" type="button" data-collection-close aria-label="Закрыть подборку"><img src="./icons/close.svg" alt="" aria-hidden="true" /></button>
+          <div id="word-card-overlay" class="word-card-overlay" hidden>
+            <button class="word-card-backdrop" type="button" data-word-card-close tabindex="-1" aria-label="Закрыть карточку слова"></button>
+            <section class="word-card-dialog" role="dialog" aria-modal="true" aria-labelledby="word-card-english" aria-describedby="word-card-russian">
+              <div class="word-card-heading">
+                <button id="word-card-delete" class="word-card-delete" type="button" aria-label="Удалить слово"><img src="./icons/word-card-delete.svg" alt="" aria-hidden="true" /></button>
+                <span>КАРТОЧКА СЛОВА</span>
+                <button class="word-card-close" type="button" data-word-card-close aria-label="Закрыть карточку слова"><img src="./icons/word-card-close.svg" alt="" aria-hidden="true" /></button>
               </div>
-              <p id="collection-description" class="collection-description"></p>
-              <div id="collection-word-list" class="collection-word-list" role="list"></div>
-              <button id="collection-add-button" class="primary-button collection-add-button" type="button">Добавить в словарь</button>
+              <div class="word-card-copy">
+                <strong id="word-card-english" lang="en"></strong>
+                <span id="word-card-russian"></span>
+              </div>
+              <button id="word-card-listen" class="word-card-listen" type="button">
+                <img src="./icons/speaker-user.svg" alt="" aria-hidden="true" />
+                <span>Прослушать</span>
+              </button>
             </section>
           </div>
 
@@ -158,73 +218,22 @@
             </div>
 
             <div class="study-method-list" aria-label="Способы тренировки">
-              <div class="quick-pick-entry">
-                <button id="quick-pick-start" class="quick-pick-launch" type="button">
-                  <span>БЫСТРЫЙ ПОДБОР</span>
-                  <strong id="quick-pick-launch-title">Найдите новые слова</strong>
-                  <small>Свайпайте карточки и добавляйте незнакомые слова в свой словарь.</small>
-                </button>
-                <button id="quick-pick-reset" class="quick-pick-reset" type="button" hidden>Сбросить результаты</button>
-              </div>
               <button class="study-method study-method-cover" type="button" data-study="cards" aria-label="Флеш-карточки: начать тренировку">
-                <img src="./icons/flashcards-cover.svg" alt="" width="500" height="163" />
+                <img src="./icons/flashcards-cover.png" alt="" width="1500" height="488" />
               </button>
               <button id="quiz-start" class="study-method study-method-cover" type="button" data-study="quiz" aria-label="Выбрать перевод: начать тренировку">
-                <img src="./icons/quiz-cover.svg" alt="" width="500" height="163" />
+                <img src="./icons/quiz-cover.png" alt="" width="1500" height="488" />
               </button>
               <button id="typing-start" class="study-method study-method-cover" type="button" data-study="typing" aria-label="Написать слово: начать тренировку">
-                <img src="./icons/typing-cover.svg" alt="" width="500" height="163" />
+                <img src="./icons/typing-cover.png" alt="" width="1500" height="488" />
+              </button>
+              <button id="timed-start" class="study-method study-method-cover" type="button" data-study="timed" aria-label="Перевод на время: начать тренировку с запасом 15 секунд">
+                <img src="./icons/timed-translation-cover.png" alt="" width="1500" height="488" />
               </button>
             </div>
             <div id="study-empty-hint" class="study-empty-hint" hidden>
               Добавьте первое слово, чтобы начать.
               <button type="button" data-go="dictionary">Открыть словарь →</button>
-            </div>
-          </div>
-
-          <div id="quick-pick-screen" class="quick-pick-screen" hidden>
-            <div id="quick-pick-deck-view">
-              <div class="quick-pick-header">
-                <button id="quick-pick-undo" class="quick-pick-header-button" type="button" disabled>Отменить</button>
-                <span id="quick-pick-progress" class="quick-pick-progress" aria-live="polite">1 из 20</span>
-                <button id="quick-pick-close" class="quick-pick-close" type="button" aria-label="Закрыть быстрый подбор"><img src="./icons/close.svg" alt="" aria-hidden="true" /></button>
-              </div>
-              <div class="quick-pick-directions" aria-hidden="true">
-                <span>← Не знаю</span>
-                <span>Знаю →</span>
-              </div>
-              <div class="quick-pick-deck">
-                <button id="quick-pick-card" class="quick-pick-card" type="button" aria-label="Открыть перевод">
-                  <span class="quick-pick-card-label">СЛОВО</span>
-                  <strong id="quick-pick-word" lang="en"></strong>
-                  <span id="quick-pick-translation" class="quick-pick-translation"></span>
-                  <small id="quick-pick-card-hint">Нажмите, чтобы увидеть перевод</small>
-                </button>
-                <span class="quick-pick-choice quick-pick-choice-unknown" aria-hidden="true">Не знаю</span>
-                <span class="quick-pick-choice quick-pick-choice-known" aria-hidden="true">Знаю</span>
-              </div>
-              <div class="quick-pick-actions">
-                <button id="quick-pick-unknown" type="button">Не знаю</button>
-                <button id="quick-pick-known" type="button">Знаю</button>
-              </div>
-            </div>
-
-            <div id="quick-pick-review" class="quick-pick-review" hidden>
-              <div class="quick-pick-review-header">
-                <span class="section-number">ПОДБОР ЗАВЕРШЁН</span>
-                <button id="quick-pick-review-close" class="quick-pick-close" type="button" aria-label="Закрыть результаты"><img src="./icons/close.svg" alt="" aria-hidden="true" /></button>
-              </div>
-              <h2>Незнакомые слова</h2>
-              <p id="quick-pick-review-copy">Выберите слова, которые хотите добавить в словарь.</p>
-              <div id="quick-pick-selection-tools" class="quick-pick-selection-tools">
-                <button id="quick-pick-select-all" type="button">Выбрать все</button>
-                <button id="quick-pick-select-none" type="button">Снять выбор</button>
-              </div>
-              <p id="quick-pick-selected-count" class="quick-pick-selected-count" aria-live="polite"></p>
-              <div id="quick-pick-review-list" class="quick-pick-review-list"></div>
-              <button id="quick-pick-add-selected" class="primary-button quick-pick-add-selected" type="button">Добавить выбранные слова</button>
-              <button id="quick-pick-skip" class="secondary-button quick-pick-skip" type="button">Не добавлять</button>
-              <button id="quick-pick-review-undo" class="text-button" type="button">Отменить последний свайп</button>
             </div>
           </div>
 
@@ -271,6 +280,26 @@
                 <p id="typing-feedback" class="answer-feedback" role="status" aria-live="polite"></p>
                 <button id="typing-next-button" class="primary-button answer-next" type="button" hidden>Дальше</button>
               </div>
+
+              <div id="timed-activity" class="timed-activity" hidden>
+                <div class="timed-hud">
+                  <div id="timed-clock" class="timed-stat timed-clock" role="timer" aria-label="Осталось 15 секунд">
+                    <span>ОСТАЛОСЬ</span>
+                    <strong id="timed-seconds">15</strong>
+                    <small>сек</small>
+                  </div>
+                  <div class="timed-stat">
+                    <span>ВЕРНЫХ</span>
+                    <strong id="timed-score">0</strong>
+                  </div>
+                </div>
+                <div class="timed-question">
+                  <span class="stage-kicker">ПЕРЕВЕДИТЕ НА АНГЛИЙСКИЙ</span>
+                  <strong id="timed-prompt" class="question-word"></strong>
+                  <div id="timed-options" class="answer-options timed-options" role="group" aria-label="Варианты ответа"></div>
+                  <p id="timed-feedback" class="answer-feedback timed-feedback" role="status" aria-live="polite"></p>
+                </div>
+              </div>
             </div>
 
             <div id="study-finish" class="study-panel finish-panel" hidden>
@@ -283,7 +312,138 @@
             </div>
           </div>
         </section>
+
+        <section id="profile-view" class="view profile-view" aria-labelledby="profile-name" hidden>
+          <div class="profile-shell">
+            <header class="profile-hero">
+              <div class="profile-topbar">
+                <button class="profile-back" type="button" data-profile-close aria-label="Вернуться на главный экран">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+                </button>
+                <span>ВОРДИК</span>
+                <span class="profile-topbar-spacer" aria-hidden="true"></span>
+              </div>
+              <div class="profile-avatar" aria-hidden="true">
+                <span id="profile-initials">В</span>
+                <i></i>
+              </div>
+            </header>
+
+            <div class="profile-content">
+              <div class="profile-identity">
+                <span class="profile-kicker">ВАШ ПРОФИЛЬ</span>
+                <h1 id="profile-name">Пользователь Вордик</h1>
+                <p id="profile-joined">Вместе с Вордиком с сентября 2026</p>
+              </div>
+
+              <section class="profile-section" aria-labelledby="profile-stats-title">
+                <div class="profile-section-heading">
+                  <span>01</span>
+                  <h2 id="profile-stats-title">Статистика</h2>
+                </div>
+                <div class="profile-stats-card">
+                  <div class="profile-stat-row">
+                    <span class="profile-stat-icon profile-stat-icon-average" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 2h10M7 22h10M8 2c0 5 1 6 4 8-3 2-4 3-4 8m8-16c0 5-1 6-4 8 3 2 4 3 4 8"/></svg>
+                    </span>
+                    <span class="profile-stat-copy"><strong id="profile-average-time">0 мин</strong><small>Средняя тренировка</small></span>
+                  </div>
+                  <div class="profile-stat-row">
+                    <span class="profile-stat-icon profile-stat-icon-total" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                    </span>
+                    <span class="profile-stat-copy"><strong id="profile-total-time">0 мин</strong><small>Общее время занятий</small></span>
+                  </div>
+                  <div class="profile-stat-row">
+                    <span class="profile-stat-icon profile-stat-icon-sessions" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"/></svg>
+                    </span>
+                    <span class="profile-stat-copy"><strong id="profile-session-count">0 тренировок</strong><small>Завершено полностью</small></span>
+                  </div>
+                </div>
+              </section>
+
+              <section class="profile-section" aria-labelledby="profile-streak-title">
+                <div class="profile-section-heading">
+                  <span>02</span>
+                  <h2 id="profile-streak-title">Серия занятий</h2>
+                </div>
+                <div id="streak-widget" class="profile-streak-card" aria-label="0 дней подряд">
+                  <div class="profile-streak-art" aria-hidden="true"><span>✦</span></div>
+                  <div class="profile-streak-copy">
+                    <strong><span id="streak-count">0</span> <span id="streak-label">дней подряд</span></strong>
+                    <p id="profile-streak-message">Начните занятие сегодня — первый день серии уже близко.</p>
+                  </div>
+                </div>
+              </section>
+
+              <section class="profile-section" aria-labelledby="profile-progress-title">
+                <div class="profile-section-heading">
+                  <span>03</span>
+                  <h2 id="profile-progress-title">Мой прогресс</h2>
+                </div>
+                <div class="profile-progress-card">
+                  <span class="profile-progress-kicker">СЛЕДУЮЩАЯ ЦЕЛЬ</span>
+                  <div class="profile-progress-main">
+                    <strong><span id="profile-word-count">0</span> <small id="profile-word-goal">из 50 слов</small></strong>
+                    <span id="profile-progress-percent">0%</span>
+                  </div>
+                  <div class="profile-progress-track" aria-hidden="true"><span id="profile-progress-bar"></span></div>
+                  <p id="profile-progress-message">Добавляйте слова в словарь и двигайтесь к первой цели.</p>
+                  <button class="profile-progress-action" type="button" data-go="dictionary">Открыть словарь <span aria-hidden="true">↗</span></button>
+                </div>
+              </section>
+            </div>
+          </div>
+        </section>
+
+        <div id="quick-pick-screen" class="quick-pick-screen" hidden>
+          <div id="quick-pick-deck-view">
+            <div class="quick-pick-header">
+              <button id="quick-pick-undo" class="quick-pick-header-button" type="button" disabled>Отменить</button>
+              <span id="quick-pick-progress" class="quick-pick-progress" aria-live="polite">1 из 20</span>
+              <button id="quick-pick-close" class="quick-pick-close" type="button" aria-label="Закрыть быстрый подбор"><img src="./icons/close.svg" alt="" aria-hidden="true" /></button>
+            </div>
+            <div class="quick-pick-directions" aria-hidden="true">
+              <span>← Не знаю</span>
+              <span>Знаю →</span>
+            </div>
+            <div class="quick-pick-deck">
+              <button id="quick-pick-card" class="quick-pick-card" type="button" aria-label="Открыть перевод">
+                <span class="quick-pick-card-label">СЛОВО</span>
+                <strong id="quick-pick-word" lang="en"></strong>
+                <span id="quick-pick-translation" class="quick-pick-translation"></span>
+                <small id="quick-pick-card-hint">Нажмите, чтобы увидеть перевод</small>
+              </button>
+              <span class="quick-pick-choice quick-pick-choice-unknown" aria-hidden="true">Не знаю</span>
+              <span class="quick-pick-choice quick-pick-choice-known" aria-hidden="true">Знаю</span>
+            </div>
+            <div class="quick-pick-actions">
+              <button id="quick-pick-unknown" type="button">Не знаю</button>
+              <button id="quick-pick-known" type="button">Знаю</button>
+            </div>
+          </div>
+
+          <div id="quick-pick-review" class="quick-pick-review" hidden>
+            <div class="quick-pick-review-header">
+              <span class="section-number">ПОДБОР ЗАВЕРШЁН</span>
+              <button id="quick-pick-review-close" class="quick-pick-close" type="button" aria-label="Закрыть результаты"><img src="./icons/close.svg" alt="" aria-hidden="true" /></button>
+            </div>
+            <h2>Незнакомые слова</h2>
+            <p id="quick-pick-review-copy">Выберите слова, которые хотите добавить в словарь.</p>
+            <div id="quick-pick-selection-tools" class="quick-pick-selection-tools">
+              <button id="quick-pick-select-all" type="button">Выбрать все</button>
+              <button id="quick-pick-select-none" type="button">Снять выбор</button>
+            </div>
+            <p id="quick-pick-selected-count" class="quick-pick-selected-count" aria-live="polite"></p>
+            <div id="quick-pick-review-list" class="quick-pick-review-list"></div>
+            <button id="quick-pick-add-selected" class="primary-button quick-pick-add-selected" type="button">Добавить выбранные слова</button>
+            <button id="quick-pick-skip" class="secondary-button quick-pick-skip" type="button">Не добавлять</button>
+            <button id="quick-pick-review-undo" class="text-button" type="button">Отменить последний свайп</button>
+          </div>
+        </div>
       </main>
+      <div class="bottom-nav-backdrop" aria-hidden="true"></div>
       <nav class="bottom-nav" data-active="home" aria-label="Основное меню">
         <button class="nav-item is-active" type="button" data-tab="home" aria-current="page">
           <img src="./icons/home.svg" alt="" width="24" height="24" />
