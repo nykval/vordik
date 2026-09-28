@@ -31,6 +31,8 @@ const files = new Map([
   ['/icons/quiz-cover.png', ['icons/quiz-cover.png', 'image/png']],
   ['/icons/typing-cover.png', ['icons/typing-cover.png', 'image/png']],
   ['/icons/timed-translation-cover.png', ['icons/timed-translation-cover.png', 'image/png']],
+  ['/icons/quick-pick-racing-cover.png', ['icons/quick-pick-racing-cover.png', 'image/png']],
+  ['/icons/quick-pick-racing-night.png', ['icons/quick-pick-racing-night.png', 'image/png']],
 ]);
 
 createServer(async (request, response) => {

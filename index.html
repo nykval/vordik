@@ -43,11 +43,13 @@
           <section class="home-quick-pick" aria-label="Быстрый подбор слов">
             <div class="quick-pick-entry">
               <button id="quick-pick-start" class="quick-pick-launch" type="button" aria-haspopup="dialog" aria-controls="quick-pick-count-overlay">
-                <span>БЫСТРЫЙ ПОДБОР</span>
-                <strong id="quick-pick-launch-title">Найдите новые слова</strong>
-                <small>Свайпайте карточки и добавляйте незнакомые слова в свой словарь.</small>
+                <img class="quick-pick-launch-image" src="./images/quick-pick-banner.png" alt="" aria-hidden="true" width="2144" height="806" draggable="false" />
+                <span class="quick-pick-accessible-copy">
+                  Быстрый подбор слов.
+                  <strong id="quick-pick-launch-title">Найдите новые слова</strong>
+                  Свайпайте карточки и добавляйте незнакомые слова в свой словарь.
+                </span>
               </button>
-              <button id="quick-pick-reset" class="quick-pick-reset" type="button" hidden>Сбросить результаты</button>
             </div>
           </section>
 
@@ -78,16 +80,7 @@
           <section class="ready-collections" aria-labelledby="ready-collections-title">
             <div class="ready-collections-heading">
               <div>
-                <span class="section-number">ГОТОВЫЕ ПОДБОРКИ</span>
-                <h2 id="ready-collections-title">Выберите тему</h2>
-              </div>
-              <div class="ready-collection-controls" aria-label="Навигация по темам">
-                <button id="collection-carousel-prev" type="button" aria-label="Предыдущие темы" aria-controls="ready-collection-list">
-                  <span aria-hidden="true">←</span>
-                </button>
-                <button id="collection-carousel-next" type="button" aria-label="Следующие темы" aria-controls="ready-collection-list">
-                  <span aria-hidden="true">→</span>
-                </button>
+                <h2 id="ready-collections-title">Готовые подборки</h2>
               </div>
             </div>
             <div id="ready-collection-list" class="ready-collection-list" aria-label="Темы готовых подборок"></div>
@@ -115,7 +108,7 @@
                 <span class="section-number">МОЙ СЛОВАРЬ</span>
                 <h2 id="dictionary-title">Слова</h2>
               </div>
-              <button id="add-word-toggle" class="dictionary-add-toggle" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="add-overlay"><span aria-hidden="true">＋</span> Добавить</button>
+              <button id="add-word-toggle" class="dictionary-add-toggle" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="add-overlay"><img src="./icons/add.svg" alt="" aria-hidden="true" /> Добавить</button>
             </div>
 
             <section class="dictionary-collection" aria-labelledby="word-count-heading">
@@ -179,7 +172,7 @@
               <div class="word-card-heading">
                 <button id="word-card-delete" class="word-card-delete" type="button" aria-label="Удалить слово"><img src="./icons/word-card-delete.svg" alt="" aria-hidden="true" /></button>
                 <span>КАРТОЧКА СЛОВА</span>
-                <button class="word-card-close" type="button" data-word-card-close aria-label="Закрыть карточку слова"><img src="./icons/word-card-close.svg" alt="" aria-hidden="true" /></button>
+                <button class="word-card-close" type="button" data-word-card-close aria-label="Закрыть карточку слова"><img src="./icons/close.svg" alt="" aria-hidden="true" /></button>
               </div>
               <div class="word-card-copy">
                 <strong id="word-card-english" lang="en"></strong>

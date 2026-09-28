@@ -44,8 +44,6 @@
   let quickPickAnimating = false;
   let quickPickFlipped = false;
   let quickPickSuppressClick = false;
-  let quickPickResetArmed = false;
-  let quickPickResetTimer;
   let quickPickCountCloseTimer;
   let quickPickCountOpenFrame;
 
@@ -452,10 +450,7 @@
       visualPill.className = 'ready-collection-visual-pill';
       const visualDot = document.createElement('span');
       visualDot.className = 'ready-collection-visual-dot';
-      const visualNumber = document.createElement('span');
-      visualNumber.className = 'ready-collection-visual-number';
-      visualNumber.textContent = String(index + 1).padStart(2, '0');
-      visual.append(visualCircle, visualPill, visualDot, visualNumber);
+      visual.append(visualCircle, visualPill, visualDot);
 
       const copy = document.createElement('span');
       copy.className = 'ready-collection-copy';
@@ -468,52 +463,13 @@
       meta.className = 'ready-collection-meta';
       const wordCount = document.createElement('span');
       wordCount.textContent = `${collection.words.length} слов`;
-      const openMark = document.createElement('span');
-      openMark.className = 'ready-collection-open-mark';
-      openMark.setAttribute('aria-hidden', 'true');
-      openMark.textContent = '↗';
-      meta.append(wordCount, openMark);
+      meta.append(wordCount);
       copy.append(title, description, meta);
       button.append(visual, copy);
       button.addEventListener('click', () => setCollectionOpen(true, collection.id));
       fragment.append(button);
     });
     $('ready-collection-list').replaceChildren(fragment);
-    requestAnimationFrame(updateCollectionCarouselControls);
-  }
-
-  function collectionCarouselStep() {
-    const list = $('ready-collection-list');
-    const card = list.querySelector('.ready-collection-card');
-    if (!card) return list.clientWidth;
-    const styles = getComputedStyle(list);
-    const gap = Number.parseFloat(styles.columnGap || styles.gap) || 0;
-    return card.getBoundingClientRect().width + gap;
-  }
-
-  function updateCollectionCarouselControls() {
-    const list = $('ready-collection-list');
-    const previous = $('collection-carousel-prev');
-    const next = $('collection-carousel-next');
-    const maxScroll = Math.max(0, list.scrollWidth - list.clientWidth);
-    previous.disabled = list.scrollLeft <= 2;
-    next.disabled = list.scrollLeft >= maxScroll - 2;
-  }
-
-  function scrollCollectionCarousel(direction) {
-    $('ready-collection-list').scrollBy({ left: collectionCarouselStep() * direction, behavior: 'smooth' });
-  }
-
-  function setupCollectionCarousel() {
-    const list = $('ready-collection-list');
-    let updateFrame;
-    list.addEventListener('scroll', () => {
-      cancelAnimationFrame(updateFrame);
-      updateFrame = requestAnimationFrame(updateCollectionCarouselControls);
-    }, { passive: true });
-    window.addEventListener('resize', updateCollectionCarouselControls);
-    $('collection-carousel-prev').addEventListener('click', () => scrollCollectionCarousel(-1));
-    $('collection-carousel-next').addEventListener('click', () => scrollCollectionCarousel(1));
   }
 
   function updateCollectionAction() {
@@ -1012,8 +968,6 @@
     if (!$('quick-pick-start')) return;
     const hasProgress = Boolean(quickPickSession);
     $('quick-pick-launch-title').textContent = hasProgress ? 'Продолжить подбор' : 'Найдите новые слова';
-    $('quick-pick-reset').hidden = !hasProgress && quickPickKnown.size === 0;
-    if (!quickPickResetArmed) $('quick-pick-reset').textContent = 'Сбросить результаты';
   }
 
   function availableQuickPickWords() {
@@ -1279,27 +1233,6 @@
       syncSession();
     }
     finishQuickPick(additions.length ? `Добавлено ${additions.length} ${wordNoun(additions.length)}` : 'Новые слова не добавлены');
-  }
-
-  function resetQuickPickResults() {
-    if (!quickPickResetArmed) {
-      quickPickResetArmed = true;
-      $('quick-pick-reset').textContent = 'Подтвердить сброс';
-      clearTimeout(quickPickResetTimer);
-      quickPickResetTimer = setTimeout(() => {
-        quickPickResetArmed = false;
-        updateQuickPickLaunch();
-      }, 4500);
-      return;
-    }
-    clearTimeout(quickPickResetTimer);
-    quickPickResetArmed = false;
-    quickPickKnown.clear();
-    saveQuickPickKnown();
-    quickPickSession = null;
-    saveQuickPickSession();
-    showToast('Результаты подбора сброшены');
-    setQuickPickCountOpen(true);
   }
 
   function setupQuickPickGestures() {
@@ -1680,7 +1613,6 @@
   $('quick-pick-select-none').addEventListener('click', () => setQuickPickSelection(false));
   $('quick-pick-add-selected').addEventListener('click', addQuickPickSelection);
   $('quick-pick-skip').addEventListener('click', () => finishQuickPick('Слова не добавлены'));
-  $('quick-pick-reset').addEventListener('click', resetQuickPickResults);
   $('flashcard').addEventListener('click', () => { session.flipped = !session.flipped; renderExercise(); });
   $('next-button').addEventListener('click', nextCard);
   $('quiz-next-button').addEventListener('click', nextCard);
@@ -1744,7 +1676,6 @@
     } catch { /* Browser support is optional. */ }
   }
 
-  setupCollectionCarousel();
   renderReadyCollections();
   renderDictionary();
   renderStreak();
