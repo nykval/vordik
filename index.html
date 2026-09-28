@@ -30,9 +30,9 @@
               <p class="intro-aside">Соберите свой словарь и повторяйте его в удобном темпе.</p>
             </div>
             <div class="home-count-card">
-              <span class="stage-kicker">МОЙ СЛОВАРЬ</span>
-              <strong id="home-word-count" class="home-count">3</strong>
-              <span class="home-count-caption">слов в словаре</span>
+              <span class="stage-kicker">ОБЩИЙ УРОВЕНЬ СЛОВАРЯ</span>
+              <strong id="home-vocabulary-score" class="home-count">0</strong>
+              <span class="home-count-caption"><span id="home-word-count">3</span> <span id="home-word-count-noun">слова</span> · сложность × знание</span>
               <div class="home-actions">
                 <button class="primary-button" type="button" data-go="dictionary">Открыть словарь <span aria-hidden="true">↗</span></button>
                 <button class="secondary-button" type="button" data-go="cards">Учить слова <span aria-hidden="true">↗</span></button>
@@ -212,16 +212,16 @@
 
             <div class="study-method-list" aria-label="Способы тренировки">
               <button class="study-method study-method-cover" type="button" data-study="cards" aria-label="Флеш-карточки: начать тренировку">
-                <img src="./icons/flashcards-cover.png" alt="" width="1500" height="488" />
+                <img src="./icons/flashcards-cover.png" alt="" width="3888" height="1264" />
               </button>
               <button id="quiz-start" class="study-method study-method-cover" type="button" data-study="quiz" aria-label="Выбрать перевод: начать тренировку">
-                <img src="./icons/quiz-cover.png" alt="" width="1500" height="488" />
+                <img src="./icons/quiz-cover.png" alt="" width="3888" height="1264" />
               </button>
               <button id="typing-start" class="study-method study-method-cover" type="button" data-study="typing" aria-label="Написать слово: начать тренировку">
-                <img src="./icons/typing-cover.png" alt="" width="1500" height="488" />
+                <img src="./icons/typing-cover.png" alt="" width="3888" height="1264" />
               </button>
               <button id="timed-start" class="study-method study-method-cover" type="button" data-study="timed" aria-label="Перевод на время: начать тренировку с запасом 15 секунд">
-                <img src="./icons/timed-translation-cover.png" alt="" width="1500" height="488" />
+                <img src="./icons/timed-translation-cover.png" alt="" width="3888" height="1264" />
               </button>
             </div>
             <div id="study-empty-hint" class="study-empty-hint" hidden>
@@ -237,6 +237,10 @@
                 <button id="exit-study-button" class="exit-study-button" type="button" aria-label="Закрыть тренировку" title="Закрыть тренировку">
                   <img src="./icons/close.svg" alt="" aria-hidden="true" width="24" height="24" />
                 </button>
+                <div id="timed-clock" class="timed-clock" role="timer" aria-label="Осталось 15 секунд">
+                  <span class="timed-progress-track" aria-hidden="true"><span id="timed-progress-fill" class="timed-progress-fill"></span></span>
+                  <strong id="timed-seconds">15</strong>
+                </div>
               </div>
 
               <div id="flashcard-activity">
@@ -275,20 +279,14 @@
               </div>
 
               <div id="timed-activity" class="timed-activity" hidden>
-                <div class="timed-hud">
-                  <div id="timed-clock" class="timed-stat timed-clock" role="timer" aria-label="Осталось 15 секунд">
-                    <span>ОСТАЛОСЬ</span>
-                    <strong id="timed-seconds">15</strong>
-                    <small>сек</small>
-                  </div>
-                  <div class="timed-stat">
-                    <span>ВЕРНЫХ</span>
-                    <strong id="timed-score">0</strong>
-                  </div>
+                <div class="timed-score" aria-label="Количество верных ответов">
+                  <span class="timed-score-icon" aria-hidden="true">✓</span>
+                  <strong id="timed-score">0</strong>
                 </div>
                 <div class="timed-question">
-                  <span class="stage-kicker">ПЕРЕВЕДИТЕ НА АНГЛИЙСКИЙ</span>
-                  <strong id="timed-prompt" class="question-word"></strong>
+                  <div class="timed-prompt-wrap">
+                    <strong id="timed-prompt" class="question-word"></strong>
+                  </div>
                   <div id="timed-options" class="answer-options timed-options" role="group" aria-label="Варианты ответа"></div>
                   <p id="timed-feedback" class="answer-feedback timed-feedback" role="status" aria-live="polite"></p>
                 </div>

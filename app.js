@@ -7,6 +7,11 @@
   const PROFILE_STATS_KEY = 'vordik.profileStats.v1';
   const QUICK_PICK_KNOWN_KEY = 'vordik.quickPickKnown.v1';
   const QUICK_PICK_SESSION_KEY = 'vordik.quickPickSession.v1';
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const CEFR_DIFFICULTY = Object.freeze({ A1: 1, A2: 2, B1: 3, B2: 4, C1: 5, C2: 6 });
+  const DIFFICULTY_CEFR = Object.freeze(['A1', 'A1', 'A2', 'B1', 'B2', 'C1', 'C2']);
+  const difficultyByWord = new Map();
+  const difficultyByWordAndTranslation = new Map();
   const sampleWords = [
     { id: 'sample-horizon', english: 'horizon', russian: 'горизонт' },
     { id: 'sample-curious', english: 'curious', russian: 'любопытный' },
@@ -52,6 +57,193 @@
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return [year, month, day].join('-');
+  }
+
+  function clampKnowledge(value) {
+    return Math.min(1, Math.max(0, Number(value) || 0));
+  }
+
+  function validIsoDate(value) {
+    return typeof value === 'string' && !Number.isNaN(Date.parse(value)) ? value : null;
+  }
+
+  function normalizeCefr(value) {
+    const level = String(value ?? '').trim().toLocaleUpperCase('en-US');
+    return CEFR_DIFFICULTY[level] ? level : null;
+  }
+
+  function difficultyKey(english, russian = '') {
+    return `${normalizeDictionaryText(english, 'en-US')}\u0000${normalizeDictionaryText(russian, 'ru-RU')}`;
+  }
+
+  function resolveWordDifficulty(english, russian, fallbackDifficulty = 1, fallbackCefr = null) {
+    const pairMatch = difficultyByWordAndTranslation.get(difficultyKey(english, russian));
+    const wordMatch = difficultyByWord.get(normalizeDictionaryText(english, 'en-US'));
+    const match = pairMatch ?? wordMatch;
+    if (match) return match;
+    const difficulty = Math.min(6, Math.max(1, Math.round(Number(fallbackDifficulty) || 1)));
+    return { difficulty, cefr: normalizeCefr(fallbackCefr) ?? DIFFICULTY_CEFR[difficulty] };
+  }
+
+  function normalizeWordRecord(word, initialKnowledge = 0) {
+    const english = normalizeDictionaryText(word.english, 'en-US').slice(0, 80);
+    const russian = normalizeDictionaryText(word.russian, 'ru-RU').slice(0, 120);
+    const level = resolveWordDifficulty(english, russian, word.difficulty, word.cefr_level ?? word.cefr);
+    return {
+      id: word.id,
+      english,
+      russian,
+      difficulty: level.difficulty,
+      cefr_level: level.cefr,
+      knowledge: clampKnowledge(word.knowledge ?? initialKnowledge),
+      last_review_at: validIsoDate(word.last_review_at),
+      last_correct_at: validIsoDate(word.last_correct_at),
+      correct_answers: Math.max(0, Math.floor(Number(word.correct_answers) || 0)),
+      wrong_answers: Math.max(0, Math.floor(Number(word.wrong_answers) || 0)),
+      correct_streak: Math.max(0, Math.floor(Number(word.correct_streak) || 0)),
+      reviews_today: Math.max(0, Math.floor(Number(word.reviews_today) || 0)),
+      reviews_today_date: typeof word.reviews_today_date === 'string' ? word.reviews_today_date : null,
+      last_result: word.last_result === 'correct' || word.last_result === 'wrong' ? word.last_result : null,
+    };
+  }
+
+  function createWordRecord(id, english, russian, initialKnowledge = 0) {
+    return normalizeWordRecord({ id, english, russian, knowledge: initialKnowledge }, initialKnowledge);
+  }
+
+  function parseCsvRows(text) {
+    const rows = [];
+    let row = [];
+    let field = '';
+    let quoted = false;
+    const source = String(text ?? '').replace(/^\uFEFF/, '');
+    for (let index = 0; index < source.length; index += 1) {
+      const character = source[index];
+      if (quoted) {
+        if (character === '"' && source[index + 1] === '"') { field += '"'; index += 1; }
+        else if (character === '"') quoted = false;
+        else field += character;
+      } else if (character === '"') quoted = true;
+      else if (character === ',') { row.push(field); field = ''; }
+      else if (character === '\n') { row.push(field.replace(/\r$/, '')); rows.push(row); row = []; field = ''; }
+      else field += character;
+    }
+    if (field || row.length) { row.push(field.replace(/\r$/, '')); rows.push(row); }
+    return rows;
+  }
+
+  async function loadDifficultyData() {
+    try {
+      const response = await fetch('./data/oxford_5000_cefr_ru.csv');
+      if (!response.ok) throw new Error('Difficulty data unavailable');
+      const rows = parseCsvRows(await response.text()).slice(1);
+      rows.forEach((columns) => {
+        const english = normalizeDictionaryText(columns[0], 'en-US');
+        const cefr = normalizeCefr(columns[1]);
+        const russian = normalizeDictionaryText(columns[3], 'ru-RU');
+        if (!english || !cefr) return;
+        const candidate = { difficulty: CEFR_DIFFICULTY[cefr], cefr };
+        const current = difficultyByWord.get(english);
+        if (!current || candidate.difficulty < current.difficulty) difficultyByWord.set(english, candidate);
+        if (russian) difficultyByWordAndTranslation.set(difficultyKey(english, russian), candidate);
+      });
+      let changed = false;
+      words.forEach((word) => {
+        const level = resolveWordDifficulty(word.english, word.russian, word.difficulty, word.cefr_level);
+        if (word.difficulty !== level.difficulty || word.cefr_level !== level.cefr) {
+          word.difficulty = level.difficulty;
+          word.cefr_level = level.cefr;
+          changed = true;
+        }
+      });
+      if (changed) saveWords();
+      renderDictionary();
+    } catch { /* The stored fallback level remains available offline. */ }
+  }
+
+  function currentKnowledge(word, now = Date.now()) {
+    const knowledge = clampKnowledge(word.knowledge);
+    const reviewedAt = validIsoDate(word.last_review_at);
+    if (!reviewedAt || knowledge === 0) return knowledge;
+    const daysSinceReview = Math.max(0, (now - Date.parse(reviewedAt)) / DAY_MS);
+    let graceDays = 2;
+    let decayRate = .03;
+    if (knowledge >= .95) { graceDays = 30; decayRate = .005; }
+    else if (knowledge >= .8) { graceDays = 20; decayRate = .005; }
+    else if (knowledge >= .6) { graceDays = 10; decayRate = .01; }
+    else if (knowledge >= .4) { graceDays = 5; decayRate = .02; }
+    const decayDays = Math.floor(Math.max(0, daysSinceReview - graceDays));
+    return clampKnowledge(knowledge * ((1 - decayRate) ** decayDays));
+  }
+
+  function knowledgeDescription(knowledge) {
+    if (knowledge < .2) return 'практически не знает';
+    if (knowledge < .4) return 'начинает узнавать';
+    if (knowledge < .6) return 'частично знает';
+    if (knowledge < .8) return 'хорошо знает';
+    if (knowledge < .95) return 'уверенно знает';
+    return 'практически освоено';
+  }
+
+  function calendarDayDifference(fromIso, toDate) {
+    const from = new Date(fromIso);
+    if (Number.isNaN(from.getTime())) return null;
+    const start = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+    const end = new Date(toDate.getFullYear(), toDate.getMonth(), toDate.getDate());
+    return Math.round((end - start) / DAY_MS);
+  }
+
+  function reviewIntervalMultiplier(lastReviewAt, now) {
+    if (!lastReviewAt) return 1;
+    const days = Math.max(0, (now.getTime() - Date.parse(lastReviewAt)) / DAY_MS);
+    if (days < 1) return .5;
+    if (days < 3) return 1;
+    if (days <= 7) return 1.2;
+    if (days <= 30) return 1.4;
+    return 1.5;
+  }
+
+  function dailyReviewMultiplier(reviewNumber) {
+    if (reviewNumber <= 1) return 1;
+    if (reviewNumber === 2) return .5;
+    if (reviewNumber === 3) return .25;
+    return .1;
+  }
+
+  function recordWordReview(word, correct, { positiveDelta, penalty }) {
+    if (!word) return;
+    const now = new Date();
+    const today = localDateKey(now);
+    const knowledgeBefore = currentKnowledge(word, now.getTime());
+    if (word.reviews_today_date !== today) {
+      word.reviews_today_date = today;
+      word.reviews_today = 0;
+    }
+    let knowledgeAfter = knowledgeBefore;
+    if (correct) {
+      const reviewNumber = word.reviews_today + 1;
+      const delta = positiveDelta * dailyReviewMultiplier(reviewNumber) * reviewIntervalMultiplier(word.last_review_at, now);
+      knowledgeAfter += delta * (1 - knowledgeAfter);
+      const correctDayGap = word.last_correct_at ? calendarDayDifference(word.last_correct_at, now) : null;
+      const isFirstCorrectToday = correctDayGap !== 0;
+      if (isFirstCorrectToday) {
+        word.correct_streak = correctDayGap === 1 ? word.correct_streak + 1 : 1;
+        const streakBonus = word.correct_streak >= 5 ? .05 : (word.correct_streak === 3 ? .03 : (word.correct_streak === 2 ? .02 : 0));
+        knowledgeAfter += streakBonus * (1 - knowledgeAfter);
+      }
+      word.reviews_today = reviewNumber;
+      word.correct_answers += 1;
+      word.last_correct_at = now.toISOString();
+    } else {
+      knowledgeAfter -= penalty * knowledgeAfter;
+      word.wrong_answers += 1;
+      word.correct_streak = 0;
+    }
+    word.knowledge = clampKnowledge(knowledgeAfter);
+    word.last_review_at = now.toISOString();
+    word.last_result = correct ? 'correct' : 'wrong';
+    if (!saveWords()) showToast('Не удалось сохранить прогресс слова');
+    renderDictionary();
   }
 
   function loadStudyDays() {
@@ -255,23 +447,19 @@
   function loadWords() {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved === null) return sampleWords.map((word) => ({ ...word }));
+      if (saved === null) return sampleWords.map((word) => normalizeWordRecord(word));
       const parsed = JSON.parse(saved);
       if (!Array.isArray(parsed)) throw new Error('Invalid word list');
       const normalized = parsed
         .filter((word) => word && typeof word.id === 'string' && typeof word.english === 'string' && typeof word.russian === 'string')
-        .map((word) => ({
-          id: word.id,
-          english: normalizeDictionaryText(word.english, 'en-US').slice(0, 80),
-          russian: normalizeDictionaryText(word.russian, 'ru-RU').slice(0, 120),
-        }))
+        .map((word) => normalizeWordRecord(word))
         .filter((word) => word.english && word.russian && !/\s/.test(word.english));
       if (JSON.stringify(normalized) !== JSON.stringify(parsed)) {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
       }
       return normalized;
     } catch {
-      return sampleWords.map((word) => ({ ...word }));
+      return sampleWords.map((word) => normalizeWordRecord(word));
     }
   }
 
@@ -545,11 +733,11 @@
       const key = collectionWordKey(english, russian);
       if (existing.has(key)) return;
       existing.add(key);
-      additions.push({
-        id: globalThis.crypto?.randomUUID?.() ?? `collection-${collection.id}-${Date.now()}-${index}`,
+      additions.push(createWordRecord(
+        globalThis.crypto?.randomUUID?.() ?? `collection-${collection.id}-${Date.now()}-${index}`,
         english,
         russian,
-      });
+      ));
     });
     if (additions.length === 0) {
       updateCollectionAction();
@@ -614,7 +802,12 @@
   }
 
   function renderDictionary() {
+    const now = Date.now();
+    const vocabularyScore = words.reduce((total, word) => total + (word.difficulty * currentKnowledge(word, now)), 0);
+    const scoreText = vocabularyScore.toFixed(1).replace(/\.0$/, '');
+    $('home-vocabulary-score').textContent = scoreText;
     $('home-word-count').textContent = words.length;
+    $('home-word-count-noun').textContent = wordNoun(words.length);
     $('word-count').textContent = words.length;
     $('word-count-noun').textContent = wordNoun(words.length);
     $('dictionary-empty').hidden = words.length !== 0;
@@ -651,7 +844,19 @@
       const russian = document.createElement('span');
       russian.className = 'dictionary-word-russian';
       russian.textContent = word.russian;
-      copy.append(english, russian);
+      const knowledge = currentKnowledge(word, now);
+      const metrics = document.createElement('span');
+      metrics.className = 'dictionary-word-metrics';
+      const difficulty = document.createElement('span');
+      difficulty.className = 'dictionary-word-metric is-difficulty';
+      difficulty.textContent = `Сложность ${word.cefr_level}`;
+      difficulty.title = `Сложность ${word.difficulty} из 6`;
+      const knowledgeMetric = document.createElement('span');
+      knowledgeMetric.className = 'dictionary-word-metric is-knowledge';
+      knowledgeMetric.textContent = `Знание ${Math.round(knowledge * 100)}%`;
+      knowledgeMetric.title = knowledgeDescription(knowledge);
+      metrics.append(difficulty, knowledgeMetric);
+      copy.append(english, russian, metrics);
       row.append(listen, copy);
       fragment.append(row);
     });
@@ -661,7 +866,7 @@
     const hasQuizOptions = new Set(words.map((word) => word.russian.toLocaleLowerCase())).size >= 2;
     $('quiz-start').disabled = !hasQuizOptions;
     $('quiz-start').setAttribute('aria-label', hasQuizOptions ? 'Выбрать перевод: начать тренировку' : 'Для выбора перевода нужны хотя бы два разных перевода в словаре');
-    const hasTimedOptions = new Set(words.map((word) => word.english.toLocaleLowerCase())).size >= 2;
+    const hasTimedOptions = new Set(words.map((word) => word.russian.toLocaleLowerCase())).size >= 2;
     $('timed-start').disabled = !hasTimedOptions;
     $('timed-start').setAttribute('aria-label', hasTimedOptions ? 'Перевод на время: начать тренировку с запасом 15 секунд' : 'Для перевода на время нужны хотя бы два разных слова в словаре');
     $('study-empty-hint').hidden = words.length !== 0;
@@ -683,7 +888,7 @@
     if (words.some((word) => word.english.toLocaleLowerCase() === english.toLocaleLowerCase() && word.russian.toLocaleLowerCase() === russian.toLocaleLowerCase())) {
       throw new Error('Это слово с таким переводом уже есть в словаре.');
     }
-    const word = { id: globalThis.crypto?.randomUUID?.() ?? `word-${Date.now()}-${Math.random()}`, english, russian };
+    const word = createWordRecord(globalThis.crypto?.randomUUID?.() ?? `word-${Date.now()}-${Math.random()}`, english, russian);
     words.unshift(word);
     if (!saveWords()) {
       words.shift();
@@ -921,6 +1126,7 @@
     $('cards-view').hidden = tab !== 'cards';
     $('profile-view').hidden = tab !== 'profile';
     $('profile-button').setAttribute('aria-pressed', String(tab === 'profile'));
+    if (tab === 'home' || tab === 'dictionary') renderDictionary();
     if (tab === 'profile') renderProfile();
     window.scrollTo(0, 0);
   }
@@ -1220,7 +1426,7 @@
       const russian = normalizeDictionaryText(source.russian, 'ru-RU');
       if (existingEnglish.has(english)) return;
       existingEnglish.add(english);
-      additions.push({ id: globalThis.crypto?.randomUUID?.() ?? `quick-word-${Date.now()}-${index}`, english, russian });
+      additions.push(createWordRecord(globalThis.crypto?.randomUUID?.() ?? `quick-word-${Date.now()}-${index}`, english, russian));
     });
     if (additions.length) {
       words.unshift(...additions);
@@ -1291,7 +1497,7 @@
   function startStudy(mechanic = session.mechanic) {
     if (!words.length) return;
     if (mechanic === 'quiz' && new Set(words.map((word) => word.russian.toLocaleLowerCase())).size < 2) return;
-    if (mechanic === 'timed' && new Set(words.map((word) => word.english.toLocaleLowerCase())).size < 2) return;
+    if (mechanic === 'timed' && new Set(words.map((word) => word.russian.toLocaleLowerCase())).size < 2) return;
     stopTimedRound();
     session.mechanic = mechanic;
     session.ids = mechanic === 'timed' ? shuffled(words.map((word) => word.id)) : words.map((word) => word.id);
@@ -1378,8 +1584,10 @@
   function answerQuiz(answer, correctAnswer) {
     if (session.answered) return;
     session.answered = true;
+    const word = words.find((entry) => entry.id === session.ids[session.index]);
     const correct = answer.toLocaleLowerCase() === correctAnswer.toLocaleLowerCase();
     if (correct) session.correctCount += 1;
+    recordWordReview(word, correct, { positiveDelta: .05, penalty: .05 });
     $('quiz-options').querySelectorAll('button').forEach((button) => {
       button.disabled = true;
       const selected = button.dataset.answer === answer;
@@ -1413,6 +1621,7 @@
     session.answered = true;
     const correct = answer === word.english.trim().replace(/\s+/g, ' ').toLocaleLowerCase();
     if (correct) session.correctCount += 1;
+    recordWordReview(word, correct, { positiveDelta: .12, penalty: .10 });
     $('typing-input').disabled = true;
     $('typing-check-button').hidden = true;
     $('typing-feedback').textContent = correct ? 'Верно!' : `Правильный ответ: ${word.english}`;
@@ -1433,6 +1642,7 @@
     const remaining = Math.max(0, timedDeadline - Date.now());
     const seconds = Math.ceil(remaining / 1000);
     $('timed-seconds').textContent = String(seconds);
+    $('timed-progress-fill').style.width = `${Math.min(100, (remaining / 15000) * 100)}%`;
     $('timed-clock').setAttribute('aria-label', `Осталось ${seconds} секунд`);
     $('timed-clock').classList.toggle('is-critical', remaining <= 5000);
     if (remaining <= 0) setPhase('finish');
@@ -1447,14 +1657,14 @@
 
   function renderTimed(word) {
     timedLocked = false;
-    $('timed-prompt').textContent = word.russian;
+    $('timed-prompt').textContent = word.english;
     $('timed-score').textContent = String(session.correctCount);
     $('timed-feedback').textContent = '';
     $('timed-feedback').removeAttribute('data-result');
     $('timed-clock').classList.remove('is-rewarded', 'is-penalized');
-    const englishWords = [...new Map(words.map((entry) => [entry.english.toLocaleLowerCase(), entry.english])).values()];
-    const distractors = shuffled(englishWords.filter((answer) => answer.toLocaleLowerCase() !== word.english.toLocaleLowerCase())).slice(0, 2);
-    const options = shuffled([...distractors, word.english]);
+    const russianWords = [...new Map(words.map((entry) => [entry.russian.toLocaleLowerCase(), entry.russian])).values()];
+    const distractors = shuffled(russianWords.filter((answer) => answer.toLocaleLowerCase() !== word.russian.toLocaleLowerCase())).slice(0, 3);
+    const options = shuffled([...distractors, word.russian]);
     const fragment = document.createDocumentFragment();
     options.forEach((answer) => {
       const button = document.createElement('button');
@@ -1472,7 +1682,7 @@
       check.alt = '';
       radio.append(check);
       button.append(label, radio);
-      button.addEventListener('click', () => answerTimed(answer, word.english));
+      button.addEventListener('click', () => answerTimed(answer, word.russian));
       fragment.append(button);
     });
     $('timed-options').replaceChildren(fragment);
@@ -1496,11 +1706,13 @@
 
   function answerTimed(answer, correctAnswer) {
     if (timedLocked || session.phase !== 'play' || session.mechanic !== 'timed') return;
+    const word = words.find((entry) => entry.id === session.ids[session.index]);
     const correct = answer.toLocaleLowerCase() === correctAnswer.toLocaleLowerCase();
     timedLocked = true;
     session.answered = true;
     session.attemptCount += 1;
     if (correct) session.correctCount += 1;
+    recordWordReview(word, correct, { positiveDelta: .05, penalty: .05 });
     timedDeadline += correct ? 3000 : -3000;
     $('timed-score').textContent = String(session.correctCount);
     renderProgress();
@@ -1661,7 +1873,15 @@
         name: 'list_words', title: 'Показать словарь', description: 'Вернуть слова, сохранённые в личном словаре Вордика.',
         inputSchema: { type: 'object', properties: {}, additionalProperties: false },
         annotations: { readOnlyHint: true, untrustedContentHint: true },
-        execute: () => ({ words: words.map(({ english, russian }) => ({ english, russian })) }),
+        execute: () => ({
+          words: words.map((word) => ({
+            english: word.english,
+            russian: word.russian,
+            difficulty: word.difficulty,
+            cefr: word.cefr_level,
+            knowledge: Number(currentKnowledge(word).toFixed(4)),
+          })),
+        }),
       })).catch(() => {});
       Promise.resolve(context.registerTool({
         name: 'add_word', title: 'Добавить слово', description: 'Сохранить английское слово и его русский перевод в личном словаре Вордика.',
@@ -1678,6 +1898,7 @@
 
   renderReadyCollections();
   renderDictionary();
+  loadDifficultyData();
   renderStreak();
   renderProfile();
   updateQuickPickLaunch();
