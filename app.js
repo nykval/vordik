@@ -8,6 +8,7 @@
   const QUICK_PICK_KNOWN_KEY = 'vordik.quickPickKnown.v1';
   const QUICK_PICK_SESSION_KEY = 'vordik.quickPickSession.v1';
   const QUICK_PICK_WORD_COUNT = 15;
+  const STUDY_SERIES_SIZE = 15;
   const DAY_MS = 24 * 60 * 60 * 1000;
   const CEFR_DIFFICULTY = Object.freeze({ A1: 1, A2: 2, B1: 3, B2: 4, C1: 5, C2: 6 });
   const DIFFICULTY_CEFR = Object.freeze(['A1', 'A1', 'A2', 'B1', 'B2', 'C1', 'C2']);
@@ -1482,13 +1483,26 @@
     });
   }
 
+  function weakestStudyWordIds() {
+    const now = Date.now();
+    return words
+      .map((word, index) => ({ word, index, knowledge: currentKnowledge(word, now) }))
+      .sort((left, right) => (
+        left.knowledge - right.knowledge
+        || left.word.difficulty - right.word.difficulty
+        || left.index - right.index
+      ))
+      .slice(0, STUDY_SERIES_SIZE)
+      .map(({ word }) => word.id);
+  }
+
   function startStudy(mechanic = session.mechanic) {
     if (!words.length) return;
     if (mechanic === 'quiz' && new Set(words.map((word) => word.russian.toLocaleLowerCase())).size < 2) return;
     if (mechanic === 'timed' && new Set(words.map((word) => word.russian.toLocaleLowerCase())).size < 2) return;
     stopTimedRound();
     session.mechanic = mechanic;
-    session.ids = mechanic === 'timed' ? shuffled(words.map((word) => word.id)) : words.map((word) => word.id);
+    session.ids = mechanic === 'timed' ? shuffled(words.map((word) => word.id)) : weakestStudyWordIds();
     session.index = 0;
     session.flipped = false;
     session.answered = false;
