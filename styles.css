@@ -333,6 +333,12 @@ input::placeholder { color: #91a2a1; }
   -webkit-user-select: none;
   touch-action: manipulation;
 }
+.timed-options .timed-answer-option.is-correct,
+.timed-options .timed-answer-option.is-correct:disabled { background: #f2f8dc; color: #263844; }
+.timed-options .timed-answer-option.is-correct .answer-option-radio { background: var(--brand-lime); }
+.timed-options .timed-answer-option.is-incorrect,
+.timed-options .timed-answer-option.is-incorrect:disabled { background: #ffe7e8; color: #263844; }
+.timed-options .timed-answer-option.is-incorrect .answer-option-radio { background: #ff6b70; }
 .timed-feedback { min-height: 1.4em; margin: 8px 0 0; text-align: center; font-size: .8rem; }
 .text-button { display: block; margin: 24px auto 0; border: 0; background: none; color: var(--brand-blue); font-size: .88rem; font-weight: 700; text-decoration: underline; text-underline-offset: 4px; }
 .text-button:hover { color: #17323e; }
