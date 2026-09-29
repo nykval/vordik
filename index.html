@@ -11,28 +11,22 @@
     <link rel="manifest" href="./site.webmanifest" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
-  <body>
+  <body class="is-home">
     <div class="app-shell">
       <header class="utility-header" aria-label="Состояние приложения">
         <button id="profile-button" class="utility-button profile-button" type="button" aria-label="Профиль пользователя" title="Профиль">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5.5 20a6.5 6.5 0 0 1 13 0"/></svg>
         </button>
+        <span id="home-greeting" class="utility-greeting">Привет, Пользователь Вордик!</span>
       </header>
 
       <main class="workspace">
-        <section id="home-view" class="view" aria-labelledby="home-title">
+        <section id="home-view" class="view" aria-label="Главная">
           <div class="home-layout">
-            <div class="intro">
-              <div>
-                <p class="eyebrow">ВАШ АНГЛИЙСКИЙ, СЛОВО ЗА СЛОВОМ</p>
-                <h1 id="home-title">Слова, которые<br /><em>запомнятся.</em></h1>
-              </div>
-              <p class="intro-aside">Соберите свой словарь и повторяйте его в удобном темпе.</p>
-            </div>
             <div class="home-count-card">
               <div class="home-count-top">
                 <span class="stage-kicker">ОБЩИЙ УРОВЕНЬ СЛОВАРЯ</span>
-                <span class="home-count-mark" aria-hidden="true">✦</span>
+                <span class="home-count-mark" aria-hidden="true"><img src="./icons/vocabulary-level.png" alt="" width="256" height="256" /></span>
               </div>
               <div class="home-count-value">
                 <strong id="home-vocabulary-score" class="home-count" data-digits="1">0</strong>
@@ -78,14 +72,15 @@
           </div>
         </section>
 
-        <section id="dictionary-view" class="view" aria-labelledby="dictionary-title" hidden>
+        <section id="dictionary-view" class="view" aria-label="Словарь" hidden>
           <div class="dictionary-shell">
             <div class="dictionary-page-heading">
-              <div>
-                <span class="section-number">МОЙ СЛОВАРЬ</span>
-                <h2 id="dictionary-title">Слова</h2>
-              </div>
-              <button id="add-word-toggle" class="dictionary-add-toggle" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="add-overlay"><img src="./icons/add.svg" alt="" aria-hidden="true" /> Добавить</button>
+              <label class="dictionary-search" for="dictionary-search-input">
+                <span class="visually-hidden">Поиск слова</span>
+                <input id="dictionary-search-input" type="search" placeholder="Поиск слова" autocomplete="off" spellcheck="false" />
+                <img class="dictionary-search-icon" src="./icons/search.svg" alt="" aria-hidden="true" />
+              </label>
+              <button id="add-word-toggle" class="dictionary-add-toggle" type="button" aria-label="Добавить слово" title="Добавить слово" aria-haspopup="dialog" aria-expanded="false" aria-controls="add-overlay"><img src="./icons/add-word.svg" alt="" aria-hidden="true" /></button>
             </div>
 
             <section class="dictionary-collection" aria-labelledby="word-count-heading">
@@ -94,6 +89,7 @@
                 <button id="sort-button" class="sort-button" type="button" aria-haspopup="dialog" aria-controls="sort-overlay">Сортировка <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h11M4 17h6"/></svg></button>
               </div>
               <div id="word-list" class="dictionary-word-list" role="list"></div>
+              <p id="dictionary-search-empty" class="dictionary-search-empty" hidden>По вашему запросу ничего не найдено</p>
               <div id="dictionary-empty" class="dictionary-empty" hidden>
                 <div class="dictionary-empty-art">
                   <img src="./icons/dictionary-empty.png" alt="Пока ни одного слова" width="2400" height="1400" />
@@ -368,23 +364,17 @@
         <div id="quick-pick-screen" class="quick-pick-screen" hidden>
           <div id="quick-pick-deck-view">
             <div class="quick-pick-header">
-              <button id="quick-pick-undo" class="quick-pick-header-button" type="button" disabled>Отменить</button>
-              <span id="quick-pick-progress" class="quick-pick-progress" aria-live="polite">1 из 20</span>
+              <span id="quick-pick-progress" class="quick-pick-progress" aria-live="polite">1 из 15</span>
               <button id="quick-pick-close" class="quick-pick-close" type="button" aria-label="Закрыть быстрый подбор"><img src="./icons/close.svg" alt="" aria-hidden="true" /></button>
-            </div>
-            <div class="quick-pick-directions" aria-hidden="true">
-              <span>← Не знаю</span>
-              <span>Знаю →</span>
             </div>
             <div class="quick-pick-deck">
               <button id="quick-pick-card" class="quick-pick-card" type="button" aria-label="Открыть перевод">
+                <span class="quick-pick-swipe-fill" aria-hidden="true"></span>
                 <span class="quick-pick-card-label">СЛОВО</span>
                 <strong id="quick-pick-word" lang="en"></strong>
                 <span id="quick-pick-translation" class="quick-pick-translation"></span>
                 <small id="quick-pick-card-hint">Нажмите, чтобы увидеть перевод</small>
               </button>
-              <span class="quick-pick-choice quick-pick-choice-unknown" aria-hidden="true">Не знаю</span>
-              <span class="quick-pick-choice quick-pick-choice-known" aria-hidden="true">Знаю</span>
             </div>
             <div class="quick-pick-actions">
               <button id="quick-pick-unknown" type="button">Не знаю</button>
@@ -407,7 +397,6 @@
             <div id="quick-pick-review-list" class="quick-pick-review-list"></div>
             <button id="quick-pick-add-selected" class="primary-button quick-pick-add-selected" type="button">Добавить выбранные слова</button>
             <button id="quick-pick-skip" class="secondary-button quick-pick-skip" type="button">Не добавлять</button>
-            <button id="quick-pick-review-undo" class="text-button" type="button">Отменить последний свайп</button>
           </div>
         </div>
       </main>

@@ -44,6 +44,7 @@
   let toastTimer;
   let activeUtterance = null;
   let sortMode = 'recent';
+  let dictionarySearchQuery = '';
   let sortCloseTimer;
   let sortOpenFrame;
   let collectionCloseTimer;
@@ -353,6 +354,7 @@
     const streak = streakLength();
     const target = Math.max(50, Math.ceil(Math.max(words.length, 1) / 50) * 50);
     const progress = Math.min(100, Math.round((words.length / target) * 100));
+    if ($('home-greeting')) $('home-greeting').textContent = `Привет, ${userProfile.name}!`;
     $('profile-name').textContent = userProfile.name;
     $('profile-initials').textContent = profileInitials(userProfile.name);
     $('profile-joined').textContent = joinedLabel(userProfile.joinedAt);
@@ -840,13 +842,19 @@
     scoreElement.textContent = scoreText;
     scoreElement.dataset.digits = String(Math.min(Math.max(scoreText.replace(/\D/g, '').length, 1), 6));
     $('home-vocabulary-score-unit').textContent = pointNoun(vocabularyScore);
-    $('word-count').textContent = words.length;
-    $('word-count-noun').textContent = wordNoun(words.length);
-    $('dictionary-empty').hidden = words.length !== 0;
-    $('word-list').hidden = words.length === 0;
-    const displayedWords = sortMode === 'alphabetical'
-      ? [...words].sort((a, b) => a.english.localeCompare(b.english, 'en', { sensitivity: 'base' }))
+    const normalizedQuery = dictionarySearchQuery.trim().toLocaleLowerCase('ru-RU');
+    const filteredWords = normalizedQuery
+      ? words.filter((word) => word.english.toLocaleLowerCase('en-US').includes(normalizedQuery)
+        || word.russian.toLocaleLowerCase('ru-RU').includes(normalizedQuery))
       : words;
+    $('word-count').textContent = filteredWords.length;
+    $('word-count-noun').textContent = wordNoun(filteredWords.length);
+    $('dictionary-empty').hidden = words.length !== 0;
+    $('dictionary-search-empty').hidden = words.length === 0 || filteredWords.length !== 0;
+    $('word-list').hidden = words.length === 0 || filteredWords.length === 0;
+    const displayedWords = sortMode === 'alphabetical'
+      ? [...filteredWords].sort((a, b) => a.english.localeCompare(b.english, 'en', { sensitivity: 'base' }))
+      : filteredWords;
     const fragment = document.createDocumentFragment();
     displayedWords.forEach((word) => {
       const row = document.createElement('div');
@@ -881,15 +889,32 @@
       metrics.className = 'dictionary-word-metrics';
       const difficulty = document.createElement('span');
       difficulty.className = 'dictionary-word-metric is-difficulty';
-      difficulty.textContent = `Сложность ${word.cefr_level}`;
+      const difficultyLevel = String(word.cefr_level || 'A1').toUpperCase();
+      const difficultyIcon = document.createElement('img');
+      difficultyIcon.className = 'dictionary-difficulty-icon';
+      difficultyIcon.src = `./icons/difficulty-${difficultyLevel.toLocaleLowerCase('en-US')}.png`;
+      difficultyIcon.alt = '';
+      difficultyIcon.setAttribute('aria-hidden', 'true');
+      difficulty.append(difficultyIcon);
       difficulty.title = `Сложность ${word.difficulty} из 6`;
+      difficulty.setAttribute('aria-label', `Сложность: ${difficultyLevel}`);
       const knowledgeMetric = document.createElement('span');
       knowledgeMetric.className = 'dictionary-word-metric is-knowledge';
-      knowledgeMetric.textContent = `Знание ${currentKnowledgePercent(word, now)}%`;
+      const knowledgePercent = currentKnowledgePercent(word, now);
+      const knowledgeIcon = document.createElement('img');
+      knowledgeIcon.className = 'dictionary-knowledge-icon';
+      knowledgeIcon.src = './icons/knowledge.png';
+      knowledgeIcon.alt = '';
+      knowledgeIcon.setAttribute('aria-hidden', 'true');
+      const knowledgeValue = document.createElement('span');
+      knowledgeValue.className = 'dictionary-knowledge-value';
+      knowledgeValue.textContent = `${knowledgePercent}%`;
+      knowledgeMetric.append(knowledgeIcon, knowledgeValue);
       knowledgeMetric.title = knowledgeDescription(knowledge);
+      knowledgeMetric.setAttribute('aria-label', `Уровень знания: ${knowledgePercent}%`);
       metrics.append(difficulty, knowledgeMetric);
-      copy.append(english, russian, metrics);
-      row.append(listen, copy);
+      copy.append(english, russian);
+      row.append(listen, copy, metrics);
       fragment.append(row);
     });
     $('word-list').replaceChildren(fragment);
@@ -1153,7 +1178,11 @@
     if (tab !== 'dictionary' && !$('word-card-overlay').hidden) setWordCardOpen(false, activeWordCardId, false);
     if (tab !== 'home' && !$('quick-pick-screen').hidden) closeQuickPick();
     activeTab = tab;
+    document.body.classList.toggle('is-home', tab === 'home');
     document.body.classList.toggle('is-profile', tab === 'profile');
+    const headerColor = '#f3f5f2';
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', headerColor);
+    window.Telegram?.WebApp?.setHeaderColor?.(headerColor);
     document.querySelector('.bottom-nav').dataset.active = tab;
     document.querySelectorAll('[data-tab]').forEach((button) => {
       const selected = button.dataset.tab === tab;
@@ -1246,7 +1275,7 @@
     recordStudyDay();
     document.body.classList.add('is-picking');
     $('quick-pick-screen').hidden = false;
-    if (quickPickSession.index >= quickPickSession.deck.length) renderQuickPickReview();
+    if (quickPickSession.index >= quickPickSession.deck.length) addAllQuickPickWords();
     else renderQuickPickCard();
     window.scrollTo(0, 0);
   }
@@ -1261,7 +1290,7 @@
 
   function renderQuickPickCard() {
     if (!quickPickSession || quickPickSession.index >= quickPickSession.deck.length) {
-      renderQuickPickReview();
+      addAllQuickPickWords();
       return;
     }
     const word = quickPickWordById(quickPickSession.deck[quickPickSession.index]);
@@ -1283,7 +1312,6 @@
     $('quick-pick-translation').hidden = true;
     $('quick-pick-card-hint').textContent = 'Нажмите, чтобы увидеть перевод';
     $('quick-pick-progress').textContent = `${quickPickSession.index + 1} из ${quickPickSession.deck.length}`;
-    $('quick-pick-undo').disabled = quickPickSession.history.length === 0;
     $('quick-pick-deck-view').hidden = false;
     $('quick-pick-review').hidden = true;
   }
@@ -1307,40 +1335,23 @@
       quickPickSession.unknown.push(id);
     }
     quickPickSession.index += 1;
-    if (quickPickSession.index >= quickPickSession.deck.length && quickPickSession.selected === null) {
-      quickPickSession.selected = [...quickPickSession.unknown];
-    }
     saveQuickPickSession();
-    if (quickPickSession.index >= quickPickSession.deck.length) renderQuickPickReview();
+    if (quickPickSession.index >= quickPickSession.deck.length) addAllQuickPickWords();
     else renderQuickPickCard();
   }
 
   function animateQuickPickChoice(choice) {
     if (quickPickAnimating || !quickPickSession || quickPickSession.index >= quickPickSession.deck.length) return;
     quickPickAnimating = true;
-    quickPickSuppressClick = true;
     const card = $('quick-pick-card');
+    const deck = card.parentElement;
     const direction = choice === 'known' ? 1 : -1;
+    deck.dataset.swipeDirection = choice;
+    deck.style.setProperty('--swipe-progress', '1');
     card.classList.add(choice === 'known' ? 'is-leaving-known' : 'is-leaving-unknown');
     card.style.transform = `translateX(${direction * 120}vw) rotate(${direction * 18}deg)`;
     const duration = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 230;
     setTimeout(() => commitQuickPickChoice(choice), duration);
-  }
-
-  function undoQuickPickChoice() {
-    if (quickPickAnimating || !quickPickSession || quickPickSession.history.length === 0) return;
-    const last = quickPickSession.history.pop();
-    quickPickSession.index = Math.max(0, quickPickSession.index - 1);
-    if (last.choice === 'known') {
-      quickPickKnown.delete(last.id);
-      saveQuickPickKnown();
-    } else {
-      const unknownIndex = quickPickSession.unknown.lastIndexOf(last.id);
-      if (unknownIndex >= 0) quickPickSession.unknown.splice(unknownIndex, 1);
-    }
-    quickPickSession.selected = null;
-    saveQuickPickSession();
-    renderQuickPickCard();
   }
 
   function updateQuickPickSelection() {
@@ -1391,7 +1402,6 @@
       fragment.append(label);
     });
     $('quick-pick-review-list').replaceChildren(fragment);
-    $('quick-pick-review-undo').hidden = quickPickSession.history.length === 0;
     updateQuickPickSelection();
     window.scrollTo(0, 0);
   }
@@ -1408,6 +1418,41 @@
     saveQuickPickSession();
     closeQuickPick();
     if (message) showToast(message);
+  }
+
+  function addAllQuickPickWords() {
+    if (!quickPickSession) return;
+    const choices = new Map(quickPickSession.history.map((item) => [item.id, item.choice]));
+    const existingEnglish = new Set(words.map((word) => normalizeDictionaryText(word.english, 'en-US')));
+    const additions = [];
+    quickPickSession.deck.forEach((id, index) => {
+      const source = quickPickWordById(id);
+      if (!source) return;
+      const english = normalizeDictionaryText(source.english, 'en-US');
+      const russian = normalizeDictionaryText(source.russian, 'ru-RU');
+      if (!english || existingEnglish.has(english)) return;
+      const choice = choices.get(id)
+        ?? (quickPickSession.unknown.includes(id) ? 'unknown' : (quickPickKnown.has(id) ? 'known' : 'unknown'));
+      existingEnglish.add(english);
+      additions.push(createWordRecord(
+        globalThis.crypto?.randomUUID?.() ?? `quick-word-${Date.now()}-${index}`,
+        english,
+        russian,
+        choice === 'known' ? .5 : 0,
+      ));
+    });
+    if (additions.length) {
+      words.unshift(...additions);
+      if (!saveWords()) {
+        words.splice(0, additions.length);
+        quickPickAnimating = false;
+        showToast('Не удалось сохранить слова');
+        return;
+      }
+      renderDictionary();
+      syncSession();
+    }
+    finishQuickPick(additions.length ? `Добавлено ${additions.length} ${wordNoun(additions.length)}` : 'Все слова уже есть в словаре');
   }
 
   function addQuickPickSelection() {
@@ -1585,7 +1630,10 @@
       check.alt = '';
       radio.append(check);
       button.append(label, radio);
-      button.addEventListener('click', () => answerQuiz(answer, word.russian));
+      button.addEventListener('click', (event) => {
+        event.currentTarget.blur();
+        answerQuiz(answer, word.russian);
+      });
       fragment.append(button);
     });
     $('quiz-options').replaceChildren(fragment);
@@ -1601,9 +1649,11 @@
     $('quiz-options').querySelectorAll('button').forEach((button) => {
       button.disabled = true;
       const selected = button.dataset.answer === answer;
+      const correctOption = button.dataset.answer.toLocaleLowerCase() === correctAnswer.toLocaleLowerCase();
       button.setAttribute('aria-pressed', String(selected));
-      if (selected) button.classList.add('is-selected');
-      if (button.dataset.answer.toLocaleLowerCase() === correctAnswer.toLocaleLowerCase()) button.classList.add('is-correct');
+      if (correctOption) button.classList.add('is-correct');
+      else if (selected) button.classList.add('is-incorrect');
+      button.blur();
     });
     $('quiz-feedback').textContent = correct ? 'Верно!' : `Правильный ответ: ${correctAnswer}`;
     $('quiz-feedback').dataset.result = correct ? 'correct' : 'incorrect';
@@ -1784,6 +1834,10 @@
   $('word-card-listen').addEventListener('click', listenToActiveWordCard);
   $('word-card-delete').addEventListener('click', () => setDeleteConfirm(true, activeWordCardId));
   $('confirm-delete-button').addEventListener('click', confirmDelete);
+  $('dictionary-search-input').addEventListener('input', (event) => {
+    dictionarySearchQuery = event.currentTarget.value;
+    renderDictionary();
+  });
   $('sort-button').addEventListener('click', () => setSortOpen(true));
   document.querySelectorAll('[data-sort-close]').forEach((button) => button.addEventListener('click', () => setSortOpen(false)));
   document.querySelectorAll('[data-sort]').forEach((button) => button.addEventListener('click', () => {
@@ -1826,8 +1880,6 @@
   $('quick-pick-review-close').addEventListener('click', closeQuickPick);
   $('quick-pick-known').addEventListener('click', () => animateQuickPickChoice('known'));
   $('quick-pick-unknown').addEventListener('click', () => animateQuickPickChoice('unknown'));
-  $('quick-pick-undo').addEventListener('click', undoQuickPickChoice);
-  $('quick-pick-review-undo').addEventListener('click', undoQuickPickChoice);
   $('quick-pick-select-all').addEventListener('click', () => setQuickPickSelection(true));
   $('quick-pick-select-none').addEventListener('click', () => setQuickPickSelection(false));
   $('quick-pick-add-selected').addEventListener('click', addQuickPickSelection);
