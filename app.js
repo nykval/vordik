@@ -7,11 +7,23 @@
   const PROFILE_STATS_KEY = 'vordik.profileStats.v1';
   const QUICK_PICK_KNOWN_KEY = 'vordik.quickPickKnown.v1';
   const QUICK_PICK_SESSION_KEY = 'vordik.quickPickSession.v1';
+  const QUICK_PICK_WORD_COUNT = 15;
   const DAY_MS = 24 * 60 * 60 * 1000;
   const CEFR_DIFFICULTY = Object.freeze({ A1: 1, A2: 2, B1: 3, B2: 4, C1: 5, C2: 6 });
   const DIFFICULTY_CEFR = Object.freeze(['A1', 'A1', 'A2', 'B1', 'B2', 'C1', 'C2']);
   const difficultyByWord = new Map();
   const difficultyByWordAndTranslation = new Map();
+  const wordCatalog = Array.isArray(window.VORDIK_WORD_CATALOG) ? window.VORDIK_WORD_CATALOG : [];
+  wordCatalog.forEach((entry) => {
+    const cefr = normalizeCefr(entry.cefr);
+    if (!cefr) return;
+    const english = normalizeDictionaryText(entry.word, 'en-US');
+    const russian = normalizeDictionaryText(entry.translation, 'ru-RU');
+    const candidate = { difficulty: CEFR_DIFFICULTY[cefr], cefr };
+    const current = difficultyByWord.get(english);
+    if (!current || candidate.difficulty < current.difficulty) difficultyByWord.set(english, candidate);
+    difficultyByWordAndTranslation.set(difficultyKey(english, russian), candidate);
+  });
   const sampleWords = [
     { id: 'sample-horizon', english: 'horizon', russian: 'горизонт' },
     { id: 'sample-curious', english: 'curious', russian: 'любопытный' },
@@ -49,8 +61,6 @@
   let quickPickAnimating = false;
   let quickPickFlipped = false;
   let quickPickSuppressClick = false;
-  let quickPickCountCloseTimer;
-  let quickPickCountOpenFrame;
 
   function localDateKey(date) {
     const year = date.getFullYear();
@@ -145,7 +155,9 @@
         const candidate = { difficulty: CEFR_DIFFICULTY[cefr], cefr };
         const current = difficultyByWord.get(english);
         if (!current || candidate.difficulty < current.difficulty) difficultyByWord.set(english, candidate);
-        if (russian) difficultyByWordAndTranslation.set(difficultyKey(english, russian), candidate);
+        if (russian && !difficultyByWordAndTranslation.has(difficultyKey(english, russian))) {
+          difficultyByWordAndTranslation.set(difficultyKey(english, russian), candidate);
+        }
       });
       let changed = false;
       words.forEach((word) => {
@@ -375,7 +387,7 @@
       if (!saved || !Array.isArray(saved.deck) || !Array.isArray(saved.unknown) || !Array.isArray(saved.history)) return null;
       const validIds = new Set(quickPickWords.map((word) => word.id));
       const deck = saved.deck.filter((id) => typeof id === 'string' && validIds.has(id));
-      if (!deck.length) return null;
+      if (deck.length !== QUICK_PICK_WORD_COUNT) return null;
       const index = Math.min(Math.max(Number(saved.index) || 0, 0), deck.length);
       const unknown = saved.unknown.filter((id) => deck.includes(id));
       const history = saved.history.filter((item) => item && deck.includes(item.id) && (item.choice === 'known' || item.choice === 'unknown'));
@@ -453,7 +465,7 @@
       const normalized = parsed
         .filter((word) => word && typeof word.id === 'string' && typeof word.english === 'string' && typeof word.russian === 'string')
         .map((word) => normalizeWordRecord(word))
-        .filter((word) => word.english && word.russian && !/\s/.test(word.english));
+        .filter((word) => word.english && word.russian);
       if (JSON.stringify(normalized) !== JSON.stringify(parsed)) {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
       }
@@ -632,13 +644,23 @@
       const visual = document.createElement('span');
       visual.className = 'ready-collection-visual';
       visual.setAttribute('aria-hidden', 'true');
-      const visualCircle = document.createElement('span');
-      visualCircle.className = 'ready-collection-visual-circle';
-      const visualPill = document.createElement('span');
-      visualPill.className = 'ready-collection-visual-pill';
-      const visualDot = document.createElement('span');
-      visualDot.className = 'ready-collection-visual-dot';
-      visual.append(visualCircle, visualPill, visualDot);
+      if (collection.image) {
+        const image = document.createElement('img');
+        image.className = 'ready-collection-image';
+        image.src = collection.image;
+        image.alt = '';
+        image.width = 700;
+        image.height = 450;
+        visual.append(image);
+      } else {
+        const visualCircle = document.createElement('span');
+        visualCircle.className = 'ready-collection-visual-circle';
+        const visualPill = document.createElement('span');
+        visualPill.className = 'ready-collection-visual-pill';
+        const visualDot = document.createElement('span');
+        visualDot.className = 'ready-collection-visual-dot';
+        visual.append(visualCircle, visualPill, visualDot);
+      }
 
       const copy = document.createElement('span');
       copy.className = 'ready-collection-copy';
@@ -803,11 +825,12 @@
 
   function renderDictionary() {
     const now = Date.now();
-    const vocabularyScore = words.reduce((total, word) => total + (word.difficulty * currentKnowledge(word, now)), 0);
+    const vocabularyScore = words.reduce((total, word) => total + (word.difficulty * currentKnowledge(word, now) * 100), 0);
     const scoreText = vocabularyScore.toFixed(1).replace(/\.0$/, '');
-    $('home-vocabulary-score').textContent = scoreText;
-    $('home-word-count').textContent = words.length;
-    $('home-word-count-noun').textContent = wordNoun(words.length);
+    const scoreElement = $('home-vocabulary-score');
+    scoreElement.textContent = scoreText;
+    scoreElement.dataset.digits = String(Math.min(Math.max(scoreText.replace(/\D/g, '').length, 1), 6));
+    $('home-vocabulary-score-unit').textContent = pointNoun(vocabularyScore);
     $('word-count').textContent = words.length;
     $('word-count-noun').textContent = wordNoun(words.length);
     $('dictionary-empty').hidden = words.length !== 0;
@@ -878,6 +901,15 @@
     if (count % 10 === 1) return 'слово';
     if (count % 10 >= 2 && count % 10 <= 4) return 'слова';
     return 'слов';
+  }
+
+  function pointNoun(value) {
+    if (!Number.isInteger(value)) return 'балла';
+    const ending = Math.abs(value) % 100;
+    if (ending >= 11 && ending <= 14) return 'баллов';
+    if (Math.abs(value) % 10 === 1) return 'балл';
+    if (Math.abs(value) % 10 >= 2 && Math.abs(value) % 10 <= 4) return 'балла';
+    return 'баллов';
   }
 
   function addWord(englishValue, russianValue) {
@@ -1108,7 +1140,6 @@
     if (tab !== 'dictionary' && !$('sort-overlay').hidden) setSortOpen(false, false);
     if (tab !== 'dictionary' && !$('add-overlay').hidden) setAddPanel(false, false);
     if (tab !== 'home' && !$('collection-overlay').hidden) setCollectionOpen(false, activeCollectionId, false);
-    if (tab !== 'home' && !$('quick-pick-count-overlay').hidden) setQuickPickCountOpen(false, false);
     if (tab !== 'dictionary' && !$('delete-overlay').hidden) setDeleteConfirm(false, pendingDeleteId, false);
     if (tab !== 'dictionary' && !$('word-card-overlay').hidden) setWordCardOpen(false, activeWordCardId, false);
     if (tab !== 'home' && !$('quick-pick-screen').hidden) closeQuickPick();
@@ -1184,68 +1215,25 @@
     });
   }
 
-  function setQuickPickCountOpen(open, restoreFocus = true) {
-    const overlay = $('quick-pick-count-overlay');
-    clearTimeout(quickPickCountCloseTimer);
-    if (quickPickCountOpenFrame) cancelAnimationFrame(quickPickCountOpenFrame);
-    if (open) {
-      const hasProgress = Boolean(quickPickSession);
-      const remaining = hasProgress ? Math.max(quickPickSession.deck.length - quickPickSession.index, 0) : 0;
-      $('quick-pick-continue').hidden = !hasProgress;
-      $('quick-pick-count-divider').hidden = !hasProgress;
-      $('quick-pick-count-description').textContent = hasProgress
-        ? 'Продолжите текущий подбор или начните новый.'
-        : 'Выберите размер подборки. Слова будут показаны по одному.';
-      if (hasProgress) $('quick-pick-continue-caption').textContent = `Осталось: ${remaining} из ${quickPickSession.deck.length}`;
-      overlay.hidden = false;
-      document.body.classList.add('is-quick-pick-count-open');
-      quickPickCountOpenFrame = requestAnimationFrame(() => {
-        quickPickCountOpenFrame = requestAnimationFrame(() => overlay.classList.add('is-visible'));
-      });
-      (hasProgress ? $('quick-pick-continue') : overlay.querySelector('[data-quick-pick-count]')).focus();
-      return;
-    }
-    overlay.classList.remove('is-visible');
-    const duration = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 260;
-    quickPickCountCloseTimer = setTimeout(() => {
-      overlay.hidden = true;
-      document.body.classList.remove('is-quick-pick-count-open');
-    }, duration);
-    if (restoreFocus && activeTab === 'home') $('quick-pick-start').focus();
-  }
-
-  function createQuickPickSession(wordCount) {
-    const count = Math.min(Math.max(Number(wordCount) || 20, 1), 30);
-    const deck = shuffled(availableQuickPickWords()).slice(0, count).map((word) => word.id);
+  function createQuickPickSession() {
+    const deck = shuffled(availableQuickPickWords()).slice(0, QUICK_PICK_WORD_COUNT).map((word) => word.id);
     quickPickSession = { deck, index: 0, unknown: [], history: [], selected: null };
     saveQuickPickSession();
   }
 
   function requestQuickPick() {
-    if (!quickPickSession && availableQuickPickWords().length === 0) {
-      showToast('Для новой подборки пока нет доступных слов');
-      return;
+    if (!quickPickSession) {
+      if (availableQuickPickWords().length === 0) {
+        showToast('Для новой подборки пока нет доступных слов');
+        return;
+      }
+      createQuickPickSession();
     }
-    setQuickPickCountOpen(true);
-  }
-
-  function startQuickPick(wordCount) {
-    createQuickPickSession(wordCount);
-    setQuickPickCountOpen(false, false);
-    openQuickPick();
-  }
-
-  function continueQuickPick() {
-    if (!quickPickSession) return;
-    setQuickPickCountOpen(false, false);
     openQuickPick();
   }
 
   function openQuickPick() {
-    if (!quickPickSession) {
-      setQuickPickCountOpen(true);
-      return;
-    }
+    if (!quickPickSession) return;
     recordStudyDay();
     document.body.classList.add('is-picking');
     $('quick-pick-screen').hidden = false;
@@ -1783,12 +1771,11 @@
   document.addEventListener('keydown', (event) => {
     const addOpen = !$('add-overlay').hidden;
     const collectionOpen = $('collection-overlay').classList.contains('is-visible');
-    const quickPickCountOpen = $('quick-pick-count-overlay').classList.contains('is-visible');
     const wordCardOpen = $('word-card-overlay').classList.contains('is-visible');
     const deleteOpen = $('delete-overlay').classList.contains('is-visible');
     const overlay = deleteOpen
       ? $('delete-overlay')
-      : (wordCardOpen ? $('word-card-overlay') : (addOpen ? $('add-overlay') : (collectionOpen ? $('collection-overlay') : (quickPickCountOpen ? $('quick-pick-count-overlay') : ($('sort-overlay').classList.contains('is-visible') ? $('sort-overlay') : null)))));
+      : (wordCardOpen ? $('word-card-overlay') : (addOpen ? $('add-overlay') : (collectionOpen ? $('collection-overlay') : ($('sort-overlay').classList.contains('is-visible') ? $('sort-overlay') : null))));
     if (!overlay) return;
     if (event.key === 'Escape') {
       event.preventDefault();
@@ -1796,7 +1783,6 @@
       else if (wordCardOpen) setWordCardOpen(false);
       else if (addOpen) setAddPanel(false);
       else if (collectionOpen) setCollectionOpen(false);
-      else if (quickPickCountOpen) setQuickPickCountOpen(false);
       else setSortOpen(false);
       return;
     }
@@ -1812,9 +1798,6 @@
   document.querySelectorAll('[data-study]').forEach((button) => button.addEventListener('click', () => startStudy(button.dataset.study)));
   setupQuickPickGestures();
   $('quick-pick-start').addEventListener('click', requestQuickPick);
-  $('quick-pick-continue').addEventListener('click', continueQuickPick);
-  document.querySelectorAll('[data-quick-pick-count]').forEach((button) => button.addEventListener('click', () => startQuickPick(button.dataset.quickPickCount)));
-  document.querySelectorAll('[data-quick-pick-count-close]').forEach((button) => button.addEventListener('click', () => setQuickPickCountOpen(false)));
   $('quick-pick-close').addEventListener('click', closeQuickPick);
   $('quick-pick-review-close').addEventListener('click', closeQuickPick);
   $('quick-pick-known').addEventListener('click', () => animateQuickPickChoice('known'));

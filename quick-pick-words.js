@@ -2502,4 +2502,11 @@
     "russian": "наслаждаться"
   }
 ];
+  const wordCatalog = Array.isArray(window.VORDIK_WORD_CATALOG) ? window.VORDIK_WORD_CATALOG : [];
+  window.VORDIK_QUICK_PICK_WORDS.forEach(({ english, russian }) => {
+    const existing = wordCatalog.find((entry) => entry.word === english && entry.translation === russian);
+    if (existing) return;
+    wordCatalog.push({ word: english, translation: russian, partOfSpeech: null, cefr: null, collections: [] });
+  });
+  window.VORDIK_WORD_CATALOG = wordCatalog;
 })();

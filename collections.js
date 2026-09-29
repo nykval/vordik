@@ -1,7 +1,46 @@
 (() => {
   'use strict';
 
+  const wordCatalog = Array.isArray(window.VORDIK_WORD_CATALOG) ? window.VORDIK_WORD_CATALOG : [];
+  const animalWords = wordCatalog
+    .filter((entry) => Array.isArray(entry.collections) && entry.collections.includes('animals'))
+    .map((entry) => [entry.word, entry.translation]);
+  const travelWords = (Array.isArray(window.VORDIK_TRAVEL_WORDS) ? window.VORDIK_TRAVEL_WORDS : [])
+    .map(([word, translation]) => [word, translation]);
+  const moneyWords = (Array.isArray(window.VORDIK_MONEY_WORDS) ? window.VORDIK_MONEY_WORDS : [])
+    .map(([word, translation]) => [word, translation]);
+  const foodWords = (Array.isArray(window.VORDIK_FOOD_WORDS) ? window.VORDIK_FOOD_WORDS : [])
+    .map(([word, translation]) => [word, translation]);
+
   window.VORDIK_COLLECTIONS = [
+    {
+      id: 'animals',
+      title: 'Животные',
+      description: 'Животные, птицы, насекомые и слова для описания дикой природы.',
+      image: './images/collections/animals.png',
+      words: animalWords,
+    },
+    {
+      id: 'travel',
+      title: 'Путешествия',
+      description: 'Лексика для поездок, транспорта, проживания, ориентирования и аэропорта.',
+      image: './images/collections/travel.png',
+      words: travelWords,
+    },
+    {
+      id: 'money',
+      title: 'Деньги',
+      description: 'Слова о покупках, банках, платежах, доходах и личных финансах.',
+      image: './images/collections/money.png',
+      words: moneyWords,
+    },
+    {
+      id: 'food',
+      title: 'Еда и рестораны',
+      description: 'Слова о продуктах, приготовлении еды, заказах и общении в ресторане.',
+      image: './images/collections/food.png',
+      words: foodWords,
+    },
     {
       id: 'communication',
       title: 'Знакомство и общение',
@@ -81,60 +120,6 @@
         ['dress', 'одеваться'],
         ['breakfast', 'завтракать'],
         ['bedtime', 'время сна'],
-      ],
-    },
-    {
-      id: 'food',
-      title: 'Еда и ресторан',
-      description: 'Слова для выбора еды, заказа блюд и общения в кафе.',
-      words: [
-        ['food', 'еда'],
-        ['water', 'вода'],
-        ['breakfast', 'завтрак'],
-        ['lunch', 'обед'],
-        ['dinner', 'ужин'],
-        ['menu', 'меню'],
-        ['dish', 'блюдо'],
-        ['drink', 'напиток'],
-        ['waiter', 'официант'],
-        ['order', 'заказывать'],
-        ['bill', 'счёт'],
-        ['tip', 'чаевые'],
-        ['delicious', 'вкусный'],
-        ['hungry', 'голодный'],
-        ['thirsty', 'испытывающий жажду'],
-        ['vegetarian', 'вегетарианский'],
-        ['reservation', 'бронирование'],
-        ['choose', 'выбирать'],
-        ['pay', 'платить'],
-        ['recommend', 'рекомендовать'],
-      ],
-    },
-    {
-      id: 'travel',
-      title: 'Путешествия и аэропорт',
-      description: 'Полезная лексика для поездок, перелётов и прохождения аэропорта.',
-      words: [
-        ['travel', 'путешествовать'],
-        ['trip', 'поездка'],
-        ['airport', 'аэропорт'],
-        ['flight', 'рейс'],
-        ['ticket', 'билет'],
-        ['passport', 'паспорт'],
-        ['luggage', 'багаж'],
-        ['suitcase', 'чемодан'],
-        ['check-in', 'регистрация'],
-        ['boarding', 'посадка'],
-        ['gate', 'выход на посадку'],
-        ['departure', 'отправление'],
-        ['arrival', 'прибытие'],
-        ['delay', 'задержка'],
-        ['cancelled', 'отменён'],
-        ['customs', 'таможня'],
-        ['security', 'досмотр'],
-        ['terminal', 'терминал'],
-        ['route', 'маршрут'],
-        ['booking', 'бронирование'],
       ],
     },
     {
@@ -273,4 +258,16 @@
       ],
     },
   ];
+
+  window.VORDIK_COLLECTIONS.forEach((collection) => {
+    collection.words.forEach(([word, translation]) => {
+      const existing = wordCatalog.find((entry) => entry.word === word && entry.translation === translation);
+      if (existing) {
+        if (!existing.collections.includes(collection.id)) existing.collections.push(collection.id);
+        return;
+      }
+      wordCatalog.push({ word, translation, partOfSpeech: null, cefr: null, collections: [collection.id] });
+    });
+  });
+  window.VORDIK_WORD_CATALOG = wordCatalog;
 })();

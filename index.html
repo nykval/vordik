@@ -30,19 +30,20 @@
               <p class="intro-aside">Соберите свой словарь и повторяйте его в удобном темпе.</p>
             </div>
             <div class="home-count-card">
-              <span class="stage-kicker">ОБЩИЙ УРОВЕНЬ СЛОВАРЯ</span>
-              <strong id="home-vocabulary-score" class="home-count">0</strong>
-              <span class="home-count-caption"><span id="home-word-count">3</span> <span id="home-word-count-noun">слова</span> · сложность × знание</span>
-              <div class="home-actions">
-                <button class="primary-button" type="button" data-go="dictionary">Открыть словарь <span aria-hidden="true">↗</span></button>
-                <button class="secondary-button" type="button" data-go="cards">Учить слова <span aria-hidden="true">↗</span></button>
+              <div class="home-count-top">
+                <span class="stage-kicker">ОБЩИЙ УРОВЕНЬ СЛОВАРЯ</span>
+                <span class="home-count-mark" aria-hidden="true">✦</span>
+              </div>
+              <div class="home-count-value">
+                <strong id="home-vocabulary-score" class="home-count" data-digits="1">0</strong>
+                <span id="home-vocabulary-score-unit" class="home-count-unit">баллов</span>
               </div>
             </div>
           </div>
 
           <section class="home-quick-pick" aria-label="Быстрый подбор слов">
             <div class="quick-pick-entry">
-              <button id="quick-pick-start" class="quick-pick-launch" type="button" aria-haspopup="dialog" aria-controls="quick-pick-count-overlay">
+              <button id="quick-pick-start" class="quick-pick-launch" type="button">
                 <img class="quick-pick-launch-image" src="./images/quick-pick-banner.png" alt="" aria-hidden="true" width="2144" height="806" draggable="false" />
                 <span class="quick-pick-accessible-copy">
                   Быстрый подбор слов.
@@ -52,30 +53,6 @@
               </button>
             </div>
           </section>
-
-          <div id="quick-pick-count-overlay" class="quick-pick-count-overlay" hidden>
-            <button class="quick-pick-count-backdrop" type="button" data-quick-pick-count-close tabindex="-1" aria-label="Закрыть выбор количества слов"></button>
-            <section class="quick-pick-count-dialog" role="dialog" aria-modal="true" aria-labelledby="quick-pick-count-title" aria-describedby="quick-pick-count-description">
-              <div class="quick-pick-count-heading">
-                <div>
-                  <span class="section-number">БЫСТРЫЙ ПОДБОР</span>
-                  <h2 id="quick-pick-count-title">Сколько слов найти?</h2>
-                </div>
-                <button class="quick-pick-count-close" type="button" data-quick-pick-count-close aria-label="Закрыть"><img src="./icons/close.svg" alt="" aria-hidden="true" /></button>
-              </div>
-              <p id="quick-pick-count-description">Выберите размер подборки. Слова будут показаны по одному.</p>
-              <button id="quick-pick-continue" class="quick-pick-continue" type="button" hidden>
-                <strong>Продолжить текущий подбор</strong>
-                <span id="quick-pick-continue-caption"></span>
-              </button>
-              <div id="quick-pick-count-divider" class="quick-pick-count-divider" hidden><span>или начать новый</span></div>
-              <div class="quick-pick-count-options" role="group" aria-label="Количество слов">
-                <button type="button" data-quick-pick-count="10"><strong>10</strong><span>слов</span></button>
-                <button type="button" data-quick-pick-count="20"><strong>20</strong><span>слов</span></button>
-                <button type="button" data-quick-pick-count="30"><strong>30</strong><span>слов</span></button>
-              </div>
-            </section>
-          </div>
 
           <section class="ready-collections" aria-labelledby="ready-collections-title">
             <div class="ready-collections-heading">
@@ -451,6 +428,10 @@
       </nav>
       <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
     </div>
+    <script src="./travel-words.js" defer></script>
+    <script src="./money-words.js" defer></script>
+    <script src="./food-words.js" defer></script>
+    <script src="./word-catalog.js" defer></script>
     <script src="./collections.js" defer></script>
     <script src="./quick-pick-words.js" defer></script>
     <script src="./app.js" defer></script>
