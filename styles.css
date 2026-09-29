@@ -323,6 +323,7 @@ input::placeholder { color: #91a2a1; }
   appearance: none;
   -webkit-appearance: none;
   -webkit-tap-highlight-color: transparent;
+  border: 2px solid transparent;
   outline: none !important;
   box-shadow: none !important;
   background: #f5f8ff;
@@ -334,10 +335,10 @@ input::placeholder { color: #91a2a1; }
   touch-action: manipulation;
 }
 .timed-options .timed-answer-option.is-correct,
-.timed-options .timed-answer-option.is-correct:disabled { background: #f2f8dc; color: #263844; }
-.timed-options .timed-answer-option.is-correct .answer-option-radio { background: var(--brand-lime); }
+.timed-options .timed-answer-option.is-correct:disabled { border-color: #73cf38; background: #dff5b8; color: #17323e; }
+.timed-options .timed-answer-option.is-correct .answer-option-radio { background: #73cf38; }
 .timed-options .timed-answer-option.is-incorrect,
-.timed-options .timed-answer-option.is-incorrect:disabled { background: #ffe7e8; color: #263844; }
+.timed-options .timed-answer-option.is-incorrect:disabled { border-color: #ff6b70; background: #ffd7d9; color: #17323e; }
 .timed-options .timed-answer-option.is-incorrect .answer-option-radio { background: #ff6b70; }
 .timed-feedback { min-height: 1.4em; margin: 8px 0 0; text-align: center; font-size: .8rem; }
 .text-button { display: block; margin: 24px auto 0; border: 0; background: none; color: var(--brand-blue); font-size: .88rem; font-weight: 700; text-decoration: underline; text-underline-offset: 4px; }

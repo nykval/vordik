@@ -1741,7 +1741,7 @@
     $('timed-clock').classList.add(correct ? 'is-rewarded' : 'is-penalized');
     updateTimedClock();
     if (session.phase !== 'play') return;
-    timedAdvanceTimer = setTimeout(advanceTimedWord, correct ? 350 : 650);
+    timedAdvanceTimer = setTimeout(advanceTimedWord, correct ? 700 : 900);
   }
 
   function nextCard() {
