@@ -74,6 +74,10 @@
     return Math.min(1, Math.max(0, Number(value) || 0));
   }
 
+  function roundKnowledge(value) {
+    return Math.round(clampKnowledge(value) * 100) / 100;
+  }
+
   function validIsoDate(value) {
     return typeof value === 'string' && !Number.isNaN(Date.parse(value)) ? value : null;
   }
@@ -106,7 +110,7 @@
       russian,
       difficulty: level.difficulty,
       cefr_level: level.cefr,
-      knowledge: clampKnowledge(word.knowledge ?? initialKnowledge),
+      knowledge: roundKnowledge(word.knowledge ?? initialKnowledge),
       last_review_at: validIsoDate(word.last_review_at),
       last_correct_at: validIsoDate(word.last_correct_at),
       correct_answers: Math.max(0, Math.floor(Number(word.correct_answers) || 0)),
@@ -175,7 +179,7 @@
   }
 
   function currentKnowledge(word, now = Date.now()) {
-    const knowledge = clampKnowledge(word.knowledge);
+    const knowledge = roundKnowledge(word.knowledge);
     const reviewedAt = validIsoDate(word.last_review_at);
     if (!reviewedAt || knowledge === 0) return knowledge;
     const daysSinceReview = Math.max(0, (now - Date.parse(reviewedAt)) / DAY_MS);
@@ -186,7 +190,11 @@
     else if (knowledge >= .6) { graceDays = 10; decayRate = .01; }
     else if (knowledge >= .4) { graceDays = 5; decayRate = .02; }
     const decayDays = Math.floor(Math.max(0, daysSinceReview - graceDays));
-    return clampKnowledge(knowledge * ((1 - decayRate) ** decayDays));
+    return roundKnowledge(knowledge * ((1 - decayRate) ** decayDays));
+  }
+
+  function currentKnowledgePercent(word, now = Date.now()) {
+    return Math.round(currentKnowledge(word, now) * 100);
   }
 
   function knowledgeDescription(knowledge) {
@@ -252,7 +260,7 @@
       word.wrong_answers += 1;
       word.correct_streak = 0;
     }
-    word.knowledge = clampKnowledge(knowledgeAfter);
+    word.knowledge = roundKnowledge(knowledgeAfter);
     word.last_review_at = now.toISOString();
     word.last_result = correct ? 'correct' : 'wrong';
     if (!saveWords()) showToast('Не удалось сохранить прогресс слова');
@@ -826,8 +834,8 @@
 
   function renderDictionary() {
     const now = Date.now();
-    const vocabularyScore = words.reduce((total, word) => total + (word.difficulty * currentKnowledge(word, now) * 100), 0);
-    const scoreText = vocabularyScore.toFixed(1).replace(/\.0$/, '');
+    const vocabularyScore = words.reduce((total, word) => total + (word.difficulty * currentKnowledgePercent(word, now)), 0);
+    const scoreText = String(vocabularyScore);
     const scoreElement = $('home-vocabulary-score');
     scoreElement.textContent = scoreText;
     scoreElement.dataset.digits = String(Math.min(Math.max(scoreText.replace(/\D/g, '').length, 1), 6));
@@ -877,7 +885,7 @@
       difficulty.title = `Сложность ${word.difficulty} из 6`;
       const knowledgeMetric = document.createElement('span');
       knowledgeMetric.className = 'dictionary-word-metric is-knowledge';
-      knowledgeMetric.textContent = `Знание ${Math.round(knowledge * 100)}%`;
+      knowledgeMetric.textContent = `Знание ${currentKnowledgePercent(word, now)}%`;
       knowledgeMetric.title = knowledgeDescription(knowledge);
       metrics.append(difficulty, knowledgeMetric);
       copy.append(english, russian, metrics);
