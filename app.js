@@ -1681,7 +1681,6 @@
       button.type = 'button';
       button.className = 'answer-option timed-answer-option';
       button.dataset.answer = answer;
-      button.setAttribute('aria-pressed', 'false');
       const label = document.createElement('span');
       label.textContent = answer;
       const radio = document.createElement('span');
@@ -1728,10 +1727,7 @@
     renderProgress();
     $('timed-options').querySelectorAll('button').forEach((button) => {
       button.disabled = true;
-      const selected = button.dataset.answer === answer;
-      button.setAttribute('aria-pressed', String(selected));
-      if (selected) button.classList.add('is-selected');
-      if (button.dataset.answer.toLocaleLowerCase() === correctAnswer.toLocaleLowerCase()) button.classList.add('is-correct');
+      button.blur();
     });
     $('timed-feedback').textContent = correct ? '+3 секунды' : `−3 секунды · Правильно: ${correctAnswer}`;
     $('timed-feedback').dataset.result = correct ? 'correct' : 'incorrect';
