@@ -314,6 +314,9 @@ input::placeholder { color: #91a2a1; }
 .timed-prompt-wrap { min-height: 140px; flex: 1; display: grid; place-items: center; padding: 28px 12px; }
 .timed-question .question-word { margin: 0; color: #111; font-size: clamp(2.55rem, 7vw, 4.4rem); letter-spacing: -.045em; }
 .timed-options { gap: 12px; }
+.timed-answer-option { -webkit-tap-highlight-color: transparent; user-select: none; touch-action: manipulation; }
+.timed-answer-option:hover:not(:disabled), .timed-answer-option:focus, .timed-answer-option:focus-visible { background: #f5f8ff; transform: none; }
+.timed-answer-option:focus:not(:focus-visible) { outline: none; }
 .timed-feedback { min-height: 1.4em; margin: 8px 0 0; text-align: center; font-size: .8rem; }
 .text-button { display: block; margin: 24px auto 0; border: 0; background: none; color: var(--brand-blue); font-size: .88rem; font-weight: 700; text-decoration: underline; text-underline-offset: 4px; }
 .text-button:hover { color: #17323e; }

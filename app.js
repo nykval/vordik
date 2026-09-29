@@ -1692,13 +1692,13 @@
       check.alt = '';
       radio.append(check);
       button.append(label, radio);
-      button.addEventListener('click', () => answerTimed(answer, word.russian));
+      button.addEventListener('click', (event) => {
+        event.currentTarget.blur();
+        answerTimed(answer, word.russian);
+      });
       fragment.append(button);
     });
     $('timed-options').replaceChildren(fragment);
-    requestAnimationFrame(() => {
-      if (session.phase === 'play' && session.mechanic === 'timed' && !timedLocked) $('timed-options').querySelector('button')?.focus();
-    });
   }
 
   function advanceTimedWord() {
