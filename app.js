@@ -9,6 +9,9 @@
   const QUICK_PICK_SESSION_KEY = 'vordik.quickPickSession.v1';
   const QUICK_PICK_WORD_COUNT = 15;
   const STUDY_SERIES_SIZE = 15;
+  const KNOWLEDGE_MAX = 10;
+  const KNOWLEDGE_SCALE_VERSION = 10;
+  const KNOWLEDGE_GAIN_BY_DIFFICULTY = Object.freeze([0, 4, 3, 3, 2, 2, 1]);
   const DAY_MS = 24 * 60 * 60 * 1000;
   const CEFR_DIFFICULTY = Object.freeze({ A1: 1, A2: 2, B1: 3, B2: 4, C1: 5, C2: 6 });
   const DIFFICULTY_CEFR = Object.freeze(['A1', 'A1', 'A2', 'B1', 'B2', 'C1', 'C2']);
@@ -72,11 +75,14 @@
   }
 
   function clampKnowledge(value) {
-    return Math.min(1, Math.max(0, Number(value) || 0));
+    return Math.min(KNOWLEDGE_MAX, Math.max(0, Math.round(Number(value) || 0)));
   }
 
-  function roundKnowledge(value) {
-    return Math.round(clampKnowledge(value) * 100) / 100;
+  function normalizeStoredKnowledge(value, scaleVersion) {
+    const numeric = Number(value) || 0;
+    if (scaleVersion === KNOWLEDGE_SCALE_VERSION) return clampKnowledge(numeric);
+    if (numeric >= 0 && numeric <= 1) return clampKnowledge(numeric * KNOWLEDGE_MAX);
+    return clampKnowledge(numeric);
   }
 
   function validIsoDate(value) {
@@ -111,7 +117,8 @@
       russian,
       difficulty: level.difficulty,
       cefr_level: level.cefr,
-      knowledge: roundKnowledge(word.knowledge ?? initialKnowledge),
+      knowledge: normalizeStoredKnowledge(word.knowledge ?? initialKnowledge, word.knowledge_scale),
+      knowledge_scale: KNOWLEDGE_SCALE_VERSION,
       last_review_at: validIsoDate(word.last_review_at),
       last_correct_at: validIsoDate(word.last_correct_at),
       correct_answers: Math.max(0, Math.floor(Number(word.correct_answers) || 0)),
@@ -124,7 +131,7 @@
   }
 
   function createWordRecord(id, english, russian, initialKnowledge = 0) {
-    return normalizeWordRecord({ id, english, russian, knowledge: initialKnowledge }, initialKnowledge);
+    return normalizeWordRecord({ id, english, russian, knowledge: initialKnowledge, knowledge_scale: KNOWLEDGE_SCALE_VERSION }, initialKnowledge);
   }
 
   function parseCsvRows(text) {
@@ -180,31 +187,17 @@
   }
 
   function currentKnowledge(word, now = Date.now()) {
-    const knowledge = roundKnowledge(word.knowledge);
-    const reviewedAt = validIsoDate(word.last_review_at);
-    if (!reviewedAt || knowledge === 0) return knowledge;
-    const daysSinceReview = Math.max(0, (now - Date.parse(reviewedAt)) / DAY_MS);
-    let graceDays = 2;
-    let decayRate = .03;
-    if (knowledge >= .95) { graceDays = 30; decayRate = .005; }
-    else if (knowledge >= .8) { graceDays = 20; decayRate = .005; }
-    else if (knowledge >= .6) { graceDays = 10; decayRate = .01; }
-    else if (knowledge >= .4) { graceDays = 5; decayRate = .02; }
-    const decayDays = Math.floor(Math.max(0, daysSinceReview - graceDays));
-    return roundKnowledge(knowledge * ((1 - decayRate) ** decayDays));
-  }
-
-  function currentKnowledgePercent(word, now = Date.now()) {
-    return Math.round(currentKnowledge(word, now) * 100);
+    return clampKnowledge(word.knowledge);
   }
 
   function knowledgeDescription(knowledge) {
-    if (knowledge < .2) return 'практически не знает';
-    if (knowledge < .4) return 'начинает узнавать';
-    if (knowledge < .6) return 'частично знает';
-    if (knowledge < .8) return 'хорошо знает';
-    if (knowledge < .95) return 'уверенно знает';
-    return 'практически освоено';
+    if (knowledge === 0) return 'не знает';
+    if (knowledge <= 2) return 'начинает узнавать';
+    if (knowledge <= 4) return 'частично знает';
+    if (knowledge <= 6) return 'хорошо знает';
+    if (knowledge <= 8) return 'уверенно знает';
+    if (knowledge < KNOWLEDGE_MAX) return 'почти освоено';
+    return 'освоено';
   }
 
   function calendarDayDifference(fromIso, toDate) {
@@ -215,24 +208,20 @@
     return Math.round((end - start) / DAY_MS);
   }
 
-  function reviewIntervalMultiplier(lastReviewAt, now) {
-    if (!lastReviewAt) return 1;
-    const days = Math.max(0, (now.getTime() - Date.parse(lastReviewAt)) / DAY_MS);
-    if (days < 1) return .5;
-    if (days < 3) return 1;
-    if (days <= 7) return 1.2;
-    if (days <= 30) return 1.4;
-    return 1.5;
+  function correctKnowledgeGain(word, knowledge) {
+    if (knowledge >= 8) return 1;
+    const difficulty = Math.min(6, Math.max(1, Math.round(Number(word.difficulty) || 1)));
+    const baseGain = KNOWLEDGE_GAIN_BY_DIFFICULTY[difficulty];
+    const taperedGain = knowledge >= 5 ? Math.min(baseGain, 2) : baseGain;
+    const consecutiveCorrectBonus = word.last_result === 'correct' ? 1 : 0;
+    return Math.max(1, taperedGain + consecutiveCorrectBonus);
   }
 
-  function dailyReviewMultiplier(reviewNumber) {
-    if (reviewNumber <= 1) return 1;
-    if (reviewNumber === 2) return .5;
-    if (reviewNumber === 3) return .25;
-    return .1;
+  function wrongKnowledgePenalty(word) {
+    return word.last_result === 'wrong' ? 2 : 1;
   }
 
-  function recordWordReview(word, correct, { positiveDelta, penalty }) {
+  function recordWordReview(word, correct) {
     if (!word) return;
     const now = new Date();
     const today = localDateKey(now);
@@ -241,27 +230,26 @@
       word.reviews_today_date = today;
       word.reviews_today = 0;
     }
-    let knowledgeAfter = knowledgeBefore;
+    const knowledgeDelta = correct
+      ? correctKnowledgeGain(word, knowledgeBefore)
+      : -wrongKnowledgePenalty(word);
+    const knowledgeAfter = clampKnowledge(knowledgeBefore + knowledgeDelta);
     if (correct) {
       const reviewNumber = word.reviews_today + 1;
-      const delta = positiveDelta * dailyReviewMultiplier(reviewNumber) * reviewIntervalMultiplier(word.last_review_at, now);
-      knowledgeAfter += delta * (1 - knowledgeAfter);
       const correctDayGap = word.last_correct_at ? calendarDayDifference(word.last_correct_at, now) : null;
       const isFirstCorrectToday = correctDayGap !== 0;
       if (isFirstCorrectToday) {
         word.correct_streak = correctDayGap === 1 ? word.correct_streak + 1 : 1;
-        const streakBonus = word.correct_streak >= 5 ? .05 : (word.correct_streak === 3 ? .03 : (word.correct_streak === 2 ? .02 : 0));
-        knowledgeAfter += streakBonus * (1 - knowledgeAfter);
       }
       word.reviews_today = reviewNumber;
       word.correct_answers += 1;
       word.last_correct_at = now.toISOString();
     } else {
-      knowledgeAfter -= penalty * knowledgeAfter;
       word.wrong_answers += 1;
       word.correct_streak = 0;
     }
-    word.knowledge = roundKnowledge(knowledgeAfter);
+    word.knowledge = knowledgeAfter;
+    word.knowledge_scale = KNOWLEDGE_SCALE_VERSION;
     word.last_review_at = now.toISOString();
     word.last_result = correct ? 'correct' : 'wrong';
     if (!saveWords()) showToast('Не удалось сохранить прогресс слова');
@@ -836,7 +824,7 @@
 
   function renderDictionary() {
     const now = Date.now();
-    const vocabularyScore = words.reduce((total, word) => total + (word.difficulty * currentKnowledgePercent(word, now)), 0);
+    const vocabularyScore = words.reduce((total, word) => total + (word.difficulty * currentKnowledge(word, now)), 0);
     const scoreText = String(vocabularyScore);
     const scoreElement = $('home-vocabulary-score');
     scoreElement.textContent = scoreText;
@@ -900,7 +888,7 @@
       difficulty.setAttribute('aria-label', `Сложность: ${difficultyLevel}`);
       const knowledgeMetric = document.createElement('span');
       knowledgeMetric.className = 'dictionary-word-metric is-knowledge';
-      const knowledgePercent = currentKnowledgePercent(word, now);
+      const knowledgeLevel = currentKnowledge(word, now);
       const knowledgeIcon = document.createElement('img');
       knowledgeIcon.className = 'dictionary-knowledge-icon';
       knowledgeIcon.src = './icons/knowledge.png';
@@ -908,10 +896,10 @@
       knowledgeIcon.setAttribute('aria-hidden', 'true');
       const knowledgeValue = document.createElement('span');
       knowledgeValue.className = 'dictionary-knowledge-value';
-      knowledgeValue.textContent = `${knowledgePercent}%`;
+      knowledgeValue.textContent = String(knowledgeLevel);
       knowledgeMetric.append(knowledgeIcon, knowledgeValue);
       knowledgeMetric.title = knowledgeDescription(knowledge);
-      knowledgeMetric.setAttribute('aria-label', `Уровень знания: ${knowledgePercent}%`);
+      knowledgeMetric.setAttribute('aria-label', `Уровень знания: ${knowledgeLevel} из ${KNOWLEDGE_MAX}`);
       metrics.append(difficulty, knowledgeMetric);
       copy.append(english, russian);
       row.append(listen, copy, metrics);
@@ -1438,7 +1426,7 @@
         globalThis.crypto?.randomUUID?.() ?? `quick-word-${Date.now()}-${index}`,
         english,
         russian,
-        choice === 'known' ? .5 : 0,
+        choice === 'known' ? 5 : 0,
       ));
     });
     if (additions.length) {
@@ -1645,7 +1633,7 @@
     const word = words.find((entry) => entry.id === session.ids[session.index]);
     const correct = answer.toLocaleLowerCase() === correctAnswer.toLocaleLowerCase();
     if (correct) session.correctCount += 1;
-    recordWordReview(word, correct, { positiveDelta: .05, penalty: .05 });
+    recordWordReview(word, correct);
     $('quiz-options').querySelectorAll('button').forEach((button) => {
       button.disabled = true;
       const selected = button.dataset.answer === answer;
@@ -1681,7 +1669,7 @@
     session.answered = true;
     const correct = answer === word.english.trim().replace(/\s+/g, ' ').toLocaleLowerCase();
     if (correct) session.correctCount += 1;
-    recordWordReview(word, correct, { positiveDelta: .12, penalty: .10 });
+    recordWordReview(word, correct);
     $('typing-input').disabled = true;
     $('typing-check-button').hidden = true;
     $('typing-feedback').textContent = correct ? 'Верно!' : `Правильный ответ: ${word.english}`;
@@ -1772,7 +1760,7 @@
     session.answered = true;
     session.attemptCount += 1;
     if (correct) session.correctCount += 1;
-    recordWordReview(word, correct, { positiveDelta: .05, penalty: .05 });
+    recordWordReview(word, correct);
     timedDeadline += correct ? 3000 : -3000;
     $('timed-score').textContent = String(session.correctCount);
     renderProgress();
@@ -1951,7 +1939,7 @@
             russian: word.russian,
             difficulty: word.difficulty,
             cefr: word.cefr_level,
-            knowledge: Number(currentKnowledge(word).toFixed(4)),
+            knowledge: currentKnowledge(word),
           })),
         }),
       })).catch(() => {});
