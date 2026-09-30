@@ -339,10 +339,12 @@
                 <span>ВОРДИК</span>
                 <span class="profile-topbar-spacer" aria-hidden="true"></span>
               </div>
-              <div class="profile-avatar" aria-hidden="true">
-                <span id="profile-initials">В</span>
-                <i></i>
-              </div>
+              <button id="profile-avatar-button" class="profile-avatar" type="button" aria-label="Выбрать аватар" aria-haspopup="dialog" aria-controls="avatar-picker-overlay">
+                <img id="profile-avatar-image" src="./icons/avatars-pack/avatar-blond-green.png" alt="" />
+                <span class="profile-avatar-edit" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg>
+                </span>
+              </button>
             </header>
 
             <div class="profile-content">
@@ -394,6 +396,22 @@
             </div>
           </div>
         </section>
+
+        <div id="avatar-picker-overlay" class="avatar-picker-overlay" hidden>
+          <button class="avatar-picker-backdrop" type="button" data-avatar-close tabindex="-1" aria-label="Закрыть выбор аватара"></button>
+          <section class="avatar-picker-dialog" role="dialog" aria-modal="true" aria-labelledby="avatar-picker-title">
+            <div class="avatar-picker-heading">
+              <div>
+                <span class="stage-kicker">ВАШ ПРОФИЛЬ</span>
+                <h2 id="avatar-picker-title">Выберите аватар</h2>
+              </div>
+              <button class="avatar-picker-close" type="button" data-avatar-close aria-label="Закрыть выбор аватара"><img src="./icons/close.svg" alt="" aria-hidden="true" /></button>
+            </div>
+            <p>Он будет отображаться в профиле и в таблице рейтинга.</p>
+            <div id="avatar-options" class="avatar-options" role="group" aria-label="Доступные аватары"></div>
+            <button class="primary-button avatar-picker-done" type="button" data-avatar-close>Готово</button>
+          </section>
+        </div>
 
         <div id="quick-pick-screen" class="quick-pick-screen" hidden>
           <div id="quick-pick-deck-view">

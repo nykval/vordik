@@ -3,6 +3,19 @@ const MAX_RATING_SCORE = 10_000_000;
 const MAX_VOCABULARY_SIZE = 100_000;
 const MAX_SCORE_PER_WORD = 60;
 const TELEGRAM_AUTH_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
+const AVATAR_IDS = Object.freeze([
+  'avatar-blond-green',
+  'avatar-bob-blue',
+  'avatar-bun-pink',
+  'avatar-cat',
+  'avatar-curly-yellow',
+  'avatar-dog',
+  'avatar-frog',
+  'avatar-panda',
+  'avatar-rabbit',
+  'avatar-short-hair-cyan',
+]);
+const avatarIds = new Set(AVATAR_IDS);
 const encoder = new TextEncoder();
 
 function httpError(message, statusCode) {
@@ -27,6 +40,22 @@ function integerInRange(value, min, max, field) {
     throw httpError(`Некорректное поле: ${field}`, 400);
   }
   return number;
+}
+
+function defaultAvatarId(userId) {
+  let hash = 2166136261;
+  for (const character of String(userId)) {
+    hash ^= character.codePointAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return AVATAR_IDS[(hash >>> 0) % AVATAR_IDS.length];
+}
+
+function cleanAvatarId(value, userId) {
+  const avatarId = String(value ?? '').trim();
+  if (!avatarId) return defaultAvatarId(userId);
+  if (!avatarIds.has(avatarId)) throw httpError('Некорректный аватар', 400);
+  return avatarId;
 }
 
 function corsHeaders(request, env) {
@@ -126,6 +155,7 @@ function publicPlayer(row, rank, currentUserId = '') {
   return {
     rank,
     name: row.name,
+    avatarId: avatarIds.has(row.avatar_id) ? row.avatar_id : defaultAvatarId(row.user_id),
     score: Number(row.score),
     vocabularySize: Number(row.vocabulary_size),
     updatedAt: row.updated_at,
@@ -135,7 +165,7 @@ function publicPlayer(row, rank, currentUserId = '') {
 
 async function listLeaderboard(database, limit, currentUserId = '') {
   const { results } = await database.prepare(`
-    SELECT user_id, name, score, vocabulary_size, updated_at
+    SELECT user_id, name, avatar_id, score, vocabulary_size, updated_at
     FROM ratings
     ORDER BY score DESC, vocabulary_size DESC, name ASC, user_id ASC
     LIMIT ?
@@ -143,20 +173,21 @@ async function listLeaderboard(database, limit, currentUserId = '') {
   return results.map((row, index) => publicPlayer(row, index + 1, currentUserId));
 }
 
-async function upsertRating(database, identity, score, vocabularySize) {
+async function upsertRating(database, identity, avatarId, avatarCustomized, score, vocabularySize) {
   await database.prepare(`
-    INSERT INTO ratings (user_id, name, score, vocabulary_size, created_at, updated_at)
-    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    INSERT INTO ratings (user_id, name, avatar_id, score, vocabulary_size, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     ON CONFLICT(user_id) DO UPDATE SET
       name = excluded.name,
+      avatar_id = CASE WHEN ? = 1 THEN excluded.avatar_id ELSE ratings.avatar_id END,
       score = excluded.score,
       vocabulary_size = excluded.vocabulary_size,
       updated_at = CURRENT_TIMESTAMP
-  `).bind(identity.id, identity.name, score, vocabularySize).run();
+  `).bind(identity.id, identity.name, avatarId, score, vocabularySize, avatarCustomized ? 1 : 0).run();
 
   const [current, rankRow, totalRow, leaders] = await Promise.all([
     database.prepare(`
-      SELECT user_id, name, score, vocabulary_size, updated_at
+      SELECT user_id, name, avatar_id, score, vocabulary_size, updated_at
       FROM ratings WHERE user_id = ?
     `).bind(identity.id).first(),
     database.prepare(`
@@ -196,12 +227,20 @@ async function handleApi(request, env) {
   if (url.pathname === '/api/ratings/sync' && request.method === 'POST') {
     const payload = await readJsonBody(request);
     const identity = await resolveIdentity(payload, env);
+    const avatarId = cleanAvatarId(payload.avatarId, identity.id);
     const score = integerInRange(payload.score, 0, MAX_RATING_SCORE, 'score');
     const vocabularySize = integerInRange(payload.vocabularySize, 0, MAX_VOCABULARY_SIZE, 'vocabularySize');
     if (score > vocabularySize * MAX_SCORE_PER_WORD) {
       throw httpError('Количество баллов не соответствует размеру словаря', 400);
     }
-    return json(await upsertRating(env.DB, identity, score, vocabularySize), 200, headers);
+    return json(await upsertRating(
+      env.DB,
+      identity,
+      avatarId,
+      payload.avatarCustomized === true,
+      score,
+      vocabularySize,
+    ), 200, headers);
   }
   return json({ error: 'API method not found' }, 404, headers);
 }

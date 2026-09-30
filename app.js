@@ -14,6 +14,19 @@
   const KNOWLEDGE_SCALE_VERSION = 10;
   const KNOWLEDGE_GAIN_BY_DIFFICULTY = Object.freeze([0, 4, 3, 3, 2, 2, 1]);
   const DAY_MS = 24 * 60 * 60 * 1000;
+  const AVATAR_OPTIONS = Object.freeze([
+    { id: 'avatar-blond-green', label: 'Аватар 1', src: './icons/avatars-pack/avatar-blond-green.png' },
+    { id: 'avatar-bob-blue', label: 'Аватар 2', src: './icons/avatars-pack/avatar-bob-blue.png' },
+    { id: 'avatar-bun-pink', label: 'Аватар 3', src: './icons/avatars-pack/avatar-bun-pink.png' },
+    { id: 'avatar-cat', label: 'Аватар 4', src: './icons/avatars-pack/avatar-cat.png' },
+    { id: 'avatar-curly-yellow', label: 'Аватар 5', src: './icons/avatars-pack/avatar-curly-yellow.png' },
+    { id: 'avatar-dog', label: 'Аватар 6', src: './icons/avatars-pack/avatar-dog.png' },
+    { id: 'avatar-frog', label: 'Аватар 7', src: './icons/avatars-pack/avatar-frog.png' },
+    { id: 'avatar-panda', label: 'Аватар 8', src: './icons/avatars-pack/avatar-panda.png' },
+    { id: 'avatar-rabbit', label: 'Аватар 9', src: './icons/avatars-pack/avatar-rabbit.png' },
+    { id: 'avatar-short-hair-cyan', label: 'Аватар 10', src: './icons/avatars-pack/avatar-short-hair-cyan.png' },
+  ]);
+  const avatarById = new Map(AVATAR_OPTIONS.map((avatar) => [avatar.id, avatar]));
   const CEFR_DIFFICULTY = Object.freeze({ A1: 1, A2: 2, B1: 3, B2: 4, C1: 5, C2: 6 });
   const DIFFICULTY_CEFR = Object.freeze(['A1', 'A1', 'A2', 'B1', 'B2', 'C1', 'C2']);
   const difficultyByWord = new Map();
@@ -270,12 +283,14 @@
   }
 
   function loadProfile() {
-    const fallback = { name: 'Пользователь Вордик', joinedAt: new Date().toISOString() };
+    const fallback = { name: 'Пользователь Вордик', joinedAt: new Date().toISOString(), avatarId: randomAvatarId() };
     try {
       const saved = JSON.parse(localStorage.getItem(PROFILE_KEY) ?? 'null');
       const profile = {
         name: typeof saved?.name === 'string' && saved.name.trim() ? saved.name.trim().slice(0, 80) : fallback.name,
         joinedAt: typeof saved?.joinedAt === 'string' && !Number.isNaN(Date.parse(saved.joinedAt)) ? saved.joinedAt : fallback.joinedAt,
+        avatarId: avatarById.has(saved?.avatarId) ? saved.avatarId : fallback.avatarId,
+        avatarCustomized: saved?.avatarCustomized === true,
       };
       localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
       return profile;
@@ -313,6 +328,60 @@
 
   function saveProfileStats() {
     try { localStorage.setItem(PROFILE_STATS_KEY, JSON.stringify(profileStats)); } catch { /* Stats remain available for this visit. */ }
+  }
+
+  function randomAvatarId() {
+    return AVATAR_OPTIONS[Math.floor(Math.random() * AVATAR_OPTIONS.length)].id;
+  }
+
+  function avatarSource(avatarId) {
+    return avatarById.get(avatarId)?.src ?? AVATAR_OPTIONS[0].src;
+  }
+
+  function createAvatarImage(avatarId) {
+    const image = document.createElement('img');
+    image.src = avatarSource(avatarId);
+    image.alt = '';
+    image.loading = 'lazy';
+    return image;
+  }
+
+  function renderAvatarPicker() {
+    const fragment = document.createDocumentFragment();
+    AVATAR_OPTIONS.forEach((avatar) => {
+      const button = document.createElement('button');
+      button.className = 'avatar-option';
+      button.type = 'button';
+      button.dataset.avatarId = avatar.id;
+      button.setAttribute('aria-label', avatar.label);
+      button.setAttribute('aria-pressed', String(avatar.id === userProfile.avatarId));
+      button.classList.toggle('is-selected', avatar.id === userProfile.avatarId);
+      button.append(createAvatarImage(avatar.id));
+      fragment.append(button);
+    });
+    $('avatar-options').replaceChildren(fragment);
+  }
+
+  function setAvatarPickerOpen(open, restoreFocus = true) {
+    $('avatar-picker-overlay').hidden = !open;
+    document.body.classList.toggle('is-avatar-picker-open', open);
+    if (open) {
+      renderAvatarPicker();
+      requestAnimationFrame(() => $('avatar-options').querySelector('.is-selected')?.focus());
+    } else if (restoreFocus && activeTab === 'profile') {
+      $('profile-avatar-button').focus();
+    }
+  }
+
+  function selectAvatar(avatarId) {
+    if (!avatarById.has(avatarId) || (avatarId === userProfile.avatarId && userProfile.avatarCustomized)) return;
+    userProfile.avatarId = avatarId;
+    userProfile.avatarCustomized = true;
+    saveProfile();
+    renderProfile();
+    renderAvatarPicker();
+    void syncRating({ silent: true });
+    showToast('Аватар обновлён');
   }
 
   function currentAppUsageMs() {
@@ -374,7 +443,8 @@
     const streak = streakLength();
     if ($('home-greeting')) $('home-greeting').textContent = `Привет, ${userProfile.name}!`;
     $('profile-name').textContent = userProfile.name;
-    $('profile-initials').textContent = profileInitials(userProfile.name);
+    $('profile-avatar-image').src = avatarSource(userProfile.avatarId);
+    $('profile-avatar-button').setAttribute('aria-label', `Выбрать аватар. Сейчас ${avatarById.get(userProfile.avatarId)?.label ?? 'выбранный аватар'}`);
     $('profile-joined').textContent = joinedLabel(userProfile.joinedAt);
     $('profile-average-time').textContent = durationLabel(averageMs);
     $('profile-total-time').textContent = durationLabel(currentAppUsageMs());
@@ -989,7 +1059,8 @@
 
       const avatar = document.createElement('span');
       avatar.className = 'rating-podium-avatar';
-      avatar.textContent = entry ? profileInitials(entry.name) : '?';
+      if (entry) avatar.append(createAvatarImage(entry.avatarId));
+      else avatar.textContent = '?';
 
       const name = document.createElement('strong');
       name.textContent = entry ? (entry.isMe ? `${entry.name} · вы` : entry.name) : 'Свободное место';
@@ -1031,7 +1102,7 @@
 
       const avatar = document.createElement('span');
       avatar.className = 'rating-player-avatar';
-      avatar.textContent = profileInitials(entry.name);
+      avatar.append(createAvatarImage(entry.avatarId));
 
       const identity = document.createElement('span');
       identity.className = 'rating-player-identity';
@@ -1068,6 +1139,8 @@
           telegramInitData: window.Telegram?.WebApp?.initData ?? '',
           guestId: ratingGuestId,
           name: userProfile.name,
+          avatarId: userProfile.avatarId,
+          avatarCustomized: userProfile.avatarCustomized,
           score,
           vocabularySize: words.length,
         }),
@@ -1075,6 +1148,12 @@
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || 'Сервер рейтинга недоступен');
       if (requestVersion !== ratingRequestVersion) return;
+      if (avatarById.has(result?.player?.avatarId) && result.player.avatarId !== userProfile.avatarId) {
+        userProfile.avatarId = result.player.avatarId;
+        saveProfile();
+        renderProfile();
+        if (!$('avatar-picker-overlay').hidden) renderAvatarPicker();
+      }
       renderRatingLeaderboard(result);
       status.textContent = 'Рейтинг обновлён';
     } catch (error) {
@@ -1312,6 +1391,7 @@
   }
 
   function switchTab(tab) {
+    if (tab !== 'profile' && !$('avatar-picker-overlay').hidden) setAvatarPickerOpen(false, false);
     if (tab !== 'dictionary' && !$('sort-overlay').hidden) setSortOpen(false, false);
     if (tab !== 'dictionary' && !$('add-overlay').hidden) setAddPanel(false, false);
     if (tab !== 'home' && !$('collection-overlay').hidden) setCollectionOpen(false, activeCollectionId, false);
@@ -1949,6 +2029,12 @@
 
   $('profile-button').addEventListener('click', () => switchTab(activeTab === 'profile' ? 'home' : 'profile'));
   document.querySelectorAll('[data-profile-close]').forEach((button) => button.addEventListener('click', () => switchTab('home')));
+  $('profile-avatar-button').addEventListener('click', () => setAvatarPickerOpen(true));
+  document.querySelectorAll('[data-avatar-close]').forEach((button) => button.addEventListener('click', () => setAvatarPickerOpen(false)));
+  $('avatar-options').addEventListener('click', (event) => {
+    const option = event.target.closest('[data-avatar-id]');
+    if (option) selectAvatar(option.dataset.avatarId);
+  });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       commitAppUsage();
@@ -2000,13 +2086,17 @@
     const collectionOpen = $('collection-overlay').classList.contains('is-visible');
     const wordCardOpen = $('word-card-overlay').classList.contains('is-visible');
     const deleteOpen = $('delete-overlay').classList.contains('is-visible');
-    const overlay = deleteOpen
+    const avatarPickerOpen = !$('avatar-picker-overlay').hidden;
+    const overlay = avatarPickerOpen
+      ? $('avatar-picker-overlay')
+      : (deleteOpen
       ? $('delete-overlay')
-      : (wordCardOpen ? $('word-card-overlay') : (addOpen ? $('add-overlay') : (collectionOpen ? $('collection-overlay') : ($('sort-overlay').classList.contains('is-visible') ? $('sort-overlay') : null))));
+      : (wordCardOpen ? $('word-card-overlay') : (addOpen ? $('add-overlay') : (collectionOpen ? $('collection-overlay') : ($('sort-overlay').classList.contains('is-visible') ? $('sort-overlay') : null)))));
     if (!overlay) return;
     if (event.key === 'Escape') {
       event.preventDefault();
-      if (deleteOpen) setDeleteConfirm(false);
+      if (avatarPickerOpen) setAvatarPickerOpen(false);
+      else if (deleteOpen) setDeleteConfirm(false);
       else if (wordCardOpen) setWordCardOpen(false);
       else if (addOpen) setAddPanel(false);
       else if (collectionOpen) setCollectionOpen(false);

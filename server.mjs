@@ -12,6 +12,19 @@ const MAX_RATING_SCORE = 10_000_000;
 const MAX_VOCABULARY_SIZE = 100_000;
 const MAX_SCORE_PER_WORD = 60;
 const TELEGRAM_AUTH_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
+const AVATAR_IDS = Object.freeze([
+  'avatar-blond-green',
+  'avatar-bob-blue',
+  'avatar-bun-pink',
+  'avatar-cat',
+  'avatar-curly-yellow',
+  'avatar-dog',
+  'avatar-frog',
+  'avatar-panda',
+  'avatar-rabbit',
+  'avatar-short-hair-cyan',
+]);
+const avatarIds = new Set(AVATAR_IDS);
 
 const contentTypes = new Map([
   ['.html', 'text/html; charset=utf-8'],
@@ -48,6 +61,24 @@ function integerInRange(value, min, max, field) {
   return number;
 }
 
+function defaultAvatarId(userId) {
+  let hash = 2166136261;
+  for (const character of String(userId)) {
+    hash ^= character.codePointAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return AVATAR_IDS[(hash >>> 0) % AVATAR_IDS.length];
+}
+
+function cleanAvatarId(value, userId) {
+  const avatarId = String(value ?? '').trim();
+  if (!avatarId) return defaultAvatarId(userId);
+  if (!avatarIds.has(avatarId)) {
+    throw Object.assign(new Error('Некорректный аватар'), { statusCode: 400 });
+  }
+  return avatarId;
+}
+
 function publicLeaderboard(database, currentUserId = '') {
   const sorted = Object.values(database.users)
     .sort((left, right) => right.score - left.score
@@ -56,6 +87,7 @@ function publicLeaderboard(database, currentUserId = '') {
   return sorted.map((player, index) => ({
     rank: index + 1,
     name: player.name,
+    avatarId: avatarIds.has(player.avatarId) ? player.avatarId : defaultAvatarId(player.id),
     score: player.score,
     vocabularySize: player.vocabularySize,
     updatedAt: player.updatedAt,
@@ -163,6 +195,9 @@ export function createRatingsStore(filePath) {
         database.users[identity.id] = {
           id: identity.id,
           name: identity.name,
+          avatarId: previous && !values.avatarCustomized
+            ? (avatarIds.has(previous.avatarId) ? previous.avatarId : defaultAvatarId(identity.id))
+            : values.avatarId,
           score: values.score,
           vocabularySize: values.vocabularySize,
           createdAt: previous?.createdAt ?? new Date().toISOString(),
@@ -253,12 +288,18 @@ export function createVordikServer(options = {}) {
         if (url.pathname === '/api/ratings/sync' && request.method === 'POST') {
           const payload = await readJsonBody(request);
           const identity = resolveRatingIdentity(payload, config);
+          const avatarId = cleanAvatarId(payload.avatarId, identity.id);
           const score = integerInRange(payload.score, 0, MAX_RATING_SCORE, 'score');
           const vocabularySize = integerInRange(payload.vocabularySize, 0, MAX_VOCABULARY_SIZE, 'vocabularySize');
           if (score > vocabularySize * MAX_SCORE_PER_WORD) {
             throw Object.assign(new Error('Количество баллов не соответствует размеру словаря'), { statusCode: 400 });
           }
-          const result = await ratings.upsert(identity, { score, vocabularySize });
+          const result = await ratings.upsert(identity, {
+            avatarId,
+            avatarCustomized: payload.avatarCustomized === true,
+            score,
+            vocabularySize,
+          });
           sendJson(response, 200, result, corsHeaders); return;
         }
         sendJson(response, 404, { error: 'API method not found' }, corsHeaders); return;
