@@ -1912,16 +1912,29 @@
   window.addEventListener('load', () => {
     const webApp = window.Telegram?.WebApp;
     if (!webApp) return;
-    if (webApp.initData) {
-      document.documentElement.classList.add('telegram-app');
-      syncTelegramProfile(webApp);
-    }
+    const telegramLaunchParams = `${window.location.search}${window.location.hash}`.includes('tgWebAppVersion');
+    const isTelegramContext = Boolean(webApp.initData || telegramLaunchParams || (webApp.platform && webApp.platform !== 'unknown'));
+    if (!isTelegramContext) return;
+    document.documentElement.classList.add('telegram-app');
+    if (webApp.initData) syncTelegramProfile(webApp);
+    const syncTelegramSafeArea = () => {
+      const safeTop = Math.max(0, Number(webApp.safeAreaInset?.top) || 0);
+      const contentTop = Math.max(0, Number(webApp.contentSafeAreaInset?.top) || 0);
+      document.documentElement.style.setProperty('--tg-safe-area-inset-top', `${safeTop}px`);
+      document.documentElement.style.setProperty('--tg-content-safe-area-inset-top', `${contentTop}px`);
+    };
+    webApp.onEvent?.('safeAreaChanged', syncTelegramSafeArea);
+    webApp.onEvent?.('contentSafeAreaChanged', syncTelegramSafeArea);
+    webApp.onEvent?.('viewportChanged', syncTelegramSafeArea);
     webApp.ready();
     webApp.expand();
     if (webApp.isVersionAtLeast?.('8.0') && !webApp.isFullscreen) webApp.requestFullscreen?.();
     if (webApp.isVersionAtLeast?.('7.7')) webApp.disableVerticalSwipes?.();
     webApp.setHeaderColor?.('#f3f5f2');
     webApp.setBackgroundColor?.('#f3f5f2');
+    syncTelegramSafeArea();
+    requestAnimationFrame(syncTelegramSafeArea);
+    setTimeout(syncTelegramSafeArea, 300);
   });
 
   // Supported browsers can expose the same dictionary actions to an assistant.
