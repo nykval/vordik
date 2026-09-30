@@ -94,6 +94,7 @@ test('Telegram Mini App identity is verified cryptographically', () => {
   const params = new URLSearchParams({
     auth_date: String(now),
     query_id: 'test-query',
+    signature: 'new-telegram-signature-field',
     user: JSON.stringify({ id: 42, first_name: 'Анна', last_name: 'Иванова' }),
   });
   const dataCheckString = [...params.entries()]

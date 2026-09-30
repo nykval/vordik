@@ -278,6 +278,57 @@
           </div>
         </section>
 
+        <section id="rating-view" class="view rating-view" aria-labelledby="rating-title" hidden>
+          <div class="rating-shell">
+            <header class="rating-page-heading">
+              <span class="stage-kicker">ОБЩАЯ ЛИГА</span>
+              <h1 id="rating-title">Рейтинг</h1>
+              <p>Учите слова, закрепляйте знания и поднимайтесь выше среди пользователей Вордика.</p>
+            </header>
+
+            <section class="rating-card" aria-labelledby="rating-leaders-title">
+              <div class="rating-card-heading">
+                <div>
+                  <span>ТАБЛИЦА ЛИДЕРОВ</span>
+                  <h2 id="rating-leaders-title">Лидеры Вордика</h2>
+                </div>
+                <div class="rating-current-place">
+                  <span>Ваше место</span>
+                  <strong id="profile-rating-rank">—</strong>
+                </div>
+              </div>
+
+              <div id="rating-podium" class="rating-podium" aria-label="Три лидера рейтинга">
+                <article class="rating-podium-player is-second">
+                  <span class="rating-podium-medal">2</span>
+                  <span class="rating-podium-avatar">?</span>
+                  <strong>Свободное место</strong>
+                  <small>0 баллов</small>
+                </article>
+                <article class="rating-podium-player is-first">
+                  <span class="rating-podium-medal">1</span>
+                  <span class="rating-podium-avatar">?</span>
+                  <strong>Свободное место</strong>
+                  <small>0 баллов</small>
+                </article>
+                <article class="rating-podium-player is-third">
+                  <span class="rating-podium-medal">3</span>
+                  <span class="rating-podium-avatar">?</span>
+                  <strong>Свободное место</strong>
+                  <small>0 баллов</small>
+                </article>
+              </div>
+
+              <div class="rating-summary">
+                <span id="profile-rating-total">Среди пользователей Вордика</span>
+                <b id="profile-rating-score">0 баллов</b>
+              </div>
+              <p id="profile-rating-status" class="rating-status" role="status">Рейтинг обновится при открытии раздела.</p>
+              <ol id="profile-rating-list" class="rating-list" aria-label="Участники рейтинга"></ol>
+            </section>
+          </div>
+        </section>
+
         <section id="profile-view" class="view profile-view" aria-labelledby="profile-name" hidden>
           <div class="profile-shell">
             <header class="profile-hero">
@@ -327,22 +378,6 @@
                 </div>
               </section>
 
-              <section class="profile-section" aria-labelledby="profile-rating-title">
-                <div class="profile-section-heading">
-                  <h2 id="profile-rating-title">Рейтинг</h2>
-                </div>
-                <div class="profile-rating-card">
-                  <div class="profile-rating-summary">
-                    <span class="profile-rating-summary-label">Ваше место</span>
-                    <strong id="profile-rating-rank">—</strong>
-                    <span id="profile-rating-total">Среди пользователей Вордика</span>
-                    <b id="profile-rating-score">0 баллов</b>
-                  </div>
-                  <p id="profile-rating-status" class="profile-rating-status" role="status">Рейтинг обновится при открытии профиля.</p>
-                  <ol id="profile-rating-list" class="profile-rating-list" aria-label="Лидеры рейтинга"></ol>
-                </div>
-              </section>
-
               <section class="profile-section" aria-labelledby="profile-streak-title">
                 <div class="profile-section-heading">
                   <h2 id="profile-streak-title">Серия занятий</h2>
@@ -356,21 +391,6 @@
                 </div>
               </section>
 
-              <section class="profile-section" aria-labelledby="profile-progress-title">
-                <div class="profile-section-heading">
-                  <h2 id="profile-progress-title">Мой прогресс</h2>
-                </div>
-                <div class="profile-progress-card">
-                  <span class="profile-progress-kicker">СЛЕДУЮЩАЯ ЦЕЛЬ</span>
-                  <div class="profile-progress-main">
-                    <strong><span id="profile-word-count">0</span> <small id="profile-word-goal">из 50 слов</small></strong>
-                    <span id="profile-progress-percent">0%</span>
-                  </div>
-                  <div class="profile-progress-track" aria-hidden="true"><span id="profile-progress-bar"></span></div>
-                  <p id="profile-progress-message">Добавляйте слова в словарь и двигайтесь к первой цели.</p>
-                  <button class="profile-progress-action" type="button" data-go="dictionary">Открыть словарь <span aria-hidden="true">↗</span></button>
-                </div>
-              </section>
             </div>
           </div>
         </section>
@@ -427,6 +447,10 @@
         <button class="nav-item" type="button" data-tab="cards">
           <img src="./icons/learn.svg" alt="" width="24" height="24" />
           <span>Учить</span>
+        </button>
+        <button class="nav-item" type="button" data-tab="rating">
+          <img src="./icons/rating.svg" alt="" width="24" height="24" />
+          <span>Рейтинг</span>
         </button>
       </nav>
       <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>

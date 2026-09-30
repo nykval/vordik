@@ -372,8 +372,6 @@
     const averageMs = sessions ? profileStats.totalSessionMs / sessions : 0;
     const vocabularyLevel = vocabularyScore();
     const streak = streakLength();
-    const target = Math.max(50, Math.ceil(Math.max(words.length, 1) / 50) * 50);
-    const progress = Math.min(100, Math.round((words.length / target) * 100));
     if ($('home-greeting')) $('home-greeting').textContent = `Привет, ${userProfile.name}!`;
     $('profile-name').textContent = userProfile.name;
     $('profile-initials').textContent = profileInitials(userProfile.name);
@@ -381,14 +379,6 @@
     $('profile-average-time').textContent = durationLabel(averageMs);
     $('profile-total-time').textContent = durationLabel(currentAppUsageMs());
     $('profile-vocabulary-level').textContent = `${vocabularyLevel} ${pointNoun(vocabularyLevel)}`;
-    $('profile-word-count').textContent = words.length;
-    $('profile-word-goal').textContent = `из ${target} слов`;
-    $('profile-progress-percent').textContent = `${progress}%`;
-    $('profile-progress-bar').style.width = `${progress}%`;
-    const remaining = Math.max(0, target - words.length);
-    $('profile-progress-message').textContent = remaining
-      ? `До следующей цели осталось ${remaining} ${wordNoun(remaining)}.`
-      : 'Цель достигнута — пора выбрать следующую!';
     $('profile-streak-message').textContent = streak
       ? 'Продолжайте заниматься каждый день, чтобы сохранить серию.'
       : 'Начните занятие сегодня — первый день серии уже близко.';
@@ -401,7 +391,7 @@
     session.statsRecorded = true;
     saveProfileStats();
     renderProfile();
-    void syncRating({ silent: activeTab !== 'profile' });
+    void syncRating({ silent: activeTab !== 'rating' });
   }
 
   function loadQuickPickKnown() {
@@ -982,6 +972,38 @@
     return configuredRatingApiBase ? `${configuredRatingApiBase}${path}` : path;
   }
 
+  function renderRatingPodium(leaders) {
+    const podium = $('rating-podium');
+    const places = [2, 1, 3];
+    const classes = ['is-second', 'is-first', 'is-third'];
+    const fragment = document.createDocumentFragment();
+    places.forEach((place, index) => {
+      const entry = leaders[place - 1];
+      const item = document.createElement('article');
+      item.className = `rating-podium-player ${classes[index]}`;
+      if (entry?.isMe) item.classList.add('is-me');
+
+      const medal = document.createElement('span');
+      medal.className = 'rating-podium-medal';
+      medal.textContent = String(place);
+
+      const avatar = document.createElement('span');
+      avatar.className = 'rating-podium-avatar';
+      avatar.textContent = entry ? profileInitials(entry.name) : '?';
+
+      const name = document.createElement('strong');
+      name.textContent = entry ? (entry.isMe ? `${entry.name} · вы` : entry.name) : 'Свободное место';
+
+      const points = document.createElement('small');
+      const score = Math.max(0, Number(entry?.score) || 0);
+      points.textContent = `${score} ${pointNoun(score)}`;
+
+      item.append(medal, avatar, name, points);
+      fragment.append(item);
+    });
+    podium.replaceChildren(fragment);
+  }
+
   function renderRatingLeaderboard(result) {
     const player = result?.player;
     const totalPlayers = Math.max(0, Number(result?.totalPlayers) || 0);
@@ -992,22 +1014,27 @@
       ? `Среди ${totalPlayers} ${userNoun(totalPlayers)}`
       : 'Среди пользователей Вордика';
     $('profile-rating-score').textContent = `${score} ${pointNoun(score)}`;
+    renderRatingPodium(leaders);
 
     const shown = leaders.slice(0, 10);
     if (player?.rank > 10 && !shown.some((entry) => entry.isMe)) shown.push(player);
     const fragment = document.createDocumentFragment();
     shown.forEach((entry, index) => {
       const item = document.createElement('li');
-      item.className = 'profile-rating-player';
+      item.className = 'rating-player';
       if (entry.isMe) item.classList.add('is-me');
       if (index === 10) item.classList.add('is-separated');
 
       const rank = document.createElement('span');
-      rank.className = 'profile-rating-player-rank';
+      rank.className = 'rating-player-rank';
       rank.textContent = String(entry.rank);
 
+      const avatar = document.createElement('span');
+      avatar.className = 'rating-player-avatar';
+      avatar.textContent = profileInitials(entry.name);
+
       const identity = document.createElement('span');
-      identity.className = 'profile-rating-player-identity';
+      identity.className = 'rating-player-identity';
       const name = document.createElement('strong');
       name.textContent = entry.isMe ? `${entry.name} · вы` : entry.name;
       const details = document.createElement('small');
@@ -1019,7 +1046,7 @@
       const entryScore = Math.max(0, Number(entry.score) || 0);
       points.textContent = String(entryScore);
       points.title = `${entryScore} ${pointNoun(entryScore)}`;
-      item.append(rank, identity, points);
+      item.append(rank, avatar, identity, points);
       fragment.append(item);
     });
     $('profile-rating-list').replaceChildren(fragment);
@@ -1027,7 +1054,7 @@
 
   async function syncRating({ silent = false } = {}) {
     const requestVersion = ++ratingRequestVersion;
-    const card = document.querySelector('.profile-rating-card');
+    const card = document.querySelector('.rating-card');
     const status = $('profile-rating-status');
     const score = vocabularyScore();
     $('profile-rating-score').textContent = `${score} ${pointNoun(score)}`;
@@ -1307,13 +1334,12 @@
     $('home-view').hidden = tab !== 'home';
     $('dictionary-view').hidden = tab !== 'dictionary';
     $('cards-view').hidden = tab !== 'cards';
+    $('rating-view').hidden = tab !== 'rating';
     $('profile-view').hidden = tab !== 'profile';
     $('profile-button').setAttribute('aria-pressed', String(tab === 'profile'));
     if (tab === 'home' || tab === 'dictionary') renderDictionary();
-    if (tab === 'profile') {
-      renderProfile();
-      void syncRating();
-    }
+    if (tab === 'profile') renderProfile();
+    if (tab === 'rating') void syncRating();
     window.scrollTo(0, 0);
   }
 

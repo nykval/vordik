@@ -80,7 +80,7 @@ export async function verifyTelegramInitData(initData, botToken, nowSeconds = Ma
   if (authDate > nowSeconds + 60 || nowSeconds - authDate > TELEGRAM_AUTH_MAX_AGE_SECONDS) return null;
 
   const dataCheckString = [...params.entries()]
-    .filter(([key]) => key !== 'hash' && key !== 'signature')
+    .filter(([key]) => key !== 'hash')
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([key, value]) => `${key}=${value}`)
     .join('\n');

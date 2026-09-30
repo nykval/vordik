@@ -9,6 +9,7 @@ test('Cloudflare Worker verifies Telegram Mini App identity', async () => {
   const params = new URLSearchParams({
     auth_date: String(now),
     query_id: 'cloudflare-test',
+    signature: 'new-telegram-signature-field',
     user: JSON.stringify({ id: 314, first_name: 'Анна', last_name: 'Иванова' }),
   });
   const dataCheckString = [...params.entries()]
