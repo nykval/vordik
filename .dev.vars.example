@@ -1,0 +1,3 @@
+BOT_TOKEN="telegram-bot-token"
+ALLOW_GUEST_RATINGS="true"
+ALLOWED_ORIGINS=""

@@ -556,6 +556,26 @@ input::placeholder { color: #91a2a1; }
 .profile-stat-copy { min-width: 0; display: grid; gap: 5px; }
 .profile-stat-copy strong { color: #17323e; font-size: 1.3rem; line-height: 1.15; letter-spacing: -.035em; }
 .profile-stat-copy small { color: #657985; font-size: .84rem; line-height: 1.35; }
+.profile-rating-card { overflow: hidden; border: 1px solid #e2e9ef; border-radius: 28px; background: #fff; }
+.profile-rating-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 7px 20px; padding: 25px 28px; background: #eaf3ff; }
+.profile-rating-summary-label { color: #607680; font-size: .72rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.profile-rating-summary strong { grid-row: 2 / 4; align-self: center; color: var(--brand-blue); font-size: clamp(3rem, 8vw, 5rem); line-height: .9; letter-spacing: -.08em; }
+.profile-rating-summary > span:not(.profile-rating-summary-label) { grid-column: 2; color: #607680; font-size: .82rem; font-weight: 700; text-align: right; }
+.profile-rating-summary b { grid-column: 2; color: #17323e; font-size: 1.15rem; text-align: right; }
+.profile-rating-status { min-height: 20px; margin: 0; padding: 15px 28px 10px; color: #71838c; font-size: .78rem; font-weight: 700; }
+.profile-rating-card[aria-busy="true"] .profile-rating-status { color: var(--brand-blue); }
+.profile-rating-list { display: grid; margin: 0; padding: 0 16px 16px; list-style: none; }
+.profile-rating-player { min-height: 68px; display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 13px; padding: 10px 12px; border-top: 1px solid #edf1f4; }
+.profile-rating-player.is-me { margin: 4px 0; border: 0; border-radius: 18px; background: var(--brand-lime); }
+.profile-rating-player.is-separated { margin-top: 13px; border-top: 2px dashed #dbe4e8; }
+.profile-rating-player-rank { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; background: #eef3f5; color: #526a74; font-size: .78rem; font-weight: 800; }
+.profile-rating-player:nth-child(1) .profile-rating-player-rank { background: #fdd302; color: #17323e; }
+.profile-rating-player:nth-child(2) .profile-rating-player-rank { background: #dbe6ec; color: #17323e; }
+.profile-rating-player:nth-child(3) .profile-rating-player-rank { background: #ffd0a7; color: #17323e; }
+.profile-rating-player-identity { min-width: 0; display: grid; gap: 3px; }
+.profile-rating-player-identity strong { overflow: hidden; color: #17323e; font-size: .92rem; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.profile-rating-player-identity small { color: #71838c; font-size: .72rem; line-height: 1.25; }
+.profile-rating-player > b { color: #17323e; font-size: 1rem; font-variant-numeric: tabular-nums; }
 .profile-streak-card { min-height: 170px; display: grid; grid-template-columns: 120px minmax(0, 1fr); align-items: center; gap: 28px; padding: 28px; border: 1px solid #e2e9ef; border-radius: 28px; background: #fff; }
 .profile-streak-art { width: 110px; height: 110px; display: grid; place-items: center; }
 .profile-streak-art img { display: block; width: 100%; height: 100%; object-fit: contain; }
@@ -591,6 +611,12 @@ input::placeholder { color: #91a2a1; }
   .profile-stat-row { min-height: 82px; grid-template-columns: 50px minmax(0, 1fr); gap: 14px; padding: 10px 11px; }
   .profile-stat-icon { width: 48px; height: 48px; }
   .profile-stat-copy strong { font-size: 1.15rem; }
+  .profile-rating-summary { gap: 6px 14px; padding: 22px 20px; }
+  .profile-rating-summary strong { font-size: 3.35rem; }
+  .profile-rating-summary > span:not(.profile-rating-summary-label) { max-width: 150px; }
+  .profile-rating-status { padding: 14px 20px 8px; }
+  .profile-rating-list { padding: 0 8px 10px; }
+  .profile-rating-player { grid-template-columns: 32px minmax(0, 1fr) auto; gap: 10px; padding: 10px 9px; }
   .profile-streak-card { min-height: 0; grid-template-columns: 82px minmax(0, 1fr); gap: 21px; padding: 24px 20px; border-radius: 24px; }
   .profile-streak-art { width: 78px; height: 78px; }
   .profile-streak-copy strong { font-size: 1.22rem; }

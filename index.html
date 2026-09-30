@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#f3f5f2" />
+    <meta name="vordik-api-base" content="https://vordik-ratings-api.skorokirzhaboy.workers.dev" />
     <meta name="description" content="Вордик — личный словарь английских слов и тренировка с карточками." />
     <title>Вордик — учить слова</title>
     <link rel="icon" href="./favicon.png" type="image/png" />
@@ -323,6 +324,22 @@
                     </span>
                     <span class="profile-stat-copy"><strong id="profile-vocabulary-level">0 баллов</strong><small>Уровень словаря</small></span>
                   </div>
+                </div>
+              </section>
+
+              <section class="profile-section" aria-labelledby="profile-rating-title">
+                <div class="profile-section-heading">
+                  <h2 id="profile-rating-title">Рейтинг</h2>
+                </div>
+                <div class="profile-rating-card">
+                  <div class="profile-rating-summary">
+                    <span class="profile-rating-summary-label">Ваше место</span>
+                    <strong id="profile-rating-rank">—</strong>
+                    <span id="profile-rating-total">Среди пользователей Вордика</span>
+                    <b id="profile-rating-score">0 баллов</b>
+                  </div>
+                  <p id="profile-rating-status" class="profile-rating-status" role="status">Рейтинг обновится при открытии профиля.</p>
+                  <ol id="profile-rating-list" class="profile-rating-list" aria-label="Лидеры рейтинга"></ol>
                 </div>
               </section>
 

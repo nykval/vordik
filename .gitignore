@@ -1,0 +1,6 @@
+data/ratings.json
+data/ratings.json.*.tmp
+.dev.vars
+.wrangler/
+node_modules/
+.cloudflare-public/

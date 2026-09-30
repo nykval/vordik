@@ -5,6 +5,7 @@
   const STUDY_DAYS_KEY = 'vordik.studyDays.v1';
   const PROFILE_KEY = 'vordik.profile.v1';
   const PROFILE_STATS_KEY = 'vordik.profileStats.v1';
+  const RATING_GUEST_ID_KEY = 'vordik.ratingGuestId.v1';
   const QUICK_PICK_KNOWN_KEY = 'vordik.quickPickKnown.v1';
   const QUICK_PICK_SESSION_KEY = 'vordik.quickPickSession.v1';
   const QUICK_PICK_WORD_COUNT = 15;
@@ -40,6 +41,8 @@
   const studyDays = loadStudyDays();
   const userProfile = loadProfile();
   const profileStats = loadProfileStats();
+  const ratingGuestId = loadRatingGuestId();
+  const configuredRatingApiBase = document.querySelector('meta[name="vordik-api-base"]')?.content.trim().replace(/\/+$/, '') ?? '';
   let appVisibleStartedAt = document.hidden ? 0 : Date.now();
   const quickPickKnown = loadQuickPickKnown();
   let quickPickSession = loadQuickPickSession();
@@ -67,6 +70,7 @@
   let quickPickAnimating = false;
   let quickPickFlipped = false;
   let quickPickSuppressClick = false;
+  let ratingRequestVersion = 0;
 
   function localDateKey(date) {
     const year = date.getFullYear();
@@ -278,6 +282,19 @@
     } catch { return fallback; }
   }
 
+  function loadRatingGuestId() {
+    try {
+      const stored = localStorage.getItem(RATING_GUEST_ID_KEY);
+      if (stored && /^[a-zA-Z0-9_-]{8,100}$/.test(stored)) return stored;
+      const generated = globalThis.crypto?.randomUUID?.().replaceAll('-', '')
+        ?? `guest${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
+      localStorage.setItem(RATING_GUEST_ID_KEY, generated);
+      return generated;
+    } catch {
+      return `guest${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
+    }
+  }
+
   function loadProfileStats() {
     try {
       const saved = JSON.parse(localStorage.getItem(PROFILE_STATS_KEY) ?? 'null');
@@ -353,7 +370,7 @@
     if (!$('profile-view')) return;
     const sessions = profileStats.sessionsCompleted;
     const averageMs = sessions ? profileStats.totalSessionMs / sessions : 0;
-    const vocabularyLevel = words.reduce((total, word) => total + (word.difficulty * currentKnowledge(word)), 0);
+    const vocabularyLevel = vocabularyScore();
     const streak = streakLength();
     const target = Math.max(50, Math.ceil(Math.max(words.length, 1) / 50) * 50);
     const progress = Math.min(100, Math.round((words.length / target) * 100));
@@ -384,6 +401,7 @@
     session.statsRecorded = true;
     saveProfileStats();
     renderProfile();
+    void syncRating({ silent: activeTab !== 'profile' });
   }
 
   function loadQuickPickKnown() {
@@ -839,12 +857,12 @@
 
   function renderDictionary() {
     const now = Date.now();
-    const vocabularyScore = words.reduce((total, word) => total + (word.difficulty * currentKnowledge(word, now)), 0);
-    const scoreText = String(vocabularyScore);
+    const currentVocabularyScore = vocabularyScore(now);
+    const scoreText = String(currentVocabularyScore);
     const scoreElement = $('home-vocabulary-score');
     scoreElement.textContent = scoreText;
     scoreElement.dataset.digits = String(Math.min(Math.max(scoreText.replace(/\D/g, '').length, 1), 6));
-    $('home-vocabulary-score-unit').textContent = pointNoun(vocabularyScore);
+    $('home-vocabulary-score-unit').textContent = pointNoun(currentVocabularyScore);
     const normalizedQuery = dictionarySearchQuery.trim().toLocaleLowerCase('ru-RU');
     const filteredWords = normalizedQuery
       ? words.filter((word) => word.english.toLocaleLowerCase('en-US').includes(normalizedQuery)
@@ -947,6 +965,99 @@
     if (Math.abs(value) % 10 === 1) return 'балл';
     if (Math.abs(value) % 10 >= 2 && Math.abs(value) % 10 <= 4) return 'балла';
     return 'баллов';
+  }
+
+  function userNoun(count) {
+    const ending = Math.abs(count) % 100;
+    if (ending >= 11 && ending <= 14) return 'пользователей';
+    if (Math.abs(count) % 10 === 1) return 'пользователя';
+    return 'пользователей';
+  }
+
+  function vocabularyScore(now = Date.now()) {
+    return words.reduce((total, word) => total + (word.difficulty * currentKnowledge(word, now)), 0);
+  }
+
+  function ratingApiUrl(path) {
+    return configuredRatingApiBase ? `${configuredRatingApiBase}${path}` : path;
+  }
+
+  function renderRatingLeaderboard(result) {
+    const player = result?.player;
+    const totalPlayers = Math.max(0, Number(result?.totalPlayers) || 0);
+    const leaders = Array.isArray(result?.leaders) ? result.leaders : [];
+    const score = Math.max(0, Number(player?.score) || vocabularyScore());
+    $('profile-rating-rank').textContent = player?.rank ? `#${player.rank}` : '—';
+    $('profile-rating-total').textContent = totalPlayers
+      ? `Среди ${totalPlayers} ${userNoun(totalPlayers)}`
+      : 'Среди пользователей Вордика';
+    $('profile-rating-score').textContent = `${score} ${pointNoun(score)}`;
+
+    const shown = leaders.slice(0, 10);
+    if (player?.rank > 10 && !shown.some((entry) => entry.isMe)) shown.push(player);
+    const fragment = document.createDocumentFragment();
+    shown.forEach((entry, index) => {
+      const item = document.createElement('li');
+      item.className = 'profile-rating-player';
+      if (entry.isMe) item.classList.add('is-me');
+      if (index === 10) item.classList.add('is-separated');
+
+      const rank = document.createElement('span');
+      rank.className = 'profile-rating-player-rank';
+      rank.textContent = String(entry.rank);
+
+      const identity = document.createElement('span');
+      identity.className = 'profile-rating-player-identity';
+      const name = document.createElement('strong');
+      name.textContent = entry.isMe ? `${entry.name} · вы` : entry.name;
+      const details = document.createElement('small');
+      const vocabularySize = Math.max(0, Number(entry.vocabularySize) || 0);
+      details.textContent = `${vocabularySize} ${wordNoun(vocabularySize)} в словаре`;
+      identity.append(name, details);
+
+      const points = document.createElement('b');
+      const entryScore = Math.max(0, Number(entry.score) || 0);
+      points.textContent = String(entryScore);
+      points.title = `${entryScore} ${pointNoun(entryScore)}`;
+      item.append(rank, identity, points);
+      fragment.append(item);
+    });
+    $('profile-rating-list').replaceChildren(fragment);
+  }
+
+  async function syncRating({ silent = false } = {}) {
+    const requestVersion = ++ratingRequestVersion;
+    const card = document.querySelector('.profile-rating-card');
+    const status = $('profile-rating-status');
+    const score = vocabularyScore();
+    $('profile-rating-score').textContent = `${score} ${pointNoun(score)}`;
+    card?.setAttribute('aria-busy', 'true');
+    if (!silent) status.textContent = 'Обновляем рейтинг…';
+    try {
+      const response = await fetch(ratingApiUrl('/api/ratings/sync'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          telegramInitData: window.Telegram?.WebApp?.initData ?? '',
+          guestId: ratingGuestId,
+          name: userProfile.name,
+          score,
+          vocabularySize: words.length,
+        }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'Сервер рейтинга недоступен');
+      if (requestVersion !== ratingRequestVersion) return;
+      renderRatingLeaderboard(result);
+      status.textContent = 'Рейтинг обновлён';
+    } catch (error) {
+      if (requestVersion !== ratingRequestVersion) return;
+      if (!silent) status.textContent = error instanceof TypeError
+        ? 'Не удалось подключиться к серверу рейтинга.'
+        : (error.message || 'Не удалось обновить рейтинг.');
+    } finally {
+      if (requestVersion === ratingRequestVersion) card?.removeAttribute('aria-busy');
+    }
   }
 
   function addWord(englishValue, russianValue) {
@@ -1199,7 +1310,10 @@
     $('profile-view').hidden = tab !== 'profile';
     $('profile-button').setAttribute('aria-pressed', String(tab === 'profile'));
     if (tab === 'home' || tab === 'dictionary') renderDictionary();
-    if (tab === 'profile') renderProfile();
+    if (tab === 'profile') {
+      renderProfile();
+      void syncRating();
+    }
     window.scrollTo(0, 0);
   }
 
