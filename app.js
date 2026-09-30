@@ -40,6 +40,7 @@
   const studyDays = loadStudyDays();
   const userProfile = loadProfile();
   const profileStats = loadProfileStats();
+  let appVisibleStartedAt = document.hidden ? 0 : Date.now();
   const quickPickKnown = loadQuickPickKnown();
   let quickPickSession = loadQuickPickSession();
   const session = { mechanic: 'cards', ids: [], index: 0, flipped: false, answered: false, correctCount: 0, attemptCount: 0, phase: 'feed', startedAt: 0, statsRecorded: false };
@@ -280,11 +281,13 @@
   function loadProfileStats() {
     try {
       const saved = JSON.parse(localStorage.getItem(PROFILE_STATS_KEY) ?? 'null');
+      const totalSessionMs = Math.max(0, Math.floor(Number(saved?.totalSessionMs) || 0));
       return {
         sessionsCompleted: Math.max(0, Math.floor(Number(saved?.sessionsCompleted) || 0)),
-        totalSessionMs: Math.max(0, Math.floor(Number(saved?.totalSessionMs) || 0)),
+        totalSessionMs,
+        totalAppMs: Math.max(totalSessionMs, Math.floor(Number(saved?.totalAppMs) || 0)),
       };
-    } catch { return { sessionsCompleted: 0, totalSessionMs: 0 }; }
+    } catch { return { sessionsCompleted: 0, totalSessionMs: 0, totalAppMs: 0 }; }
   }
 
   function saveProfile() {
@@ -293,6 +296,17 @@
 
   function saveProfileStats() {
     try { localStorage.setItem(PROFILE_STATS_KEY, JSON.stringify(profileStats)); } catch { /* Stats remain available for this visit. */ }
+  }
+
+  function currentAppUsageMs() {
+    return profileStats.totalAppMs + (appVisibleStartedAt ? Math.max(0, Date.now() - appVisibleStartedAt) : 0);
+  }
+
+  function commitAppUsage() {
+    if (!appVisibleStartedAt) return;
+    profileStats.totalAppMs += Math.max(0, Date.now() - appVisibleStartedAt);
+    appVisibleStartedAt = 0;
+    saveProfileStats();
   }
 
   function syncTelegramProfile(webApp) {
@@ -339,6 +353,7 @@
     if (!$('profile-view')) return;
     const sessions = profileStats.sessionsCompleted;
     const averageMs = sessions ? profileStats.totalSessionMs / sessions : 0;
+    const vocabularyLevel = words.reduce((total, word) => total + (word.difficulty * currentKnowledge(word)), 0);
     const streak = streakLength();
     const target = Math.max(50, Math.ceil(Math.max(words.length, 1) / 50) * 50);
     const progress = Math.min(100, Math.round((words.length / target) * 100));
@@ -347,8 +362,8 @@
     $('profile-initials').textContent = profileInitials(userProfile.name);
     $('profile-joined').textContent = joinedLabel(userProfile.joinedAt);
     $('profile-average-time').textContent = durationLabel(averageMs);
-    $('profile-total-time').textContent = durationLabel(profileStats.totalSessionMs);
-    $('profile-session-count').textContent = `${sessions} ${sessionNoun(sessions)}`;
+    $('profile-total-time').textContent = durationLabel(currentAppUsageMs());
+    $('profile-vocabulary-level').textContent = `${vocabularyLevel} ${pointNoun(vocabularyLevel)}`;
     $('profile-word-count').textContent = words.length;
     $('profile-word-goal').textContent = `из ${target} слов`;
     $('profile-progress-percent').textContent = `${progress}%`;
@@ -1795,10 +1810,16 @@
   $('profile-button').addEventListener('click', () => switchTab(activeTab === 'profile' ? 'home' : 'profile'));
   document.querySelectorAll('[data-profile-close]').forEach((button) => button.addEventListener('click', () => switchTab('home')));
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) return;
+    if (document.hidden) {
+      commitAppUsage();
+      return;
+    }
+    appVisibleStartedAt = Date.now();
     renderStreak();
+    renderProfile();
     updateTimedClock();
   });
+  window.addEventListener('pagehide', commitAppUsage);
 
   $('add-form').addEventListener('submit', (event) => {
     event.preventDefault();
