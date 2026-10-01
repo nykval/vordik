@@ -15,8 +15,9 @@ button:focus-visible, input:focus-visible { outline: 3px solid #85b8d1; outline-
 .utility-button { width: 46px; height: 46px; flex: 0 0 46px; display: grid; place-items: center; border: 1px solid #dbe5e1; border-radius: 15px; background: #fff; color: #21404b; }
 .utility-button:hover { background: #e8efeb; }
 .utility-button svg { width: 22px; height: 22px; }
-.profile-button { border-radius: 50%; background: #eaf1ff; color: var(--brand-blue); }
+.profile-button { overflow: hidden; padding: 0; border-radius: 50%; background: #eaf1ff; color: var(--brand-blue); }
 .profile-button:hover { background: #dce8ff; }
+.profile-button img { width: 100%; height: 100%; display: block; border-radius: 50%; object-fit: cover; }
 .utility-greeting { min-width: 0; overflow: hidden; color: #17323e; font-size: clamp(.92rem, 2vw, 1.08rem); font-weight: 800; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
 .workspace { max-width: 1384px; margin: auto; padding: calc(var(--app-content-top-gap) + var(--app-top-safe-area)) 32px 80px; }
 .is-home .workspace { padding-top: 28px; }

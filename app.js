@@ -342,8 +342,22 @@
     const image = document.createElement('img');
     image.src = avatarSource(avatarId);
     image.alt = '';
-    image.loading = 'lazy';
     return image;
+  }
+
+  function deterministicAvatarId(value) {
+    let hash = 2166136261;
+    for (const character of String(value ?? '')) {
+      hash ^= character.codePointAt(0);
+      hash = Math.imul(hash, 16777619);
+    }
+    return AVATAR_OPTIONS[(hash >>> 0) % AVATAR_OPTIONS.length].id;
+  }
+
+  function ratingAvatarId(entry) {
+    if (entry?.isMe) return userProfile.avatarId;
+    if (avatarById.has(entry?.avatarId)) return entry.avatarId;
+    return deterministicAvatarId(`${entry?.name ?? ''}:${entry?.rank ?? ''}`);
   }
 
   function renderAvatarPicker() {
@@ -444,6 +458,7 @@
     if ($('home-greeting')) $('home-greeting').textContent = `Привет, ${userProfile.name}!`;
     $('profile-name').textContent = userProfile.name;
     $('profile-avatar-image').src = avatarSource(userProfile.avatarId);
+    $('profile-button-avatar').src = avatarSource(userProfile.avatarId);
     $('profile-avatar-button').setAttribute('aria-label', `Выбрать аватар. Сейчас ${avatarById.get(userProfile.avatarId)?.label ?? 'выбранный аватар'}`);
     $('profile-joined').textContent = joinedLabel(userProfile.joinedAt);
     $('profile-average-time').textContent = durationLabel(averageMs);
@@ -1059,7 +1074,7 @@
 
       const avatar = document.createElement('span');
       avatar.className = 'rating-podium-avatar';
-      if (entry) avatar.append(createAvatarImage(entry.avatarId));
+      if (entry) avatar.append(createAvatarImage(ratingAvatarId(entry)));
       else avatar.textContent = '?';
 
       const name = document.createElement('strong');
@@ -1102,7 +1117,7 @@
 
       const avatar = document.createElement('span');
       avatar.className = 'rating-player-avatar';
-      avatar.append(createAvatarImage(entry.avatarId));
+      avatar.append(createAvatarImage(ratingAvatarId(entry)));
 
       const identity = document.createElement('span');
       identity.className = 'rating-player-identity';
