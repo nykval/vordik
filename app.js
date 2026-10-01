@@ -15,16 +15,16 @@
   const KNOWLEDGE_GAIN_BY_DIFFICULTY = Object.freeze([0, 4, 3, 3, 2, 2, 1]);
   const DAY_MS = 24 * 60 * 60 * 1000;
   const AVATAR_OPTIONS = Object.freeze([
-    { id: 'avatar-blond-green', label: 'Аватар 1', src: './icons/avatars-pack/avatar-blond-green.png' },
-    { id: 'avatar-bob-blue', label: 'Аватар 2', src: './icons/avatars-pack/avatar-bob-blue.png' },
-    { id: 'avatar-bun-pink', label: 'Аватар 3', src: './icons/avatars-pack/avatar-bun-pink.png' },
-    { id: 'avatar-cat', label: 'Аватар 4', src: './icons/avatars-pack/avatar-cat.png' },
-    { id: 'avatar-curly-yellow', label: 'Аватар 5', src: './icons/avatars-pack/avatar-curly-yellow.png' },
-    { id: 'avatar-dog', label: 'Аватар 6', src: './icons/avatars-pack/avatar-dog.png' },
-    { id: 'avatar-frog', label: 'Аватар 7', src: './icons/avatars-pack/avatar-frog.png' },
-    { id: 'avatar-panda', label: 'Аватар 8', src: './icons/avatars-pack/avatar-panda.png' },
-    { id: 'avatar-rabbit', label: 'Аватар 9', src: './icons/avatars-pack/avatar-rabbit.png' },
-    { id: 'avatar-short-hair-cyan', label: 'Аватар 10', src: './icons/avatars-pack/avatar-short-hair-cyan.png' },
+    { id: 'avatar-blond-green', label: 'Аватар 1', src: './icons/avatars-pack/avatar-blond-green.png?v=2' },
+    { id: 'avatar-bob-blue', label: 'Аватар 2', src: './icons/avatars-pack/avatar-bob-blue.png?v=2' },
+    { id: 'avatar-bun-pink', label: 'Аватар 3', src: './icons/avatars-pack/avatar-bun-pink.png?v=2' },
+    { id: 'avatar-cat', label: 'Аватар 4', src: './icons/avatars-pack/avatar-cat.png?v=2' },
+    { id: 'avatar-curly-yellow', label: 'Аватар 5', src: './icons/avatars-pack/avatar-curly-yellow.png?v=2' },
+    { id: 'avatar-dog', label: 'Аватар 6', src: './icons/avatars-pack/avatar-dog.png?v=2' },
+    { id: 'avatar-frog', label: 'Аватар 7', src: './icons/avatars-pack/avatar-frog.png?v=2' },
+    { id: 'avatar-panda', label: 'Аватар 8', src: './icons/avatars-pack/avatar-panda.png?v=2' },
+    { id: 'avatar-rabbit', label: 'Аватар 9', src: './icons/avatars-pack/avatar-rabbit.png?v=2' },
+    { id: 'avatar-short-hair-cyan', label: 'Аватар 10', src: './icons/avatars-pack/avatar-short-hair-cyan.png?v=2' },
   ]);
   const avatarById = new Map(AVATAR_OPTIONS.map((avatar) => [avatar.id, avatar]));
   const CEFR_DIFFICULTY = Object.freeze({ A1: 1, A2: 2, B1: 3, B2: 4, C1: 5, C2: 6 });
@@ -342,6 +342,8 @@
     const image = document.createElement('img');
     image.src = avatarSource(avatarId);
     image.alt = '';
+    image.width = 700;
+    image.height = 525;
     return image;
   }
 
@@ -356,7 +358,7 @@
 
   function ratingAvatarId(entry) {
     if (entry?.isMe) return userProfile.avatarId;
-    if (avatarById.has(entry?.avatarId)) return entry.avatarId;
+    if (entry?.avatarCustomized === true && avatarById.has(entry?.avatarId)) return entry.avatarId;
     return deterministicAvatarId(`${entry?.name ?? ''}:${entry?.rank ?? ''}`);
   }
 
@@ -1163,7 +1165,7 @@
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || 'Сервер рейтинга недоступен');
       if (requestVersion !== ratingRequestVersion) return;
-      if (avatarById.has(result?.player?.avatarId) && result.player.avatarId !== userProfile.avatarId) {
+      if (!userProfile.avatarCustomized && avatarById.has(result?.player?.avatarId) && result.player.avatarId !== userProfile.avatarId) {
         userProfile.avatarId = result.player.avatarId;
         saveProfile();
         renderProfile();

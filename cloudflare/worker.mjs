@@ -152,10 +152,12 @@ async function readJsonBody(request) {
 }
 
 function publicPlayer(row, rank, currentUserId = '') {
+  const avatarCustomized = Number(row.avatar_customized) === 1;
   return {
     rank,
     name: row.name,
-    avatarId: avatarIds.has(row.avatar_id) ? row.avatar_id : defaultAvatarId(row.user_id),
+    avatarId: avatarCustomized && avatarIds.has(row.avatar_id) ? row.avatar_id : defaultAvatarId(row.user_id),
+    avatarCustomized,
     score: Number(row.score),
     vocabularySize: Number(row.vocabulary_size),
     updatedAt: row.updated_at,
@@ -165,7 +167,7 @@ function publicPlayer(row, rank, currentUserId = '') {
 
 async function listLeaderboard(database, limit, currentUserId = '') {
   const { results } = await database.prepare(`
-    SELECT user_id, name, avatar_id, score, vocabulary_size, updated_at
+    SELECT user_id, name, avatar_id, avatar_customized, score, vocabulary_size, updated_at
     FROM ratings
     ORDER BY score DESC, vocabulary_size DESC, name ASC, user_id ASC
     LIMIT ?
@@ -175,19 +177,29 @@ async function listLeaderboard(database, limit, currentUserId = '') {
 
 async function upsertRating(database, identity, avatarId, avatarCustomized, score, vocabularySize) {
   await database.prepare(`
-    INSERT INTO ratings (user_id, name, avatar_id, score, vocabulary_size, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    INSERT INTO ratings (user_id, name, avatar_id, avatar_customized, score, vocabulary_size, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     ON CONFLICT(user_id) DO UPDATE SET
       name = excluded.name,
       avatar_id = CASE WHEN ? = 1 THEN excluded.avatar_id ELSE ratings.avatar_id END,
+      avatar_customized = CASE WHEN ? = 1 THEN 1 ELSE ratings.avatar_customized END,
       score = excluded.score,
       vocabulary_size = excluded.vocabulary_size,
       updated_at = CURRENT_TIMESTAMP
-  `).bind(identity.id, identity.name, avatarId, score, vocabularySize, avatarCustomized ? 1 : 0).run();
+  `).bind(
+    identity.id,
+    identity.name,
+    avatarId,
+    avatarCustomized ? 1 : 0,
+    score,
+    vocabularySize,
+    avatarCustomized ? 1 : 0,
+    avatarCustomized ? 1 : 0,
+  ).run();
 
   const [current, rankRow, totalRow, leaders] = await Promise.all([
     database.prepare(`
-      SELECT user_id, name, avatar_id, score, vocabulary_size, updated_at
+      SELECT user_id, name, avatar_id, avatar_customized, score, vocabulary_size, updated_at
       FROM ratings WHERE user_id = ?
     `).bind(identity.id).first(),
     database.prepare(`

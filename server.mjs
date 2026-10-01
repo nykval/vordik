@@ -87,7 +87,10 @@ function publicLeaderboard(database, currentUserId = '') {
   return sorted.map((player, index) => ({
     rank: index + 1,
     name: player.name,
-    avatarId: avatarIds.has(player.avatarId) ? player.avatarId : defaultAvatarId(player.id),
+    avatarId: player.avatarCustomized === true && avatarIds.has(player.avatarId)
+      ? player.avatarId
+      : defaultAvatarId(player.id),
+    avatarCustomized: player.avatarCustomized === true,
     score: player.score,
     vocabularySize: player.vocabularySize,
     updatedAt: player.updatedAt,
@@ -192,12 +195,14 @@ export function createRatingsStore(filePath) {
       writeQueue = writeQueue.catch(() => {}).then(async () => {
         const database = await load();
         const previous = database.users[identity.id];
+        const avatarCustomized = values.avatarCustomized === true || previous?.avatarCustomized === true;
         database.users[identity.id] = {
           id: identity.id,
           name: identity.name,
-          avatarId: previous && !values.avatarCustomized
-            ? (avatarIds.has(previous.avatarId) ? previous.avatarId : defaultAvatarId(identity.id))
-            : values.avatarId,
+          avatarId: values.avatarCustomized === true
+            ? values.avatarId
+            : (avatarCustomized && avatarIds.has(previous?.avatarId) ? previous.avatarId : defaultAvatarId(identity.id)),
+          avatarCustomized,
           score: values.score,
           vocabularySize: values.vocabularySize,
           createdAt: previous?.createdAt ?? new Date().toISOString(),
