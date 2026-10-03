@@ -2136,8 +2136,7 @@
       session.correctCount = correct ? 1 : 0;
       recordWordReview(word, correct);
     } else {
-      const remaining = FIVE_LETTER_ATTEMPTS - fiveLetterGame.guesses.length;
-      fiveLetterGame.message = `Осталось ${remaining} ${attemptNoun(remaining)}`;
+      fiveLetterGame.message = '';
       fiveLetterGame.result = '';
     }
     renderExercise();
