@@ -30,27 +30,58 @@
   ]);
   const avatarById = new Map(AVATAR_OPTIONS.map((avatar) => [avatar.id, avatar]));
   const CEFR_DIFFICULTY = Object.freeze({ A1: 1, A2: 2, B1: 3, B2: 4, C1: 5, C2: 6 });
-  const DIFFICULTY_CEFR = Object.freeze(['A1', 'A1', 'A2', 'B1', 'B2', 'C1', 'C2']);
-  const difficultyByWord = new Map();
-  const difficultyByWordAndTranslation = new Map();
+  const commonAudioFiles = new Set(Array.isArray(window.VORDIK_COMMON_AUDIO_FILES) ? window.VORDIK_COMMON_AUDIO_FILES : []);
   const wordCatalog = Array.isArray(window.VORDIK_WORD_CATALOG) ? window.VORDIK_WORD_CATALOG : [];
-  wordCatalog.forEach((entry) => {
+  const commonWords = [];
+  const commonWordById = new Map();
+  const commonWordByPair = new Map();
+  const commonWordsByWord = new Map();
+  wordCatalog.forEach((entry, index) => {
     const cefr = normalizeCefr(entry.cefr);
-    if (!cefr) return;
-    const english = normalizeDictionaryText(entry.word, 'en-US');
-    const russian = normalizeDictionaryText(entry.translation, 'ru-RU');
-    const candidate = { difficulty: CEFR_DIFFICULTY[cefr], cefr };
-    const current = difficultyByWord.get(english);
-    if (!current || candidate.difficulty < current.difficulty) difficultyByWord.set(english, candidate);
-    difficultyByWordAndTranslation.set(difficultyKey(english, russian), candidate);
+    const word = normalizeDictionaryText(entry.word, 'en-US');
+    const rawTranslations = Array.isArray(entry.translations) ? entry.translations : [entry.translation];
+    const translations = [...new Set(rawTranslations
+      .map((translation) => normalizeDictionaryText(translation, 'ru-RU'))
+      .filter(Boolean))];
+    if (!word || !translations.length || !cefr) return;
+    const commonWord = {
+      id: String(entry.id || `common-${String(index + 1).padStart(5, '0')}`),
+      word,
+      translations,
+      partOfSpeech: normalizeDictionaryText(entry.partOfSpeech, 'ru-RU') || null,
+      cefr,
+      difficulty: CEFR_DIFFICULTY[cefr],
+      audio: commonAudioSource(word),
+    };
+    commonWords.push(commonWord);
+    commonWordById.set(commonWord.id, commonWord);
+    const sameSpelling = commonWordsByWord.get(commonWord.word) ?? [];
+    sameSpelling.push(commonWord);
+    commonWordsByWord.set(commonWord.word, sameSpelling);
+    commonWord.translations.forEach((translation) => {
+      const key = difficultyKey(commonWord.word, translation);
+      if (!commonWordByPair.has(key)) commonWordByPair.set(key, commonWord);
+    });
   });
-  const sampleWords = [
-    { id: 'sample-horizon', english: 'horizon', russian: 'горизонт' },
-    { id: 'sample-curious', english: 'curious', russian: 'любопытный' },
-    { id: 'sample-breathe', english: 'breathe', russian: 'дышать' },
-  ];
+  const sampleWords = [];
   const wordCollections = Array.isArray(window.VORDIK_COLLECTIONS) ? window.VORDIK_COLLECTIONS : [];
-  const quickPickWords = Array.isArray(window.VORDIK_QUICK_PICK_WORDS) ? window.VORDIK_QUICK_PICK_WORDS : [];
+  const rawQuickPickWords = Array.isArray(window.VORDIK_QUICK_PICK_WORDS) ? window.VORDIK_QUICK_PICK_WORDS : [];
+  const legacyQuickPickCommonByPair = new Map();
+  const quickPickCommonIds = new Set();
+  const quickPickWords = rawQuickPickWords.map((source) => {
+    const commonWord = resolveQuickPickCommonWord(source);
+    if (!commonWord) return null;
+    legacyQuickPickCommonByPair.set(difficultyKey(source.english, source.russian), commonWord.id);
+    if (quickPickCommonIds.has(commonWord.id)) return null;
+    quickPickCommonIds.add(commonWord.id);
+    return {
+      id: source.id,
+      english: commonWord.word,
+      russian: commonWord.translations[Math.floor(Math.random() * commonWord.translations.length)],
+      commonWordId: commonWord.id,
+      audio: commonWord.audio,
+    };
+  }).filter(Boolean);
   const $ = (id) => document.getElementById(id);
   const words = loadWords();
   const studyDays = loadStudyDays();
@@ -61,12 +92,12 @@
   let appVisibleStartedAt = document.hidden ? 0 : Date.now();
   const quickPickKnown = loadQuickPickKnown();
   let quickPickSession = loadQuickPickSession();
-  const session = { mechanic: 'cards', ids: [], index: 0, flipped: false, answered: false, correctCount: 0, attemptCount: 0, phase: 'feed', startedAt: 0, statsRecorded: false };
+  const session = { mechanic: 'cards', ids: [], translations: new Map(), index: 0, flipped: false, answered: false, correctCount: 0, attemptCount: 0, phase: 'feed', startedAt: 0, statsRecorded: false };
   const fiveLetterGame = { answer: '', guesses: [], current: '', finished: false, won: false, message: '', result: '' };
   const puzzleGame = { roundKey: '', pieceOrder: [], solvedIds: new Set(), mistakeIds: new Set(), selectedId: null, pendingWrong: null, message: '', result: '' };
   let activeTab = 'home';
   let toastTimer;
-  let activeUtterance = null;
+  let activeAudio = null;
   let sortMode = 'recent';
   let dictionarySearchQuery = '';
   let sortCloseTimer;
@@ -98,7 +129,7 @@
   }
 
   function clampKnowledge(value) {
-    return Math.min(KNOWLEDGE_MAX, Math.max(0, Math.round(Number(value) || 0)));
+    return Math.min(KNOWLEDGE_MAX, Math.max(1, Math.round(Number(value) || 1)));
   }
 
   function normalizeStoredKnowledge(value, scaleVersion) {
@@ -121,25 +152,136 @@
     return `${normalizeDictionaryText(english, 'en-US')}\u0000${normalizeDictionaryText(russian, 'ru-RU')}`;
   }
 
-  function resolveWordDifficulty(english, russian, fallbackDifficulty = 1, fallbackCefr = null) {
-    const pairMatch = difficultyByWordAndTranslation.get(difficultyKey(english, russian));
-    const wordMatch = difficultyByWord.get(normalizeDictionaryText(english, 'en-US'));
-    const match = pairMatch ?? wordMatch;
-    if (match) return match;
-    const difficulty = Math.min(6, Math.max(1, Math.round(Number(fallbackDifficulty) || 1)));
-    return { difficulty, cefr: normalizeCefr(fallbackCefr) ?? DIFFICULTY_CEFR[difficulty] };
+  function commonAudioSource(word) {
+    const fileName = `${normalizeDictionaryText(word, 'en-US').replace(/\s+/g, '')}1.mp3`;
+    return commonAudioFiles.has(fileName) ? `./audio/common/${encodeURIComponent(fileName)}` : null;
   }
 
-  function normalizeWordRecord(word, initialKnowledge = 0) {
+  function commonWordForPair(english, russian) {
+    const normalizedEnglish = normalizeDictionaryText(english, 'en-US');
+    const exactMatch = commonWordByPair.get(difficultyKey(normalizedEnglish, russian));
+    if (exactMatch || normalizedEnglish.startsWith('to ')) return exactMatch ?? null;
+    return commonWordByPair.get(difficultyKey(`to ${normalizedEnglish}`, russian)) ?? null;
+  }
+
+  function resolveQuickPickCommonWord(source) {
+    const english = normalizeDictionaryText(source?.english, 'en-US');
+    const russian = normalizeDictionaryText(source?.russian, 'ru-RU');
+    const exactMatch = commonWordForPair(english, russian);
+    if (exactMatch) return exactMatch;
+    const candidates = [
+      ...(commonWordsByWord.get(english) ?? []),
+      ...(english.startsWith('to ') ? [] : (commonWordsByWord.get(`to ${english}`) ?? [])),
+    ];
+    return candidates.find((candidate) => candidate.translations.includes(russian)) ?? candidates[0] ?? null;
+  }
+
+  function wordTranslations(word) {
+    const values = Array.isArray(word?.translations) && word.translations.length
+      ? word.translations
+      : [word?.russian];
+    return [...new Set(values
+      .map((translation) => normalizeDictionaryText(translation, 'ru-RU'))
+      .filter(Boolean))];
+  }
+
+  function hasUserWordPair(list, english, russian) {
+    const normalizedEnglish = normalizeDictionaryText(english, 'en-US');
+    const normalizedRussian = normalizeDictionaryText(russian, 'ru-RU');
+    const commonWord = commonWordForPair(normalizedEnglish, normalizedRussian);
+    return list.some((word) => {
+      if (commonWord && word.common_word_id === commonWord.id) return true;
+      return word.english === normalizedEnglish && wordTranslations(word).includes(normalizedRussian);
+    });
+  }
+
+  function randomTranslation(word, excluded = null) {
+    const translations = shuffled(wordTranslations(word));
+    return translations.find((translation) => !excluded?.has(translation))
+      ?? translations[0]
+      ?? normalizeDictionaryText(word?.russian, 'ru-RU');
+  }
+
+  function assignDistinctPuzzleTranslations(ids, index, assignments, used) {
+    if (index >= ids.length) return true;
+    const word = words.find((entry) => entry.id === ids[index]);
+    if (!word) return assignDistinctPuzzleTranslations(ids, index + 1, assignments, used);
+    const options = shuffled(wordTranslations(word)).filter((translation) => !used.has(translation));
+    for (const translation of options) {
+      assignments.set(word.id, translation);
+      used.add(translation);
+      if (assignDistinctPuzzleTranslations(ids, index + 1, assignments, used)) return true;
+      assignments.delete(word.id);
+      used.delete(translation);
+    }
+    return false;
+  }
+
+  function initializeSessionTranslations() {
+    session.translations = new Map();
+    if (session.mechanic === 'puzzle') {
+      let allRoundsAssigned = true;
+      for (let index = 0; index < session.ids.length; index += PUZZLE_WORD_COUNT) {
+        const roundAssignments = new Map();
+        const roundIds = session.ids.slice(index, index + PUZZLE_WORD_COUNT);
+        if (!assignDistinctPuzzleTranslations(roundIds, 0, roundAssignments, new Set())) {
+          allRoundsAssigned = false;
+          break;
+        }
+        roundAssignments.forEach((translation, id) => session.translations.set(id, translation));
+      }
+      if (allRoundsAssigned) return;
+      session.translations.clear();
+    }
+    const usedPuzzleTranslations = new Set();
+    session.ids.forEach((id) => {
+      const word = words.find((entry) => entry.id === id);
+      if (!word) return;
+      const translation = randomTranslation(word, session.mechanic === 'puzzle' ? usedPuzzleTranslations : null);
+      session.translations.set(id, translation);
+      if (session.mechanic === 'puzzle') usedPuzzleTranslations.add(translation);
+    });
+  }
+
+  function studyTranslation(word) {
+    if (!session.translations.has(word.id)) session.translations.set(word.id, randomTranslation(word));
+    return session.translations.get(word.id);
+  }
+
+  function findStoredCommonWord(word, english, russian, allowLegacyQuickPickMigration = false) {
+    const storedId = typeof word.common_word_id === 'string'
+      ? word.common_word_id
+      : (typeof word.commonWordId === 'string' ? word.commonWordId : null);
+    const storedCommonWord = storedId ? commonWordById.get(storedId) : null;
+    if (storedCommonWord?.word === english) return storedCommonWord;
+    const exactMatch = commonWordForPair(english, russian);
+    if (exactMatch) return exactMatch;
+    if (allowLegacyQuickPickMigration) {
+      const legacyCommonId = legacyQuickPickCommonByPair.get(difficultyKey(english, russian));
+      const legacyCommonWord = legacyCommonId ? commonWordById.get(legacyCommonId) : null;
+      if (legacyCommonWord) return legacyCommonWord;
+    }
+    if (word.source) return null;
+    const legacyTranslations = russian.split(',').map((translation) => normalizeDictionaryText(translation, 'ru-RU'));
+    return legacyTranslations.map((translation) => commonWordForPair(english, translation)).find(Boolean) ?? null;
+  }
+
+  function normalizeWordRecord(word, initialKnowledge = 1, allowLegacyQuickPickMigration = false) {
     const english = normalizeDictionaryText(word.english, 'en-US').slice(0, 80);
-    const russian = normalizeDictionaryText(word.russian, 'ru-RU').slice(0, 120);
-    const level = resolveWordDifficulty(english, russian, word.difficulty, word.cefr_level ?? word.cefr);
+    const enteredRussian = normalizeDictionaryText(word.russian, 'ru-RU').slice(0, 120);
+    const commonWord = findStoredCommonWord(word, english, enteredRussian, allowLegacyQuickPickMigration);
+    const translations = commonWord ? [...commonWord.translations] : [enteredRussian].filter(Boolean);
     return {
       id: word.id,
-      english,
-      russian,
-      difficulty: level.difficulty,
-      cefr_level: level.cefr,
+      english: commonWord?.word ?? english,
+      russian: translations.join(', '),
+      translations,
+      source: commonWord ? 'common' : 'custom',
+      common_word_id: commonWord?.id ?? null,
+      part_of_speech: commonWord?.partOfSpeech ?? null,
+      difficulty: commonWord?.difficulty ?? null,
+      cefr_level: commonWord?.cefr ?? null,
+      audio: commonWord?.audio ?? null,
       knowledge: normalizeStoredKnowledge(word.knowledge ?? initialKnowledge, word.knowledge_scale),
       knowledge_scale: KNOWLEDGE_SCALE_VERSION,
       last_review_at: validIsoDate(word.last_review_at),
@@ -153,60 +295,8 @@
     };
   }
 
-  function createWordRecord(id, english, russian, initialKnowledge = 0) {
+  function createWordRecord(id, english, russian, initialKnowledge = 1) {
     return normalizeWordRecord({ id, english, russian, knowledge: initialKnowledge, knowledge_scale: KNOWLEDGE_SCALE_VERSION }, initialKnowledge);
-  }
-
-  function parseCsvRows(text) {
-    const rows = [];
-    let row = [];
-    let field = '';
-    let quoted = false;
-    const source = String(text ?? '').replace(/^\uFEFF/, '');
-    for (let index = 0; index < source.length; index += 1) {
-      const character = source[index];
-      if (quoted) {
-        if (character === '"' && source[index + 1] === '"') { field += '"'; index += 1; }
-        else if (character === '"') quoted = false;
-        else field += character;
-      } else if (character === '"') quoted = true;
-      else if (character === ',') { row.push(field); field = ''; }
-      else if (character === '\n') { row.push(field.replace(/\r$/, '')); rows.push(row); row = []; field = ''; }
-      else field += character;
-    }
-    if (field || row.length) { row.push(field.replace(/\r$/, '')); rows.push(row); }
-    return rows;
-  }
-
-  async function loadDifficultyData() {
-    try {
-      const response = await fetch('./data/oxford_5000_cefr_ru.csv');
-      if (!response.ok) throw new Error('Difficulty data unavailable');
-      const rows = parseCsvRows(await response.text()).slice(1);
-      rows.forEach((columns) => {
-        const english = normalizeDictionaryText(columns[0], 'en-US');
-        const cefr = normalizeCefr(columns[1]);
-        const russian = normalizeDictionaryText(columns[3], 'ru-RU');
-        if (!english || !cefr) return;
-        const candidate = { difficulty: CEFR_DIFFICULTY[cefr], cefr };
-        const current = difficultyByWord.get(english);
-        if (!current || candidate.difficulty < current.difficulty) difficultyByWord.set(english, candidate);
-        if (russian && !difficultyByWordAndTranslation.has(difficultyKey(english, russian))) {
-          difficultyByWordAndTranslation.set(difficultyKey(english, russian), candidate);
-        }
-      });
-      let changed = false;
-      words.forEach((word) => {
-        const level = resolveWordDifficulty(word.english, word.russian, word.difficulty, word.cefr_level);
-        if (word.difficulty !== level.difficulty || word.cefr_level !== level.cefr) {
-          word.difficulty = level.difficulty;
-          word.cefr_level = level.cefr;
-          changed = true;
-        }
-      });
-      if (changed) saveWords();
-      renderDictionary();
-    } catch { /* The stored fallback level remains available offline. */ }
   }
 
   function currentKnowledge(word, now = Date.now()) {
@@ -214,7 +304,6 @@
   }
 
   function knowledgeDescription(knowledge) {
-    if (knowledge === 0) return 'не знает';
     if (knowledge <= 2) return 'начинает узнавать';
     if (knowledge <= 4) return 'частично знает';
     if (knowledge <= 6) return 'хорошо знает';
@@ -578,7 +667,7 @@
       if (!Array.isArray(parsed)) throw new Error('Invalid word list');
       const normalized = parsed
         .filter((word) => word && typeof word.id === 'string' && typeof word.english === 'string' && typeof word.russian === 'string')
-        .map((word) => normalizeWordRecord(word))
+        .map((word) => normalizeWordRecord(word, 1, true))
         .filter((word) => word.english && word.russian);
       if (JSON.stringify(normalized) !== JSON.stringify(parsed)) {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
@@ -590,7 +679,11 @@
   }
 
   function normalizeDictionaryText(value, locale) {
-    return String(value ?? '').trim().replace(/\s+/g, ' ').toLocaleLowerCase(locale);
+    return String(value ?? '')
+      .trim()
+      .replace(/[’‘`´]/g, "'")
+      .replace(/\s+/g, ' ')
+      .toLocaleLowerCase(locale);
   }
 
   function saveWords() {
@@ -617,30 +710,34 @@
     toastTimer = setTimeout(() => { toast.hidden = true; }, action ? 6500 : 3500);
   }
 
-  function speakWord(english) {
-    const synth = window.speechSynthesis;
-    if (!synth || typeof SpeechSynthesisUtterance === 'undefined') {
-      showToast('Озвучка недоступна в этом браузере');
+  function stopActiveAudio() {
+    if (!activeAudio) return;
+    activeAudio.pause();
+    activeAudio = null;
+  }
+
+  function speakWord(word, { silent = false } = {}) {
+    if (!word?.audio) {
+      if (!silent) showToast('Для этого слова озвучка пока не добавлена');
       return;
     }
     try {
-      const utterance = new SpeechSynthesisUtterance(english);
-      utterance.lang = 'en-US';
-      utterance.rate = 0.9;
-      const voices = synth.getVoices();
-      const voice = voices.find((item) => /^en[-_]US/i.test(item.lang)) ?? voices.find((item) => /^en/i.test(item.lang));
-      if (voice) utterance.voice = voice;
-      activeUtterance = utterance;
-      utterance.onend = () => { if (activeUtterance === utterance) activeUtterance = null; };
-      utterance.onerror = (event) => {
-        if (activeUtterance === utterance) activeUtterance = null;
-        if (event.error !== 'canceled' && event.error !== 'interrupted') showToast('Не удалось озвучить слово');
+      stopActiveAudio();
+      const audio = new Audio(word.audio);
+      activeAudio = audio;
+      let failed = false;
+      const handleFailure = () => {
+        if (failed) return;
+        failed = true;
+        if (activeAudio === audio) activeAudio = null;
+        if (!silent) showToast('Не удалось воспроизвести озвучку');
       };
-      synth.cancel();
-      synth.speak(utterance);
+      audio.onended = () => { if (activeAudio === audio) activeAudio = null; };
+      audio.onerror = handleFailure;
+      void audio.play().catch(handleFailure);
     } catch {
-      activeUtterance = null;
-      showToast('Не удалось озвучить слово');
+      activeAudio = null;
+      if (!silent) showToast('Не удалось воспроизвести озвучку');
     }
   }
 
@@ -721,10 +818,6 @@
     });
   }
 
-  function collectionWordKey(english, russian) {
-    return `${normalizeDictionaryText(english, 'en-US')}\u0000${normalizeDictionaryText(russian, 'ru-RU')}`;
-  }
-
   function activeCollection() {
     return wordCollections.find((collection) => collection.id === activeCollectionId) ?? null;
   }
@@ -799,8 +892,7 @@
   function updateCollectionAction() {
     const collection = activeCollection();
     if (!collection) return;
-    const existing = new Set(words.map((word) => collectionWordKey(word.english, word.russian)));
-    const hasMissingWords = collection.words.some(([english, russian]) => !existing.has(collectionWordKey(english, russian)));
+    const hasMissingWords = collection.words.some(([english, russian]) => !hasUserWordPair(words, english, russian));
     $('collection-add-button').disabled = !hasMissingWords;
     $('collection-add-button').textContent = hasMissingWords ? 'Добавить в словарь' : 'Добавлено';
   }
@@ -861,14 +953,11 @@
   function addActiveCollection() {
     const collection = activeCollection();
     if (!collection) return;
-    const existing = new Set(words.map((word) => collectionWordKey(word.english, word.russian)));
     const additions = [];
     collection.words.forEach(([englishValue, russianValue], index) => {
       const english = normalizeDictionaryText(englishValue, 'en-US');
       const russian = normalizeDictionaryText(russianValue, 'ru-RU');
-      const key = collectionWordKey(english, russian);
-      if (existing.has(key)) return;
-      existing.add(key);
+      if (hasUserWordPair([...words, ...additions], english, russian)) return;
       additions.push(createWordRecord(
         globalThis.crypto?.randomUUID?.() ?? `collection-${collection.id}-${Date.now()}-${index}`,
         english,
@@ -966,14 +1055,15 @@
       const listen = document.createElement('button');
       listen.className = 'listen-button';
       listen.type = 'button';
-      listen.setAttribute('aria-label', `Произнести ${word.english}`);
-      listen.title = `Произнести ${word.english}`;
+      listen.disabled = !word.audio;
+      listen.setAttribute('aria-label', word.audio ? `Произнести ${word.english}` : `Озвучка слова ${word.english} пока не добавлена`);
+      listen.title = word.audio ? `Произнести ${word.english}` : 'Озвучка пока не добавлена';
       const speaker = document.createElement('img');
       speaker.src = './icons/speaker-user.svg';
       speaker.alt = '';
       speaker.setAttribute('aria-hidden', 'true');
       listen.append(speaker);
-      listen.addEventListener('click', () => speakWord(word.english));
+      listen.addEventListener('click', () => speakWord(word));
       const copy = document.createElement('button');
       copy.className = 'dictionary-word-copy';
       copy.type = 'button';
@@ -990,32 +1080,32 @@
       const knowledge = currentKnowledge(word, now);
       const metrics = document.createElement('span');
       metrics.className = 'dictionary-word-metrics';
-      const difficulty = document.createElement('span');
-      difficulty.className = 'dictionary-word-metric is-difficulty';
-      const difficultyLevel = String(word.cefr_level || 'A1').toUpperCase();
-      const difficultyIcon = document.createElement('img');
-      difficultyIcon.className = 'dictionary-difficulty-icon';
-      difficultyIcon.src = `./icons/level-${difficultyLevel.toLocaleLowerCase('en-US')}-badge.png?v=2`;
-      difficultyIcon.alt = '';
-      difficultyIcon.setAttribute('aria-hidden', 'true');
-      difficulty.append(difficultyIcon);
-      difficulty.title = `Сложность ${word.difficulty} из 6`;
-      difficulty.setAttribute('aria-label', `Сложность: ${difficultyLevel}`);
+      const difficultyLevel = normalizeCefr(word.cefr_level);
+      if (difficultyLevel) {
+        const difficulty = document.createElement('span');
+        difficulty.className = 'dictionary-word-metric is-difficulty';
+        const difficultyIcon = document.createElement('img');
+        difficultyIcon.className = 'dictionary-difficulty-icon';
+        difficultyIcon.src = `./icons/indicator-pack/cropped/all-indicators-cropped/levels/level-${difficultyLevel.toLocaleLowerCase('en-US')}.png?v=1`;
+        difficultyIcon.alt = '';
+        difficultyIcon.setAttribute('aria-hidden', 'true');
+        difficulty.append(difficultyIcon);
+        difficulty.title = `Сложность ${word.difficulty} из 6`;
+        difficulty.setAttribute('aria-label', `Сложность: ${difficultyLevel}`);
+        metrics.append(difficulty);
+      }
       const knowledgeMetric = document.createElement('span');
       knowledgeMetric.className = 'dictionary-word-metric is-knowledge';
       const knowledgeLevel = currentKnowledge(word, now);
       const knowledgeIcon = document.createElement('img');
       knowledgeIcon.className = 'dictionary-knowledge-icon';
-      knowledgeIcon.src = './icons/knowledge.png';
+      knowledgeIcon.src = `./icons/indicator-pack/cropped/all-indicators-cropped/knowledge/knowledge-${String(knowledgeLevel).padStart(2, '0')}.png?v=1`;
       knowledgeIcon.alt = '';
       knowledgeIcon.setAttribute('aria-hidden', 'true');
-      const knowledgeValue = document.createElement('span');
-      knowledgeValue.className = 'dictionary-knowledge-value';
-      knowledgeValue.textContent = String(knowledgeLevel);
-      knowledgeMetric.append(knowledgeIcon, knowledgeValue);
+      knowledgeMetric.append(knowledgeIcon);
       knowledgeMetric.title = knowledgeDescription(knowledge);
       knowledgeMetric.setAttribute('aria-label', `Уровень знания: ${knowledgeLevel} из ${KNOWLEDGE_MAX}`);
-      metrics.append(difficulty, knowledgeMetric);
+      metrics.append(knowledgeMetric);
       copy.append(english, russian);
       row.append(listen, copy, metrics);
       fragment.append(row);
@@ -1023,16 +1113,17 @@
     $('word-list').replaceChildren(fragment);
     $('typing-start').disabled = words.length === 0;
     document.querySelector('[data-study="cards"]').disabled = words.length === 0;
-    const hasQuizOptions = new Set(words.map((word) => word.russian.toLocaleLowerCase())).size >= 2;
+    const availableTranslations = new Set(words.flatMap((word) => wordTranslations(word)));
+    const hasQuizOptions = availableTranslations.size >= 2;
     $('quiz-start').disabled = !hasQuizOptions;
     $('quiz-start').setAttribute('aria-label', hasQuizOptions ? 'Выбрать перевод: начать тренировку' : 'Для выбора перевода нужны хотя бы два разных перевода в словаре');
-    const hasTimedOptions = new Set(words.map((word) => word.russian.toLocaleLowerCase())).size >= 2;
+    const hasTimedOptions = availableTranslations.size >= 2;
     $('timed-start').disabled = !hasTimedOptions;
     $('timed-start').setAttribute('aria-label', hasTimedOptions ? 'Перевод на время: начать тренировку с запасом 15 секунд' : 'Для перевода на время нужны хотя бы два разных слова в словаре');
     const hasFiveLetterWords = words.some((word) => /^[a-z]{5}$/i.test(word.english.trim()));
     $('five-letter-start').disabled = !hasFiveLetterWords;
     $('five-letter-start').setAttribute('aria-label', hasFiveLetterWords ? 'Пять букв: начать игру' : 'Для игры добавьте в словарь английское слово из пяти букв');
-    const hasPuzzleWords = new Set(words.map((word) => word.russian.trim().toLocaleLowerCase('ru-RU'))).size >= PUZZLE_WORD_COUNT;
+    const hasPuzzleWords = availableTranslations.size >= PUZZLE_WORD_COUNT && words.length >= PUZZLE_WORD_COUNT;
     $('puzzle-start').disabled = !hasPuzzleWords;
     $('puzzle-start').setAttribute('aria-label', hasPuzzleWords ? 'Пазлы: соединить три слова с переводами' : 'Для пазлов нужны хотя бы три слова с разными переводами');
     $('study-empty-hint').hidden = words.length !== 0;
@@ -1071,7 +1162,7 @@
   }
 
   function vocabularyScore(now = Date.now()) {
-    return words.reduce((total, word) => total + (word.difficulty * currentKnowledge(word, now)), 0);
+    return words.reduce((total, word) => total + ((Number(word.difficulty) || 1) * currentKnowledge(word, now)), 0);
   }
 
   function ratingApiUrl(path) {
@@ -1206,8 +1297,7 @@
     const english = normalizeDictionaryText(englishValue, 'en-US');
     const russian = normalizeDictionaryText(russianValue, 'ru-RU');
     if (!english || !russian || english.length > 80 || russian.length > 120) throw new Error('Заполните оба поля: слово и перевод.');
-    if (/\s/.test(english)) throw new Error('Можно добавить только одно английское слово без пробелов.');
-    if (words.some((word) => word.english.toLocaleLowerCase() === english.toLocaleLowerCase() && word.russian.toLocaleLowerCase() === russian.toLocaleLowerCase())) {
+    if (hasUserWordPair(words, english, russian)) {
       throw new Error('Это слово с таким переводом уже есть в словаре.');
     }
     const word = createWordRecord(globalThis.crypto?.randomUUID?.() ?? `word-${Date.now()}-${Math.random()}`, english, russian);
@@ -1237,7 +1327,8 @@
       activeWordCardId = word.id;
       $('word-card-english').textContent = word.english;
       $('word-card-russian').textContent = word.russian;
-      $('word-card-listen').setAttribute('aria-label', `Произнести ${word.english}`);
+      $('word-card-listen').disabled = !word.audio;
+      $('word-card-listen').setAttribute('aria-label', word.audio ? `Произнести ${word.english}` : `Озвучка слова ${word.english} пока не добавлена`);
       $('word-card-delete').setAttribute('aria-label', `Удалить ${word.english}`);
       overlay.hidden = false;
       document.body.classList.add('is-word-card-open');
@@ -1265,7 +1356,7 @@
 
   function listenToActiveWordCard() {
     const word = words.find((item) => item.id === activeWordCardId);
-    if (word) speakWord(word.english);
+    if (word) speakWord(word);
   }
 
   function enableWordCardSwipe() {
@@ -1552,6 +1643,7 @@
   }
 
   function closeQuickPick() {
+    stopActiveAudio();
     saveQuickPickSession();
     document.body.classList.remove('is-picking');
     $('quick-pick-screen').hidden = true;
@@ -1585,6 +1677,7 @@
     $('quick-pick-progress').textContent = `${quickPickSession.index + 1} из ${quickPickSession.deck.length}`;
     $('quick-pick-deck-view').hidden = false;
     $('quick-pick-review').hidden = true;
+    speakWord(word, { silent: true });
   }
 
   function toggleQuickPickTranslation() {
@@ -1694,22 +1787,20 @@
   function addAllQuickPickWords() {
     if (!quickPickSession) return;
     const choices = new Map(quickPickSession.history.map((item) => [item.id, item.choice]));
-    const existingEnglish = new Set(words.map((word) => normalizeDictionaryText(word.english, 'en-US')));
     const additions = [];
     quickPickSession.deck.forEach((id, index) => {
       const source = quickPickWordById(id);
       if (!source) return;
       const english = normalizeDictionaryText(source.english, 'en-US');
       const russian = normalizeDictionaryText(source.russian, 'ru-RU');
-      if (!english || existingEnglish.has(english)) return;
+      if (!english || hasUserWordPair([...words, ...additions], english, russian)) return;
       const choice = choices.get(id)
         ?? (quickPickSession.unknown.includes(id) ? 'unknown' : (quickPickKnown.has(id) ? 'known' : 'unknown'));
-      existingEnglish.add(english);
       additions.push(createWordRecord(
         globalThis.crypto?.randomUUID?.() ?? `quick-word-${Date.now()}-${index}`,
         english,
         russian,
-        choice === 'known' ? 5 : 0,
+        choice === 'known' ? 5 : 1,
       ));
     });
     if (additions.length) {
@@ -1729,7 +1820,6 @@
   function addQuickPickSelection() {
     if (!quickPickSession) return;
     const selectedIds = new Set(quickPickSession.selected ?? []);
-    const existingEnglish = new Set(words.map((word) => normalizeDictionaryText(word.english, 'en-US')));
     const additions = [];
     quickPickSession.unknown.forEach((id, index) => {
       if (!selectedIds.has(id)) return;
@@ -1737,8 +1827,7 @@
       if (!source) return;
       const english = normalizeDictionaryText(source.english, 'en-US');
       const russian = normalizeDictionaryText(source.russian, 'ru-RU');
-      if (existingEnglish.has(english)) return;
-      existingEnglish.add(english);
+      if (hasUserWordPair([...words, ...additions], english, russian)) return;
       additions.push(createWordRecord(globalThis.crypto?.randomUUID?.() ?? `quick-word-${Date.now()}-${index}`, english, russian));
     });
     if (additions.length) {
@@ -1813,7 +1902,7 @@
       .map((word, index) => ({ word, index, knowledge: currentKnowledge(word, now) }))
       .sort((left, right) => (
         left.knowledge - right.knowledge
-        || left.word.difficulty - right.word.difficulty
+        || (Number(left.word.difficulty) || 1) - (Number(right.word.difficulty) || 1)
         || left.index - right.index
       ))
       .slice(0, STUDY_SERIES_SIZE)
@@ -1827,7 +1916,7 @@
       .map((word, index) => ({ word, index, knowledge: currentKnowledge(word, now) }))
       .sort((left, right) => (
         left.knowledge - right.knowledge
-        || left.word.difficulty - right.word.difficulty
+        || (Number(left.word.difficulty) || 1) - (Number(right.word.difficulty) || 1)
         || left.index - right.index
       ))
       .map(({ word }) => word);
@@ -1841,11 +1930,11 @@
       .map((word, index) => ({ word, index, knowledge: currentKnowledge(word, now) }))
       .sort((left, right) => (
         left.knowledge - right.knowledge
-        || left.word.difficulty - right.word.difficulty
+        || (Number(left.word.difficulty) || 1) - (Number(right.word.difficulty) || 1)
         || left.index - right.index
       ))
       .some(({ word }) => {
-        const translation = word.russian.trim().toLocaleLowerCase('ru-RU');
+        const translation = wordTranslations(word).find((value) => !translations.has(value));
         if (!translation || translations.has(translation)) return false;
         translations.add(translation);
         selected.push(word.id);
@@ -1879,8 +1968,9 @@
 
   function startStudy(mechanic = session.mechanic) {
     if (!words.length) return;
-    if (mechanic === 'quiz' && new Set(words.map((word) => word.russian.toLocaleLowerCase())).size < 2) return;
-    if (mechanic === 'timed' && new Set(words.map((word) => word.russian.toLocaleLowerCase())).size < 2) return;
+    const availableTranslations = new Set(words.flatMap((word) => wordTranslations(word)));
+    if (mechanic === 'quiz' && availableTranslations.size < 2) return;
+    if (mechanic === 'timed' && availableTranslations.size < 2) return;
     const fiveLetterCandidates = mechanic === 'five-letter' ? fiveLetterStudyWords() : [];
     const puzzleCandidates = mechanic === 'puzzle' ? puzzleStudyWordIds() : [];
     if (mechanic === 'five-letter' && !fiveLetterCandidates.length) return;
@@ -1895,6 +1985,7 @@
       resetFiveLetterGame(selectedWord);
     } else if (mechanic === 'puzzle') session.ids = puzzleCandidates;
     else session.ids = weakestStudyWordIds();
+    initializeSessionTranslations();
     session.index = 0;
     session.flipped = false;
     session.answered = false;
@@ -1945,12 +2036,14 @@
 
   function renderCard(word) {
     const englishSide = session.flipped;
-    $('card-term').textContent = englishSide ? word.english : word.russian;
+    const translation = studyTranslation(word);
+    $('card-term').textContent = englishSide ? word.english : translation;
     $('card-side').textContent = englishSide ? 'СЛОВО' : 'ПЕРЕВОД';
     $('card-hint').textContent = session.flipped ? 'Нажмите, чтобы вернуться' : `Нажмите, чтобы увидеть ${englishSide ? 'перевод' : 'слово'}`;
     $('flashcard').classList.toggle('is-flipped', session.flipped);
-    $('flashcard').setAttribute('aria-label', `${englishSide ? 'Английское слово' : 'Перевод'}: ${englishSide ? word.english : word.russian}. Перевернуть карточку`);
+    $('flashcard').setAttribute('aria-label', `${englishSide ? 'Английское слово' : 'Перевод'}: ${englishSide ? word.english : translation}. Перевернуть карточку`);
     $('next-button-label').textContent = session.index === session.ids.length - 1 ? 'Завершить' : 'Дальше';
+    if (englishSide) speakWord(word, { silent: true });
   }
 
   function renderQuiz(word) {
@@ -1960,9 +2053,10 @@
     $('quiz-feedback').removeAttribute('data-result');
     $('quiz-next-button').disabled = true;
     $('quiz-next-label').textContent = session.index === session.ids.length - 1 ? 'Завершить' : 'Дальше';
-    const translations = [...new Map(words.map((entry) => [entry.russian.toLocaleLowerCase(), entry.russian])).values()];
-    const distractors = shuffled(translations.filter((answer) => answer.toLocaleLowerCase() !== word.russian.toLocaleLowerCase())).slice(0, 2);
-    const options = shuffled([...distractors, word.russian]);
+    const correctAnswer = studyTranslation(word);
+    const translations = [...new Set(words.map((entry) => studyTranslation(entry)))];
+    const distractors = shuffled(translations.filter((answer) => answer !== correctAnswer)).slice(0, 2);
+    const options = shuffled([...distractors, correctAnswer]);
     const fragment = document.createDocumentFragment();
     options.forEach((answer) => {
       const button = document.createElement('button');
@@ -1982,11 +2076,12 @@
       button.append(label, radio);
       button.addEventListener('click', (event) => {
         event.currentTarget.blur();
-        answerQuiz(answer, word.russian);
+        answerQuiz(answer, correctAnswer);
       });
       fragment.append(button);
     });
     $('quiz-options').replaceChildren(fragment);
+    speakWord(word, { silent: true });
   }
 
   function answerQuiz(answer, correctAnswer) {
@@ -2012,7 +2107,7 @@
 
   function renderTyping(word) {
     session.answered = false;
-    $('typing-prompt').textContent = word.russian;
+    $('typing-prompt').textContent = studyTranslation(word);
     $('typing-input').value = '';
     $('typing-input').disabled = false;
     $('typing-input').classList.remove('is-error');
@@ -2043,6 +2138,7 @@
     $('typing-feedback').textContent = correct ? 'Верно!' : `Правильный ответ: ${word.english}`;
     $('typing-feedback').dataset.result = correct ? 'correct' : 'incorrect';
     $('typing-next-button').hidden = false;
+    speakWord(word, { silent: true });
   }
 
   function currentPuzzleWords() {
@@ -2125,9 +2221,10 @@
     piece.type = 'button';
     piece.className = 'puzzle-piece';
     piece.dataset.puzzlePiece = word.id;
-    piece.textContent = word.russian;
+    const translation = studyTranslation(word);
+    piece.textContent = translation;
     piece.draggable = false;
-    piece.setAttribute('aria-label', `Перевод: ${word.russian}`);
+    piece.setAttribute('aria-label', `Перевод: ${translation}`);
     if (state) piece.classList.add(`is-${state}`);
     if (state === 'locked' || state === 'wrong') {
       piece.disabled = true;
@@ -2152,7 +2249,7 @@
       recordWordReview(word, correctOnFirstTry);
     });
     puzzleGame.selectedId = null;
-    puzzleGame.message = 'Пазл собран!';
+    puzzleGame.message = '';
     puzzleGame.result = 'correct';
   }
 
@@ -2165,17 +2262,18 @@
     puzzleGame.selectedId = null;
     if (pieceId === slotId) {
       puzzleGame.solvedIds.add(pieceId);
-      puzzleGame.message = `${slotWord.english} — ${pieceWord.russian}`;
+      puzzleGame.message = '';
       puzzleGame.result = 'correct';
       if (puzzleGame.solvedIds.size === roundWords.length) completePuzzleRound();
       renderPuzzle();
+      speakWord(pieceWord, { silent: true });
       return;
     }
 
     puzzleGame.mistakeIds.add(pieceId);
     puzzleGame.mistakeIds.add(slotId);
     puzzleGame.pendingWrong = { pieceId, slotId };
-    puzzleGame.message = 'Эти части не подходят';
+    puzzleGame.message = '';
     puzzleGame.result = 'incorrect';
     renderPuzzle();
     clearTimeout(puzzleFeedbackTimer);
@@ -2212,11 +2310,11 @@
       if (solved) {
         slot.classList.add('is-correct');
         slot.tabIndex = -1;
-        slot.textContent = word.russian;
+        slot.textContent = studyTranslation(word);
       } else if (pendingWrong) {
         slot.classList.add('is-wrong');
         slot.tabIndex = -1;
-        slot.textContent = pendingWrong.russian;
+        slot.textContent = studyTranslation(pendingWrong);
       } else {
         slot.tabIndex = 0;
         slot.textContent = 'Перевод';
@@ -2409,6 +2507,7 @@
       fiveLetterGame.result = '';
     }
     renderExercise();
+    if (correct || exhausted) speakWord(word, { silent: true });
   }
 
   function inputFiveLetter(key) {
@@ -2468,9 +2567,10 @@
     $('timed-feedback').textContent = '';
     $('timed-feedback').removeAttribute('data-result');
     $('timed-clock').classList.remove('is-rewarded', 'is-penalized');
-    const russianWords = [...new Map(words.map((entry) => [entry.russian.toLocaleLowerCase(), entry.russian])).values()];
-    const distractors = shuffled(russianWords.filter((answer) => answer.toLocaleLowerCase() !== word.russian.toLocaleLowerCase())).slice(0, 3);
-    const options = shuffled([...distractors, word.russian]);
+    const correctAnswer = studyTranslation(word);
+    const translations = [...new Set(words.map((entry) => studyTranslation(entry)))];
+    const distractors = shuffled(translations.filter((answer) => answer !== correctAnswer)).slice(0, 3);
+    const options = shuffled([...distractors, correctAnswer]);
     const fragment = document.createDocumentFragment();
     options.forEach((answer) => {
       const button = document.createElement('button');
@@ -2490,11 +2590,12 @@
       button.append(label, radio);
       button.addEventListener('click', (event) => {
         event.currentTarget.blur();
-        answerTimed(answer, word.russian);
+        answerTimed(answer, correctAnswer);
       });
       fragment.append(button);
     });
     $('timed-options').replaceChildren(fragment);
+    speakWord(word, { silent: true });
   }
 
   function advanceTimedWord() {
@@ -2560,6 +2661,7 @@
   });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
+      stopActiveAudio();
       commitAppUsage();
       return;
     }
@@ -2567,6 +2669,10 @@
     renderStreak();
     renderProfile();
     updateTimedClock();
+    if (!$('quick-pick-screen').hidden && quickPickSession && quickPickSession.index < quickPickSession.deck.length) {
+      const word = quickPickWordById(quickPickSession.deck[quickPickSession.index]);
+      if (word) speakWord(word, { silent: true });
+    }
   });
   window.addEventListener('pagehide', commitAppUsage);
 
@@ -2746,6 +2852,10 @@
           words: words.map((word) => ({
             english: word.english,
             russian: word.russian,
+            translations: wordTranslations(word),
+            source: word.source,
+            partOfSpeech: word.part_of_speech,
+            audio: word.audio,
             difficulty: word.difficulty,
             cefr: word.cefr_level,
             knowledge: currentKnowledge(word),
@@ -2767,7 +2877,6 @@
 
   renderReadyCollections();
   renderDictionary();
-  loadDifficultyData();
   renderStreak();
   renderProfile();
   updateQuickPickLaunch();

@@ -259,15 +259,4 @@
     },
   ];
 
-  window.VORDIK_COLLECTIONS.forEach((collection) => {
-    collection.words.forEach(([word, translation]) => {
-      const existing = wordCatalog.find((entry) => entry.word === word && entry.translation === translation);
-      if (existing) {
-        if (!existing.collections.includes(collection.id)) existing.collections.push(collection.id);
-        return;
-      }
-      wordCatalog.push({ word, translation, partOfSpeech: null, cefr: null, collections: [collection.id] });
-    });
-  });
-  window.VORDIK_WORD_CATALOG = wordCatalog;
 })();

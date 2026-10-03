@@ -12,6 +12,7 @@ const files = [
   'money-words.js',
   'food-words.js',
   'word-catalog.js',
+  'audio-manifest.js',
   'collections.js',
   'quick-pick-words.js',
   'site.webmanifest',
@@ -22,7 +23,7 @@ const files = [
 await rm(outputRoot, { recursive: true, force: true });
 await mkdir(outputRoot, { recursive: true });
 await Promise.all(files.map((file) => copyFile(join(projectRoot, file), join(outputRoot, file))));
-await Promise.all(['icons', 'images', 'fonts', 'data'].map(async (directory) => {
+await Promise.all(['icons', 'images', 'fonts', 'audio', 'data'].map(async (directory) => {
   if (directory === 'data') {
     const dataOutput = join(outputRoot, directory);
     await mkdir(dataOutput, { recursive: true });
