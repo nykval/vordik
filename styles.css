@@ -313,8 +313,14 @@ input::placeholder { color: #91a2a1; }
 .typing-form { display: grid; }
 .typing-form label { margin-bottom: 8px; }
 .typing-form input { margin-bottom: 12px; border-color: #cbd9e6; }
-.typing-form input:focus { border-color: var(--brand-blue); }
+.typing-form input:focus, .typing-form input:focus-visible { outline: none; border-color: #cbd9e6; box-shadow: none; -webkit-tap-highlight-color: transparent; }
+.typing-form input.is-error { border-color: #ff7d82; background: #fff7f7; }
 .typing-form .primary-button { width: 100%; }
+#typing-activity { min-height: 0; padding: 24px 30px; }
+#typing-activity .question-word { margin-top: 0; }
+#typing-activity .answer-feedback:empty { min-height: 0; margin: 0; }
+#typing-activity .answer-feedback[data-result="warning"] { display: flex; align-items: center; gap: 10px; min-height: 0; margin: 14px 0 0; padding: 12px 14px; border: 1px solid #ffd0d2; border-radius: 14px; background: #fff1f2; color: #9e343a; font-size: .84rem; line-height: 1.35; }
+#typing-activity .answer-feedback[data-result="warning"]::before { content: '!'; width: 24px; height: 24px; flex: 0 0 24px; display: grid; place-items: center; border-radius: 50%; background: #ff6b70; color: #fff; font-size: .8rem; font-weight: 900; }
 .timed-activity { display: flex; flex-direction: column; min-height: 0; padding-top: 10px; }
 .timed-score { min-height: 48px; display: flex; align-items: center; justify-content: center; gap: 10px; color: #111; }
 .timed-score-icon { width: 24px; height: 24px; display: grid; place-items: center; border: 3px solid #73cf38; border-radius: 50%; color: #73cf38; font-size: .9rem; font-weight: 800; line-height: 1; }
@@ -350,7 +356,7 @@ input::placeholder { color: #91a2a1; }
 .answer-options .answer-option.is-incorrect:disabled { border-color: #ff6b70; background: #ffd7d9; color: #17323e; }
 .answer-options .answer-option.is-incorrect .answer-option-radio { background: #ff6b70; }
 .timed-feedback { min-height: 1.4em; margin: 8px 0 0; text-align: center; font-size: .8rem; }
-.five-letter-activity { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; padding-top: 6px; }
+.five-letter-activity { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; padding-top: 6px; }
 .five-letter-heading { display: grid; justify-items: center; gap: 5px; margin: 0 0 14px; text-align: center; }
 .five-letter-heading > strong { color: #17323e; font-size: clamp(1.15rem, 4vw, 1.6rem); line-height: 1.1; letter-spacing: -.035em; }
 .five-letter-heading > small { color: #657985; font-size: .78rem; font-weight: 700; }
@@ -364,6 +370,7 @@ input::placeholder { color: #91a2a1; }
 .five-letter-feedback { min-height: 20px; margin: 10px 0 8px; color: #657985; font-size: .8rem; font-weight: 800; text-align: center; }
 .five-letter-feedback[data-result="correct"] { color: #438b33; }
 .five-letter-feedback[data-result="incorrect"] { color: #17323e; }
+.five-letter-native-input { position: absolute; top: 0; left: 50%; width: 1px; min-height: 1px; height: 1px; margin: 0; padding: 0; border: 0; border-radius: 0; opacity: 0; color: transparent; caret-color: transparent; font-size: 16px; transform: translateX(-50%); pointer-events: none; }
 .five-letter-keyboard { width: min(100%, 590px); display: grid; gap: 6px; margin-top: auto; }
 .five-letter-keyboard-row { display: flex; justify-content: center; gap: 5px; }
 .five-letter-key { min-width: 0; height: clamp(38px, 5.7dvh, 50px); flex: 1 1 0; display: grid; place-items: center; padding: 0; border: 0; border-radius: 9px; background: #dce5e9; color: #17323e; font-size: clamp(.72rem, 2.8vw, .95rem); font-weight: 800; text-transform: uppercase; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
@@ -372,7 +379,7 @@ input::placeholder { color: #91a2a1; }
 .five-letter-key.is-present { background: #7a858b; color: #fff; }
 .five-letter-key.is-correct { background: #68c94e; color: #fff; }
 .five-letter-key:disabled { cursor: default; }
-.five-letter-finish { width: min(100%, 590px); margin-top: 10px; }
+.five-letter-finish { width: min(100%, 590px); margin-top: auto; }
 .text-button { display: block; margin: 24px auto 0; border: 0; background: none; color: var(--brand-blue); font-size: .88rem; font-weight: 700; text-decoration: underline; text-underline-offset: 4px; }
 .text-button:hover { color: #17323e; }
 .finish-panel { display: flex; flex-direction: column; align-items: flex-start; }

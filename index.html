@@ -10,7 +10,7 @@
     <link rel="icon" href="./favicon.png" type="image/png" />
     <link rel="apple-touch-icon" href="./favicon.png" />
     <link rel="manifest" href="./site.webmanifest" />
-    <link rel="stylesheet" href="./styles.css?v=knowledge-text-8" />
+    <link rel="stylesheet" href="./styles.css?v=typing-alert-13" />
   </head>
   <body class="is-home">
     <div class="app-shell">
@@ -234,7 +234,6 @@
               </div>
 
               <div id="quiz-activity" class="question-card" hidden>
-                <span class="stage-kicker">ВЫБЕРИТЕ ПЕРЕВОД</span>
                 <strong id="quiz-prompt" class="question-word"></strong>
                 <div id="quiz-options" class="answer-options" role="group" aria-label="Варианты перевода"></div>
                 <p id="quiz-feedback" class="answer-feedback" role="status" aria-live="polite"></p>
@@ -244,11 +243,10 @@
               </div>
 
               <div id="typing-activity" class="question-card" hidden>
-                <span class="stage-kicker">НАПИШИТЕ ПО-АНГЛИЙСКИ</span>
                 <strong id="typing-prompt" class="question-word"></strong>
-                <form id="typing-form" class="typing-form" autocomplete="off">
+                <form id="typing-form" class="typing-form" autocomplete="off" novalidate>
                   <label for="typing-input">Ваш ответ</label>
-                  <input id="typing-input" type="text" required spellcheck="false" autocapitalize="off" autocomplete="off" maxlength="80" placeholder="Введите слово" />
+                  <input id="typing-input" type="text" spellcheck="false" autocapitalize="off" autocomplete="off" maxlength="80" placeholder="Введите слово" />
                   <button id="typing-check-button" class="primary-button" type="submit">Проверить</button>
                 </form>
                 <p id="typing-feedback" class="answer-feedback" role="status" aria-live="polite"></p>
@@ -271,13 +269,12 @@
 
               <div id="five-letter-activity" class="five-letter-activity" hidden>
                 <div class="five-letter-heading">
-                  <span class="stage-kicker">5 БУКВ</span>
-                  <strong>Угадайте английское слово</strong>
                   <small id="five-letter-attempts">7 попыток</small>
                 </div>
                 <div id="five-letter-board" class="five-letter-board" role="grid" aria-label="Поле из семи попыток"></div>
+                <label class="visually-hidden" for="five-letter-input">Введите английское слово из пяти букв</label>
+                <input id="five-letter-input" class="five-letter-native-input" type="text" inputmode="text" enterkeyhint="done" lang="en" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false" maxlength="5" aria-label="Введите английское слово из пяти букв" />
                 <p id="five-letter-feedback" class="five-letter-feedback" role="status" aria-live="polite"></p>
-                <div id="five-letter-keyboard" class="five-letter-keyboard" aria-label="Клавиатура"></div>
                 <button id="five-letter-finish" class="primary-button study-next-button five-letter-finish" type="button" hidden>Завершить</button>
               </div>
             </div>
@@ -481,7 +478,7 @@
     <script src="./word-catalog.js" defer></script>
     <script src="./collections.js" defer></script>
     <script src="./quick-pick-words.js" defer></script>
-    <script src="./app.js?v=five-letter-cover-6" defer></script>
+    <script src="./app.js?v=typing-alert-13" defer></script>
     <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
   </body>
 </html>

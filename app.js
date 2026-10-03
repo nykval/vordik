@@ -1455,6 +1455,7 @@
 
   function setPhase(phase) {
     if (phase !== 'play' || session.mechanic !== 'timed') stopTimedRound();
+    if (phase !== 'play' && session.mechanic === 'five-letter') $('five-letter-input')?.blur();
     session.phase = phase;
     if (phase === 'finish') recordCompletedSession();
     document.body.classList.toggle('is-studying', phase === 'play');
@@ -1829,7 +1830,7 @@
     fiveLetterGame.current = '';
     fiveLetterGame.finished = false;
     fiveLetterGame.won = false;
-    fiveLetterGame.message = 'Серый — буква есть, зелёный — буква на своём месте';
+    fiveLetterGame.message = '';
     fiveLetterGame.result = '';
   }
 
@@ -1859,6 +1860,7 @@
     setPhase('play');
     renderExercise();
     if (mechanic === 'timed') startTimedRound();
+    if (mechanic === 'five-letter') focusFiveLetterInput();
   }
 
   function syncSession() {
@@ -1960,6 +1962,7 @@
     $('typing-prompt').textContent = word.russian;
     $('typing-input').value = '';
     $('typing-input').disabled = false;
+    $('typing-input').classList.remove('is-error');
     $('typing-check-button').hidden = false;
     $('typing-feedback').textContent = '';
     $('typing-feedback').removeAttribute('data-result');
@@ -1972,7 +1975,12 @@
     const word = words.find((entry) => entry.id === session.ids[session.index]);
     if (!word) return;
     const answer = $('typing-input').value.trim().replace(/\s+/g, ' ').toLocaleLowerCase();
-    if (!answer) return;
+    if (!answer) {
+      $('typing-input').classList.add('is-error');
+      $('typing-feedback').textContent = 'Введите слово, чтобы проверить ответ';
+      $('typing-feedback').dataset.result = 'warning';
+      return;
+    }
     session.answered = true;
     const correct = answer === word.english.trim().replace(/\s+/g, ' ').toLocaleLowerCase();
     if (correct) session.correctCount += 1;
@@ -2087,7 +2095,10 @@
     const answer = word.english.trim().toLocaleLowerCase('en-US');
     if (fiveLetterGame.answer !== answer) resetFiveLetterGame(word);
     renderFiveLetterBoard();
-    renderFiveLetterKeyboard();
+    const nativeInput = $('five-letter-input');
+    nativeInput.value = fiveLetterGame.current;
+    nativeInput.disabled = fiveLetterGame.finished;
+    if (fiveLetterGame.finished) nativeInput.blur();
     const remaining = Math.max(0, FIVE_LETTER_ATTEMPTS - fiveLetterGame.guesses.length);
     $('five-letter-attempts').textContent = fiveLetterGame.finished
       ? (fiveLetterGame.won ? `Угадано за ${fiveLetterGame.guesses.length}` : 'Попытки закончились')
@@ -2141,9 +2152,19 @@
     if (key === 'backspace') fiveLetterGame.current = fiveLetterGame.current.slice(0, -1);
     else if (/^[a-z]$/i.test(key) && fiveLetterGame.current.length < 5) fiveLetterGame.current += key.toLocaleLowerCase('en-US');
     else return;
-    fiveLetterGame.message = 'Серый — буква есть, зелёный — буква на своём месте';
+    fiveLetterGame.message = '';
     fiveLetterGame.result = '';
     renderExercise();
+  }
+
+  function focusFiveLetterInput() {
+    if (session.phase !== 'play' || session.mechanic !== 'five-letter' || fiveLetterGame.finished) return;
+    const input = $('five-letter-input');
+    input.disabled = false;
+    input.value = fiveLetterGame.current;
+    try { input.focus({ preventScroll: true }); } catch { input.focus(); }
+    const position = input.value.length;
+    try { input.setSelectionRange(position, position); } catch { /* Selection is optional. */ }
   }
 
   function stopTimedRound() {
@@ -2362,10 +2383,30 @@
   $('quiz-next-button').addEventListener('click', nextCard);
   $('typing-next-button').addEventListener('click', nextCard);
   $('typing-form').addEventListener('submit', (event) => { event.preventDefault(); answerTyping(); });
-  $('five-letter-keyboard').addEventListener('click', (event) => {
-    const key = event.target.closest('[data-five-letter-key]')?.dataset.fiveLetterKey;
-    if (key) inputFiveLetter(key);
+  $('typing-input').addEventListener('input', () => {
+    if ($('typing-feedback').dataset.result !== 'warning') return;
+    $('typing-input').classList.remove('is-error');
+    $('typing-feedback').textContent = '';
+    $('typing-feedback').removeAttribute('data-result');
   });
+  $('five-letter-input').addEventListener('input', (event) => {
+    if (session.phase !== 'play' || session.mechanic !== 'five-letter' || fiveLetterGame.finished) return;
+    const value = event.currentTarget.value.toLocaleLowerCase('en-US').replace(/[^a-z]/g, '').slice(0, 5);
+    event.currentTarget.value = value;
+    fiveLetterGame.current = value;
+    fiveLetterGame.message = '';
+    fiveLetterGame.result = '';
+    renderExercise();
+  });
+  $('five-letter-input').addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') return;
+    event.stopPropagation();
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      submitFiveLetterGuess();
+    }
+  });
+  $('five-letter-board').addEventListener('click', focusFiveLetterInput);
   $('five-letter-finish').addEventListener('click', () => setPhase('finish'));
   $('exit-study-button').addEventListener('click', () => setPhase('feed'));
   $('repeat-button').addEventListener('click', () => startStudy());
@@ -2374,6 +2415,7 @@
     if (activeTab !== 'cards' || session.phase !== 'play') return;
     if (event.key === 'Escape') { event.preventDefault(); setPhase('feed'); return; }
     if (session.mechanic === 'five-letter') {
+      if (document.activeElement === $('five-letter-input')) return;
       const key = event.key === 'Enter' ? 'enter' : (event.key === 'Backspace' ? 'backspace' : event.key);
       if (key === 'enter' || key === 'backspace' || /^[a-z]$/i.test(key)) {
         event.preventDefault();
