@@ -83,6 +83,9 @@ input::placeholder { color: #91a2a1; }
 .listen-button { width: 44px; height: 44px; display: grid; place-items: center; border: 0; border-radius: 15px; background: #eaf3ff; }
 .listen-button:hover { background: #dceaff; }
 .listen-button img { width: 23px; height: 23px; }
+.listen-button:disabled { background: #ff4055; opacity: 1; cursor: not-allowed; }
+.listen-button:disabled:hover { background: #ff4055; }
+.listen-button:disabled img { filter: brightness(0) invert(1); }
 .dictionary-word-copy { min-width: 0; display: grid; gap: 4px; padding: 8px 0; border: 0; background: transparent; color: inherit; text-align: left; }
 .dictionary-word-copy:hover .dictionary-word-english { color: var(--brand-blue); }
 .dictionary-word-english { color: #17323e; font-size: 1.16rem; line-height: 1.2; overflow-wrap: anywhere; }
@@ -173,6 +176,9 @@ input::placeholder { color: #91a2a1; }
 .word-card-listen { width: 100%; min-height: 56px; display: inline-flex; align-items: center; justify-content: center; gap: 9px; border: 0; border-radius: 999px; background: #fff; color: #17323e; font-weight: 800; }
 .word-card-listen:hover { background: #f5f8f4; }
 .word-card-listen img { width: 23px; height: 23px; }
+.word-card-listen:disabled { background: #ff4055; color: #fff; opacity: 1; cursor: not-allowed; }
+.word-card-listen:disabled:hover { background: #ff4055; }
+.word-card-listen:disabled img { filter: brightness(0) invert(1); }
 
 .delete-overlay { position: fixed; inset: 0; z-index: 52; display: flex; align-items: center; justify-content: center; padding: 18px; opacity: 0; pointer-events: none; transition: opacity .26s ease; }
 .delete-overlay.is-visible { opacity: 1; pointer-events: auto; }

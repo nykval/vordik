@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="1000" viewBox="0 0 1500 1000">
+  <rect width="1500" height="1000" fill="#FF6900"/>
+
+  <!-- Trunk and its two broad branches -->
+  <path fill="#FFF5DF" d="M580 955 C644 929 675 871 688 781 C700 704 679 663 620 609 C579 572 550 535 528 491 L584 488 C616 549 653 587 691 604 C707 610 704 552 700 492 L779 490 C797 554 821 631 848 672 C909 647 965 593 1001 541 L1054 554 C1007 632 945 681 906 725 C874 763 871 856 971 950 C982 963 978 974 958 974 L590 974 C566 974 558 965 580 955 Z"/>
+
+  <!-- Rear canopy, each lobe is a single opaque flat color -->
+  <ellipse cx="539" cy="218" rx="115" ry="112" fill="#FFD000"/>
+  <ellipse cx="1019" cy="284" rx="127" ry="131" fill="#FFD000"/>
+  <ellipse cx="1236" cy="506" rx="126" ry="164" fill="#FFC000"/>
+  <ellipse cx="309" cy="487" rx="128" ry="132" fill="#FFD000"/>
+  <ellipse cx="416" cy="526" rx="159" ry="128" fill="#FFB900"/>
+  <ellipse cx="495" cy="596" rx="160" ry="130" fill="#FFD000"/>
+  <ellipse cx="656" cy="607" rx="124" ry="135" fill="#FFBD00"/>
+  <ellipse cx="930" cy="488" rx="139" ry="141" fill="#FFB900"/>
+  <ellipse cx="1104" cy="600" rx="132" ry="123" fill="#FFBD00"/>
+
+  <!-- Main canopy masses -->
+  <ellipse cx="796" cy="251" rx="216" ry="207" fill="#FFF21A"/>
+  <ellipse cx="544" cy="365" rx="214" ry="177" fill="#FFDB00"/>
+  <ellipse cx="380" cy="343" rx="145" ry="151" fill="#FFF21A"/>
+  <ellipse cx="741" cy="425" rx="130" ry="97" fill="#FFC300"/>
+  <ellipse cx="879" cy="449" rx="138" ry="104" fill="#FFD000"/>
+  <ellipse cx="1124" cy="447" rx="180" ry="165" fill="#FFF21A"/>
+
+  <!-- Bark marks -->
+  <rect x="630" y="632" width="51" height="20" rx="10" fill="#383838" transform="rotate(19 655 642)"/>
+  <rect x="796" y="721" width="51" height="20" rx="10" fill="#383838"/>
+  <rect x="824" y="764" width="37" height="20" rx="10" fill="#383838" transform="rotate(8 843 774)"/>
+  <rect x="700" y="827" width="51" height="20" rx="10" fill="#383838" transform="rotate(-3 725 837)"/>
+  <rect x="681" y="874" width="42" height="20" rx="10" fill="#383838" transform="rotate(-10 702 884)"/>
+
+  <!-- Four-point sparkle -->
+  <path fill="#FFFFFF" d="M1181 124 C1186 146 1191 155 1215 164 C1191 172 1186 181 1181 206 C1175 181 1170 172 1148 164 C1170 155 1175 146 1181 124 Z"/>
+</svg>

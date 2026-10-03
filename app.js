@@ -77,7 +77,8 @@
     return {
       id: source.id,
       english: commonWord.word,
-      russian: commonWord.translations[Math.floor(Math.random() * commonWord.translations.length)],
+      russian: commonWord.translations[0],
+      translations: [...commonWord.translations],
       commonWordId: commonWord.id,
       audio: commonWord.audio,
     };
@@ -1671,7 +1672,7 @@
     card.parentElement.style.removeProperty('--swipe-progress');
     card.parentElement.removeAttribute('data-swipe-direction');
     $('quick-pick-word').textContent = normalizeDictionaryText(word.english, 'en-US');
-    $('quick-pick-translation').textContent = normalizeDictionaryText(word.russian, 'ru-RU');
+    $('quick-pick-translation').textContent = wordTranslations(word).join(', ');
     $('quick-pick-translation').hidden = true;
     $('quick-pick-card-hint').textContent = 'Нажмите, чтобы увидеть перевод';
     $('quick-pick-progress').textContent = `${quickPickSession.index + 1} из ${quickPickSession.deck.length}`;
@@ -1760,7 +1761,7 @@
       english.lang = 'en';
       english.textContent = normalizeDictionaryText(word.english, 'en-US');
       const russian = document.createElement('span');
-      russian.textContent = normalizeDictionaryText(word.russian, 'ru-RU');
+      russian.textContent = wordTranslations(word).join(', ');
       copy.append(english, russian);
       label.append(checkbox, copy);
       fragment.append(label);
