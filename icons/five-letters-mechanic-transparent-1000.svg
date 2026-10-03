@@ -1,0 +1,32 @@
+<svg width="1000" height="1000" viewBox="0 0 1000 1000" xmlns="http://www.w3.org/2000/svg">
+<path d="M 213 208 Q 218.92 239.08 250 245 Q 218.92 250.92 213 282 Q 207.08 250.92 176 245 Q 207.08 239.08 213 208 Z" fill="#FFFFFF"/>
+<path d="M 783 482 Q 787.16 503.84 809 508 Q 787.16 512.16 783 534 Q 778.84 512.16 757 508 Q 778.84 503.84 783 482 Z" fill="#FFFFFF"/>
+<path d="M 289 718 Q 292.36 735.64 310 739 Q 292.36 742.36 289 760 Q 285.64 742.36 268 739 Q 285.64 735.64 289 718 Z" fill="#FB263F"/>
+<circle cx="757" cy="761" r="7" fill="#D91D39"/>
+<path d="M365 675 C452 732 570 726 650 660 M617 662 L651 658 L646 692" fill="none" stroke="#076BEB" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+<g transform="translate(252 246) rotate(-7 74.0 85.0)">
+<rect x="8" y="11" width="148" height="170" rx="26" fill="#086CE5"/>
+<rect width="148" height="170" rx="26" fill="#32ABFE"/>
+<text x="74.0" y="89.0" text-anchor="middle" dominant-baseline="middle" font-family="Avenir Next, Arial, sans-serif" font-weight="bold" font-size="84" fill="#FFFFFF">С</text>
+</g>
+<g transform="translate(426 232) rotate(0 74.0 85.0)">
+<rect x="8" y="11" width="148" height="170" rx="26" fill="#DF7614"/>
+<rect width="148" height="170" rx="26" fill="#FFA533"/>
+<text x="74.0" y="89.0" text-anchor="middle" dominant-baseline="middle" font-family="Avenir Next, Arial, sans-serif" font-weight="bold" font-size="84" fill="#FFFFFF">Л</text>
+</g>
+<g transform="translate(600 246) rotate(7 74.0 85.0)">
+<rect x="8" y="11" width="148" height="170" rx="26" fill="#086CE5"/>
+<rect width="148" height="170" rx="26" fill="#32ABFE"/>
+<text x="74.0" y="89.0" text-anchor="middle" dominant-baseline="middle" font-family="Avenir Next, Arial, sans-serif" font-weight="bold" font-size="84" fill="#FFFFFF">О</text>
+</g>
+<g transform="translate(339 441) rotate(-5 74.0 85.0)">
+<rect x="8" y="11" width="148" height="170" rx="26" fill="#C91633"/>
+<rect width="148" height="170" rx="26" fill="#FB263F"/>
+<text x="74.0" y="89.0" text-anchor="middle" dominant-baseline="middle" font-family="Avenir Next, Arial, sans-serif" font-weight="bold" font-size="84" fill="#FFFFFF">В</text>
+</g>
+<g transform="translate(513 441) rotate(5 74.0 85.0)">
+<rect x="8" y="11" width="148" height="170" rx="26" fill="#086CE5"/>
+<rect width="148" height="170" rx="26" fill="#32ABFE"/>
+<text x="74.0" y="89.0" text-anchor="middle" dominant-baseline="middle" font-family="Avenir Next, Arial, sans-serif" font-weight="bold" font-size="84" fill="#FFFFFF">О</text>
+</g>
+</svg>

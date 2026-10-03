@@ -10,6 +10,7 @@
   const QUICK_PICK_SESSION_KEY = 'vordik.quickPickSession.v1';
   const QUICK_PICK_WORD_COUNT = 15;
   const STUDY_SERIES_SIZE = 15;
+  const FIVE_LETTER_ATTEMPTS = 7;
   const KNOWLEDGE_MAX = 10;
   const KNOWLEDGE_SCALE_VERSION = 10;
   const KNOWLEDGE_GAIN_BY_DIFFICULTY = Object.freeze([0, 4, 3, 3, 2, 2, 1]);
@@ -60,6 +61,7 @@
   const quickPickKnown = loadQuickPickKnown();
   let quickPickSession = loadQuickPickSession();
   const session = { mechanic: 'cards', ids: [], index: 0, flipped: false, answered: false, correctCount: 0, attemptCount: 0, phase: 'feed', startedAt: 0, statsRecorded: false };
+  const fiveLetterGame = { answer: '', guesses: [], current: '', finished: false, won: false, message: '', result: '' };
   let activeTab = 'home';
   let toastTimer;
   let activeUtterance = null;
@@ -1024,6 +1026,9 @@
     const hasTimedOptions = new Set(words.map((word) => word.russian.toLocaleLowerCase())).size >= 2;
     $('timed-start').disabled = !hasTimedOptions;
     $('timed-start').setAttribute('aria-label', hasTimedOptions ? 'Перевод на время: начать тренировку с запасом 15 секунд' : 'Для перевода на время нужны хотя бы два разных слова в словаре');
+    const hasFiveLetterWords = words.some((word) => /^[a-z]{5}$/i.test(word.english.trim()));
+    $('five-letter-start').disabled = !hasFiveLetterWords;
+    $('five-letter-start').setAttribute('aria-label', hasFiveLetterWords ? 'Пять букв: начать игру' : 'Для игры добавьте в словарь английское слово из пяти букв');
     $('study-empty-hint').hidden = words.length !== 0;
   }
 
@@ -1033,6 +1038,14 @@
     if (count % 10 === 1) return 'слово';
     if (count % 10 >= 2 && count % 10 <= 4) return 'слова';
     return 'слов';
+  }
+
+  function attemptNoun(count) {
+    const ending = Math.abs(count) % 100;
+    if (ending >= 11 && ending <= 14) return 'попыток';
+    if (Math.abs(count) % 10 === 1) return 'попытка';
+    if (Math.abs(count) % 10 >= 2 && Math.abs(count) % 10 <= 4) return 'попытки';
+    return 'попыток';
   }
 
   function pointNoun(value) {
@@ -1448,6 +1461,7 @@
     document.body.classList.toggle('is-quiz-studying', phase === 'play' && session.mechanic === 'quiz');
     document.body.classList.toggle('is-card-studying', phase === 'play' && session.mechanic === 'cards');
     document.body.classList.toggle('is-timed-studying', phase === 'play' && session.mechanic === 'timed');
+    document.body.classList.toggle('is-five-letter-studying', phase === 'play' && session.mechanic === 'five-letter');
     $('study-feed').hidden = phase !== 'feed';
     $('study-play').hidden = phase !== 'play';
     $('study-finish').hidden = phase !== 'finish';
@@ -1455,13 +1469,20 @@
     $('quiz-activity').hidden = phase !== 'play' || session.mechanic !== 'quiz';
     $('typing-activity').hidden = phase !== 'play' || session.mechanic !== 'typing';
     $('timed-activity').hidden = phase !== 'play' || session.mechanic !== 'timed';
+    $('five-letter-activity').hidden = phase !== 'play' || session.mechanic !== 'five-letter';
     if (phase === 'finish') {
-      $('finish-title').textContent = session.mechanic === 'timed' ? 'Время вышло!' : 'Готово!';
+      $('finish-title').textContent = session.mechanic === 'timed'
+        ? 'Время вышло!'
+        : (session.mechanic === 'five-letter' ? (fiveLetterGame.won ? 'Слово угадано!' : 'Попытки закончились') : 'Готово!');
       $('finish-copy').textContent = session.mechanic === 'cards'
         ? `Вы повторили ${session.ids.length} ${wordNoun(session.ids.length)}.`
         : (session.mechanic === 'timed'
             ? `Верных ответов: ${session.correctCount}. Всего ответов: ${session.attemptCount}.`
-            : `Верных ответов: ${session.correctCount} из ${session.ids.length}.`);
+            : (session.mechanic === 'five-letter'
+                ? (fiveLetterGame.won
+                    ? `Вы угадали слово ${fiveLetterGame.answer.toUpperCase()} ${fiveLetterGame.guesses.length === 1 ? 'за одну попытку' : `за ${fiveLetterGame.guesses.length} ${attemptNoun(fiveLetterGame.guesses.length)}`}.`
+                    : `Загаданное слово: ${fiveLetterGame.answer.toUpperCase()}.`)
+                : `Верных ответов: ${session.correctCount} из ${session.ids.length}.`));
     }
     window.scrollTo(0, 0);
   }
@@ -1789,13 +1810,44 @@
       .map(({ word }) => word.id);
   }
 
+  function fiveLetterStudyWords() {
+    const now = Date.now();
+    return words
+      .filter((word) => /^[a-z]{5}$/i.test(word.english.trim()))
+      .map((word, index) => ({ word, index, knowledge: currentKnowledge(word, now) }))
+      .sort((left, right) => (
+        left.knowledge - right.knowledge
+        || left.word.difficulty - right.word.difficulty
+        || left.index - right.index
+      ))
+      .map(({ word }) => word);
+  }
+
+  function resetFiveLetterGame(word) {
+    fiveLetterGame.answer = word.english.trim().toLocaleLowerCase('en-US');
+    fiveLetterGame.guesses = [];
+    fiveLetterGame.current = '';
+    fiveLetterGame.finished = false;
+    fiveLetterGame.won = false;
+    fiveLetterGame.message = 'Серый — буква есть, зелёный — буква на своём месте';
+    fiveLetterGame.result = '';
+  }
+
   function startStudy(mechanic = session.mechanic) {
     if (!words.length) return;
     if (mechanic === 'quiz' && new Set(words.map((word) => word.russian.toLocaleLowerCase())).size < 2) return;
     if (mechanic === 'timed' && new Set(words.map((word) => word.russian.toLocaleLowerCase())).size < 2) return;
+    const fiveLetterCandidates = mechanic === 'five-letter' ? fiveLetterStudyWords() : [];
+    if (mechanic === 'five-letter' && !fiveLetterCandidates.length) return;
     stopTimedRound();
     session.mechanic = mechanic;
-    session.ids = mechanic === 'timed' ? shuffled(words.map((word) => word.id)) : weakestStudyWordIds();
+    if (mechanic === 'timed') session.ids = shuffled(words.map((word) => word.id));
+    else if (mechanic === 'five-letter') {
+      const weakestPool = fiveLetterCandidates.slice(0, Math.min(5, fiveLetterCandidates.length));
+      const selectedWord = weakestPool[Math.floor(Math.random() * weakestPool.length)];
+      session.ids = [selectedWord.id];
+      resetFiveLetterGame(selectedWord);
+    } else session.ids = weakestStudyWordIds();
     session.index = 0;
     session.flipped = false;
     session.answered = false;
@@ -1818,9 +1870,11 @@
   }
 
   function renderProgress() {
-    $('progress-text').textContent = session.mechanic === 'timed'
-      ? `${session.correctCount} верных`
-      : `${session.index + 1}/${session.ids.length}`;
+    if (session.mechanic === 'timed') $('progress-text').textContent = `${session.correctCount} верных`;
+    else if (session.mechanic === 'five-letter') {
+      const attempt = Math.min(FIVE_LETTER_ATTEMPTS, fiveLetterGame.guesses.length + (fiveLetterGame.finished ? 0 : 1));
+      $('progress-text').textContent = `${attempt}/${FIVE_LETTER_ATTEMPTS}`;
+    } else $('progress-text').textContent = `${session.index + 1}/${session.ids.length}`;
   }
 
   function renderExercise() {
@@ -1831,6 +1885,7 @@
     if (session.mechanic === 'quiz') renderQuiz(word);
     if (session.mechanic === 'typing') renderTyping(word);
     if (session.mechanic === 'timed') renderTimed(word);
+    if (session.mechanic === 'five-letter') renderFiveLetter(word);
   }
 
   function renderCard(word) {
@@ -1927,6 +1982,168 @@
     $('typing-feedback').textContent = correct ? 'Верно!' : `Правильный ответ: ${word.english}`;
     $('typing-feedback').dataset.result = correct ? 'correct' : 'incorrect';
     $('typing-next-button').hidden = false;
+  }
+
+  function evaluateFiveLetterGuess(guess, answer) {
+    const statuses = Array(5).fill('absent');
+    const remaining = new Map();
+    for (let index = 0; index < 5; index += 1) {
+      if (guess[index] === answer[index]) statuses[index] = 'correct';
+      else remaining.set(answer[index], (remaining.get(answer[index]) || 0) + 1);
+    }
+    for (let index = 0; index < 5; index += 1) {
+      if (statuses[index] === 'correct') continue;
+      const count = remaining.get(guess[index]) || 0;
+      if (count > 0) {
+        statuses[index] = 'present';
+        remaining.set(guess[index], count - 1);
+      }
+    }
+    return statuses;
+  }
+
+  function fiveLetterStatusLabel(status) {
+    if (status === 'correct') return 'на правильном месте';
+    if (status === 'present') return 'есть в слове, но в другом месте';
+    return 'нет в слове';
+  }
+
+  function renderFiveLetterBoard() {
+    const fragment = document.createDocumentFragment();
+    for (let rowIndex = 0; rowIndex < FIVE_LETTER_ATTEMPTS; rowIndex += 1) {
+      const row = document.createElement('div');
+      row.className = 'five-letter-row';
+      row.setAttribute('role', 'row');
+      const submitted = fiveLetterGame.guesses[rowIndex];
+      const draft = !fiveLetterGame.finished && rowIndex === fiveLetterGame.guesses.length ? fiveLetterGame.current : '';
+      const letters = submitted?.word ?? draft;
+      for (let columnIndex = 0; columnIndex < 5; columnIndex += 1) {
+        const cell = document.createElement('span');
+        cell.className = 'five-letter-cell';
+        cell.setAttribute('role', 'gridcell');
+        const letter = letters[columnIndex] ?? '';
+        cell.textContent = letter;
+        if (letter) cell.classList.add('has-letter');
+        const status = submitted?.statuses[columnIndex];
+        if (status) {
+          cell.classList.add(`is-${status}`);
+          cell.setAttribute('aria-label', `${letter.toUpperCase()}: ${fiveLetterStatusLabel(status)}`);
+        } else {
+          cell.setAttribute('aria-label', letter ? letter.toUpperCase() : 'Пустая клетка');
+        }
+        row.append(cell);
+      }
+      fragment.append(row);
+    }
+    $('five-letter-board').replaceChildren(fragment);
+  }
+
+  function renderFiveLetterKeyboard() {
+    const priorities = { absent: 1, present: 2, correct: 3 };
+    const letterStatuses = new Map();
+    fiveLetterGame.guesses.forEach((guess) => {
+      [...guess.word].forEach((letter, index) => {
+        const nextStatus = guess.statuses[index];
+        const currentStatus = letterStatuses.get(letter);
+        if (!currentStatus || priorities[nextStatus] > priorities[currentStatus]) letterStatuses.set(letter, nextStatus);
+      });
+    });
+    const rows = [
+      ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
+      ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'],
+      ['enter', 'z', 'x', 'c', 'v', 'b', 'n', 'm', 'backspace'],
+    ];
+    const fragment = document.createDocumentFragment();
+    rows.forEach((keys) => {
+      const row = document.createElement('div');
+      row.className = 'five-letter-keyboard-row';
+      keys.forEach((key) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'five-letter-key';
+        button.dataset.fiveLetterKey = key;
+        button.disabled = fiveLetterGame.finished;
+        if (key === 'enter' || key === 'backspace') button.classList.add('is-wide');
+        if (key === 'enter') {
+          button.textContent = 'Готово';
+          button.setAttribute('aria-label', 'Проверить слово');
+        } else if (key === 'backspace') {
+          button.textContent = '⌫';
+          button.setAttribute('aria-label', 'Удалить букву');
+        } else {
+          button.textContent = key;
+          button.setAttribute('aria-label', key.toUpperCase());
+          const status = letterStatuses.get(key);
+          if (status) button.classList.add(`is-${status}`);
+        }
+        row.append(button);
+      });
+      fragment.append(row);
+    });
+    $('five-letter-keyboard').replaceChildren(fragment);
+  }
+
+  function renderFiveLetter(word) {
+    const answer = word.english.trim().toLocaleLowerCase('en-US');
+    if (fiveLetterGame.answer !== answer) resetFiveLetterGame(word);
+    renderFiveLetterBoard();
+    renderFiveLetterKeyboard();
+    const remaining = Math.max(0, FIVE_LETTER_ATTEMPTS - fiveLetterGame.guesses.length);
+    $('five-letter-attempts').textContent = fiveLetterGame.finished
+      ? (fiveLetterGame.won ? `Угадано за ${fiveLetterGame.guesses.length}` : 'Попытки закончились')
+      : `${remaining} ${attemptNoun(remaining)}`;
+    $('five-letter-feedback').textContent = fiveLetterGame.message;
+    if (fiveLetterGame.result) $('five-letter-feedback').dataset.result = fiveLetterGame.result;
+    else $('five-letter-feedback').removeAttribute('data-result');
+    $('five-letter-finish').hidden = !fiveLetterGame.finished;
+    renderProgress();
+  }
+
+  function submitFiveLetterGuess() {
+    if (fiveLetterGame.finished) return;
+    if (fiveLetterGame.current.length !== 5) {
+      fiveLetterGame.message = 'Введите все 5 букв';
+      fiveLetterGame.result = 'incorrect';
+      renderExercise();
+      return;
+    }
+    const word = words.find((entry) => entry.id === session.ids[0]);
+    if (!word) return;
+    const guess = fiveLetterGame.current;
+    const statuses = evaluateFiveLetterGuess(guess, fiveLetterGame.answer);
+    fiveLetterGame.guesses.push({ word: guess, statuses });
+    fiveLetterGame.current = '';
+    session.attemptCount = fiveLetterGame.guesses.length;
+    const correct = statuses.every((status) => status === 'correct');
+    const exhausted = fiveLetterGame.guesses.length >= FIVE_LETTER_ATTEMPTS;
+    if (correct || exhausted) {
+      fiveLetterGame.finished = true;
+      fiveLetterGame.won = correct;
+      fiveLetterGame.message = correct ? 'Верно! Слово угадано' : `Правильное слово: ${fiveLetterGame.answer.toUpperCase()}`;
+      fiveLetterGame.result = correct ? 'correct' : 'incorrect';
+      session.answered = true;
+      session.correctCount = correct ? 1 : 0;
+      recordWordReview(word, correct);
+    } else {
+      const remaining = FIVE_LETTER_ATTEMPTS - fiveLetterGame.guesses.length;
+      fiveLetterGame.message = `Осталось ${remaining} ${attemptNoun(remaining)}`;
+      fiveLetterGame.result = '';
+    }
+    renderExercise();
+  }
+
+  function inputFiveLetter(key) {
+    if (session.phase !== 'play' || session.mechanic !== 'five-letter' || fiveLetterGame.finished) return;
+    if (key === 'enter') {
+      submitFiveLetterGuess();
+      return;
+    }
+    if (key === 'backspace') fiveLetterGame.current = fiveLetterGame.current.slice(0, -1);
+    else if (/^[a-z]$/i.test(key) && fiveLetterGame.current.length < 5) fiveLetterGame.current += key.toLocaleLowerCase('en-US');
+    else return;
+    fiveLetterGame.message = 'Серый — буква есть, зелёный — буква на своём месте';
+    fiveLetterGame.result = '';
+    renderExercise();
   }
 
   function stopTimedRound() {
@@ -2145,12 +2362,25 @@
   $('quiz-next-button').addEventListener('click', nextCard);
   $('typing-next-button').addEventListener('click', nextCard);
   $('typing-form').addEventListener('submit', (event) => { event.preventDefault(); answerTyping(); });
+  $('five-letter-keyboard').addEventListener('click', (event) => {
+    const key = event.target.closest('[data-five-letter-key]')?.dataset.fiveLetterKey;
+    if (key) inputFiveLetter(key);
+  });
+  $('five-letter-finish').addEventListener('click', () => setPhase('finish'));
   $('exit-study-button').addEventListener('click', () => setPhase('feed'));
   $('repeat-button').addEventListener('click', () => startStudy());
   $('finish-mode-button').addEventListener('click', () => setPhase('feed'));
   document.addEventListener('keydown', (event) => {
     if (activeTab !== 'cards' || session.phase !== 'play') return;
     if (event.key === 'Escape') { event.preventDefault(); setPhase('feed'); return; }
+    if (session.mechanic === 'five-letter') {
+      const key = event.key === 'Enter' ? 'enter' : (event.key === 'Backspace' ? 'backspace' : event.key);
+      if (key === 'enter' || key === 'backspace' || /^[a-z]$/i.test(key)) {
+        event.preventDefault();
+        inputFiveLetter(key);
+      }
+      return;
+    }
     if (session.mechanic !== 'cards' || /INPUT|TEXTAREA/.test(document.activeElement.tagName)) return;
     if (event.key === 'ArrowRight') { event.preventDefault(); nextCard(); }
     if (event.key === ' ' && document.activeElement === document.body) { event.preventDefault(); $('flashcard').click(); }
