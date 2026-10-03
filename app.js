@@ -11,6 +11,7 @@
   const QUICK_PICK_WORD_COUNT = 15;
   const STUDY_SERIES_SIZE = 15;
   const FIVE_LETTER_ATTEMPTS = 7;
+  const PUZZLE_WORD_COUNT = 3;
   const KNOWLEDGE_MAX = 10;
   const KNOWLEDGE_SCALE_VERSION = 10;
   const KNOWLEDGE_GAIN_BY_DIFFICULTY = Object.freeze([0, 4, 3, 3, 2, 2, 1]);
@@ -62,6 +63,7 @@
   let quickPickSession = loadQuickPickSession();
   const session = { mechanic: 'cards', ids: [], index: 0, flipped: false, answered: false, correctCount: 0, attemptCount: 0, phase: 'feed', startedAt: 0, statsRecorded: false };
   const fiveLetterGame = { answer: '', guesses: [], current: '', finished: false, won: false, message: '', result: '' };
+  const puzzleGame = { roundKey: '', pieceOrder: [], solvedIds: new Set(), mistakeIds: new Set(), selectedId: null, pendingWrong: null, message: '', result: '' };
   let activeTab = 'home';
   let toastTimer;
   let activeUtterance = null;
@@ -80,6 +82,7 @@
   let activeWordCardId = null;
   let timedInterval;
   let timedAdvanceTimer;
+  let puzzleFeedbackTimer;
   let timedDeadline = 0;
   let timedLocked = false;
   let quickPickAnimating = false;
@@ -992,7 +995,7 @@
       const difficultyLevel = String(word.cefr_level || 'A1').toUpperCase();
       const difficultyIcon = document.createElement('img');
       difficultyIcon.className = 'dictionary-difficulty-icon';
-      difficultyIcon.src = `./icons/difficulty-${difficultyLevel.toLocaleLowerCase('en-US')}.png`;
+      difficultyIcon.src = `./icons/level-${difficultyLevel.toLocaleLowerCase('en-US')}-badge.png?v=2`;
       difficultyIcon.alt = '';
       difficultyIcon.setAttribute('aria-hidden', 'true');
       difficulty.append(difficultyIcon);
@@ -1029,6 +1032,9 @@
     const hasFiveLetterWords = words.some((word) => /^[a-z]{5}$/i.test(word.english.trim()));
     $('five-letter-start').disabled = !hasFiveLetterWords;
     $('five-letter-start').setAttribute('aria-label', hasFiveLetterWords ? 'Пять букв: начать игру' : 'Для игры добавьте в словарь английское слово из пяти букв');
+    const hasPuzzleWords = new Set(words.map((word) => word.russian.trim().toLocaleLowerCase('ru-RU'))).size >= PUZZLE_WORD_COUNT;
+    $('puzzle-start').disabled = !hasPuzzleWords;
+    $('puzzle-start').setAttribute('aria-label', hasPuzzleWords ? 'Пазлы: соединить три слова с переводами' : 'Для пазлов нужны хотя бы три слова с разными переводами');
     $('study-empty-hint').hidden = words.length !== 0;
   }
 
@@ -1456,6 +1462,7 @@
   function setPhase(phase) {
     if (phase !== 'play' || session.mechanic !== 'timed') stopTimedRound();
     if (phase !== 'play' && session.mechanic === 'five-letter') $('five-letter-input')?.blur();
+    if (phase !== 'play' && session.mechanic === 'puzzle') clearTimeout(puzzleFeedbackTimer);
     session.phase = phase;
     if (phase === 'finish') recordCompletedSession();
     document.body.classList.toggle('is-studying', phase === 'play');
@@ -1463,6 +1470,7 @@
     document.body.classList.toggle('is-card-studying', phase === 'play' && session.mechanic === 'cards');
     document.body.classList.toggle('is-timed-studying', phase === 'play' && session.mechanic === 'timed');
     document.body.classList.toggle('is-five-letter-studying', phase === 'play' && session.mechanic === 'five-letter');
+    document.body.classList.toggle('is-puzzle-studying', phase === 'play' && session.mechanic === 'puzzle');
     $('study-feed').hidden = phase !== 'feed';
     $('study-play').hidden = phase !== 'play';
     $('study-finish').hidden = phase !== 'finish';
@@ -1471,6 +1479,7 @@
     $('typing-activity').hidden = phase !== 'play' || session.mechanic !== 'typing';
     $('timed-activity').hidden = phase !== 'play' || session.mechanic !== 'timed';
     $('five-letter-activity').hidden = phase !== 'play' || session.mechanic !== 'five-letter';
+    $('puzzle-activity').hidden = phase !== 'play' || session.mechanic !== 'puzzle';
     if (phase === 'finish') {
       $('finish-title').textContent = session.mechanic === 'timed'
         ? 'Время вышло!'
@@ -1824,6 +1833,40 @@
       .map(({ word }) => word);
   }
 
+  function puzzleStudyWordIds() {
+    const now = Date.now();
+    const selected = [];
+    const translations = new Set();
+    words
+      .map((word, index) => ({ word, index, knowledge: currentKnowledge(word, now) }))
+      .sort((left, right) => (
+        left.knowledge - right.knowledge
+        || left.word.difficulty - right.word.difficulty
+        || left.index - right.index
+      ))
+      .some(({ word }) => {
+        const translation = word.russian.trim().toLocaleLowerCase('ru-RU');
+        if (!translation || translations.has(translation)) return false;
+        translations.add(translation);
+        selected.push(word.id);
+        return selected.length >= STUDY_SERIES_SIZE;
+      });
+    return selected.slice(0, Math.floor(selected.length / PUZZLE_WORD_COUNT) * PUZZLE_WORD_COUNT);
+  }
+
+  function resetPuzzleRound() {
+    clearTimeout(puzzleFeedbackTimer);
+    const roundIds = session.ids.slice(session.index, session.index + PUZZLE_WORD_COUNT);
+    puzzleGame.roundKey = roundIds.join('|');
+    puzzleGame.pieceOrder = shuffled(roundIds);
+    puzzleGame.solvedIds = new Set();
+    puzzleGame.mistakeIds = new Set();
+    puzzleGame.selectedId = null;
+    puzzleGame.pendingWrong = null;
+    puzzleGame.message = '';
+    puzzleGame.result = '';
+  }
+
   function resetFiveLetterGame(word) {
     fiveLetterGame.answer = word.english.trim().toLocaleLowerCase('en-US');
     fiveLetterGame.guesses = [];
@@ -1839,7 +1882,9 @@
     if (mechanic === 'quiz' && new Set(words.map((word) => word.russian.toLocaleLowerCase())).size < 2) return;
     if (mechanic === 'timed' && new Set(words.map((word) => word.russian.toLocaleLowerCase())).size < 2) return;
     const fiveLetterCandidates = mechanic === 'five-letter' ? fiveLetterStudyWords() : [];
+    const puzzleCandidates = mechanic === 'puzzle' ? puzzleStudyWordIds() : [];
     if (mechanic === 'five-letter' && !fiveLetterCandidates.length) return;
+    if (mechanic === 'puzzle' && puzzleCandidates.length < PUZZLE_WORD_COUNT) return;
     stopTimedRound();
     session.mechanic = mechanic;
     if (mechanic === 'timed') session.ids = shuffled(words.map((word) => word.id));
@@ -1848,7 +1893,8 @@
       const selectedWord = weakestPool[Math.floor(Math.random() * weakestPool.length)];
       session.ids = [selectedWord.id];
       resetFiveLetterGame(selectedWord);
-    } else session.ids = weakestStudyWordIds();
+    } else if (mechanic === 'puzzle') session.ids = puzzleCandidates;
+    else session.ids = weakestStudyWordIds();
     session.index = 0;
     session.flipped = false;
     session.answered = false;
@@ -1856,6 +1902,7 @@
     session.attemptCount = 0;
     session.startedAt = Date.now();
     session.statsRecorded = false;
+    if (mechanic === 'puzzle') resetPuzzleRound();
     recordStudyDay();
     setPhase('play');
     renderExercise();
@@ -1866,6 +1913,7 @@
   function syncSession() {
     if (session.phase !== 'play') return;
     session.ids = session.ids.filter((id) => words.some((word) => word.id === id));
+    if (session.mechanic === 'puzzle' && session.ids.length < PUZZLE_WORD_COUNT) { setPhase('feed'); return; }
     if (!session.ids.length) { setPhase('feed'); return; }
     session.index = Math.min(session.index, session.ids.length - 1);
     renderExercise();
@@ -1876,6 +1924,10 @@
     else if (session.mechanic === 'five-letter') {
       const attempt = Math.min(FIVE_LETTER_ATTEMPTS, fiveLetterGame.guesses.length + (fiveLetterGame.finished ? 0 : 1));
       $('progress-text').textContent = `${attempt}/${FIVE_LETTER_ATTEMPTS}`;
+    } else if (session.mechanic === 'puzzle') {
+      const round = Math.floor(session.index / PUZZLE_WORD_COUNT) + 1;
+      const rounds = Math.ceil(session.ids.length / PUZZLE_WORD_COUNT);
+      $('progress-text').textContent = `${round}/${rounds}`;
     } else $('progress-text').textContent = `${session.index + 1}/${session.ids.length}`;
   }
 
@@ -1888,6 +1940,7 @@
     if (session.mechanic === 'typing') renderTyping(word);
     if (session.mechanic === 'timed') renderTimed(word);
     if (session.mechanic === 'five-letter') renderFiveLetter(word);
+    if (session.mechanic === 'puzzle') renderPuzzle();
   }
 
   function renderCard(word) {
@@ -1990,6 +2043,222 @@
     $('typing-feedback').textContent = correct ? 'Верно!' : `Правильный ответ: ${word.english}`;
     $('typing-feedback').dataset.result = correct ? 'correct' : 'incorrect';
     $('typing-next-button').hidden = false;
+  }
+
+  function currentPuzzleWords() {
+    return session.ids
+      .slice(session.index, session.index + PUZZLE_WORD_COUNT)
+      .map((id) => words.find((word) => word.id === id))
+      .filter(Boolean);
+  }
+
+  function selectPuzzlePiece(wordId) {
+    if (session.answered || puzzleGame.pendingWrong || puzzleGame.solvedIds.has(wordId)) return;
+    puzzleGame.selectedId = puzzleGame.selectedId === wordId ? null : wordId;
+    puzzleGame.message = puzzleGame.selectedId ? 'Теперь выберите подходящее слово' : '';
+    puzzleGame.result = '';
+    renderPuzzle();
+  }
+
+  function beginPuzzleDrag(event) {
+    if (event.button !== 0 || session.answered || puzzleGame.pendingWrong) return;
+    const source = event.currentTarget;
+    const wordId = source.dataset.puzzlePiece;
+    if (!wordId || puzzleGame.solvedIds.has(wordId)) return;
+    event.preventDefault();
+    const pointerId = event.pointerId;
+    const startX = event.clientX;
+    const startY = event.clientY;
+    let moved = false;
+    let ghost = null;
+
+    const moveGhost = (clientX, clientY) => {
+      if (!ghost) {
+        ghost = source.cloneNode(true);
+        ghost.classList.remove('is-selected');
+        ghost.classList.add('puzzle-drag-ghost');
+        ghost.removeAttribute('id');
+        ghost.disabled = true;
+        document.body.append(ghost);
+        source.classList.add('is-dragging-source');
+      }
+      ghost.style.left = `${clientX}px`;
+      ghost.style.top = `${clientY}px`;
+    };
+
+    const cleanup = () => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onEnd);
+      document.removeEventListener('pointercancel', onCancel);
+      source.classList.remove('is-dragging-source');
+      ghost?.remove();
+    };
+
+    const onMove = (moveEvent) => {
+      if (moveEvent.pointerId !== pointerId) return;
+      const distance = Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY);
+      if (!moved && distance < 6) return;
+      moved = true;
+      moveEvent.preventDefault();
+      moveGhost(moveEvent.clientX, moveEvent.clientY);
+    };
+
+    const onEnd = (endEvent) => {
+      if (endEvent.pointerId !== pointerId) return;
+      const dropTarget = moved ? document.elementFromPoint(endEvent.clientX, endEvent.clientY)?.closest('[data-puzzle-slot]') : null;
+      cleanup();
+      if (dropTarget) tryPuzzlePair(wordId, dropTarget.dataset.puzzleSlot);
+      else if (!moved) selectPuzzlePiece(wordId);
+    };
+
+    const onCancel = (cancelEvent) => {
+      if (cancelEvent.pointerId === pointerId) cleanup();
+    };
+
+    document.addEventListener('pointermove', onMove, { passive: false });
+    document.addEventListener('pointerup', onEnd);
+    document.addEventListener('pointercancel', onCancel);
+  }
+
+  function createPuzzlePiece(word, state = '') {
+    const piece = document.createElement('button');
+    piece.type = 'button';
+    piece.className = 'puzzle-piece';
+    piece.dataset.puzzlePiece = word.id;
+    piece.textContent = word.russian;
+    piece.draggable = false;
+    piece.setAttribute('aria-label', `Перевод: ${word.russian}`);
+    if (state) piece.classList.add(`is-${state}`);
+    if (state === 'locked' || state === 'wrong') {
+      piece.disabled = true;
+    } else {
+      if (puzzleGame.selectedId === word.id) piece.classList.add('is-selected');
+      piece.addEventListener('pointerdown', beginPuzzleDrag);
+      piece.addEventListener('click', (event) => {
+        if (event.detail === 0) selectPuzzlePiece(word.id);
+      });
+    }
+    return piece;
+  }
+
+  function completePuzzleRound() {
+    if (session.answered) return;
+    const roundWords = currentPuzzleWords();
+    session.answered = true;
+    session.attemptCount += roundWords.length;
+    roundWords.forEach((word) => {
+      const correctOnFirstTry = !puzzleGame.mistakeIds.has(word.id);
+      if (correctOnFirstTry) session.correctCount += 1;
+      recordWordReview(word, correctOnFirstTry);
+    });
+    puzzleGame.selectedId = null;
+    puzzleGame.message = 'Пазл собран!';
+    puzzleGame.result = 'correct';
+  }
+
+  function tryPuzzlePair(pieceId, slotId) {
+    if (session.answered || puzzleGame.pendingWrong || puzzleGame.solvedIds.has(pieceId) || puzzleGame.solvedIds.has(slotId)) return;
+    const roundWords = currentPuzzleWords();
+    const pieceWord = roundWords.find((word) => word.id === pieceId);
+    const slotWord = roundWords.find((word) => word.id === slotId);
+    if (!pieceWord || !slotWord) return;
+    puzzleGame.selectedId = null;
+    if (pieceId === slotId) {
+      puzzleGame.solvedIds.add(pieceId);
+      puzzleGame.message = `${slotWord.english} — ${pieceWord.russian}`;
+      puzzleGame.result = 'correct';
+      if (puzzleGame.solvedIds.size === roundWords.length) completePuzzleRound();
+      renderPuzzle();
+      return;
+    }
+
+    puzzleGame.mistakeIds.add(pieceId);
+    puzzleGame.mistakeIds.add(slotId);
+    puzzleGame.pendingWrong = { pieceId, slotId };
+    puzzleGame.message = 'Эти части не подходят';
+    puzzleGame.result = 'incorrect';
+    renderPuzzle();
+    clearTimeout(puzzleFeedbackTimer);
+    puzzleFeedbackTimer = setTimeout(() => {
+      if (puzzleGame.pendingWrong?.pieceId !== pieceId || puzzleGame.pendingWrong?.slotId !== slotId) return;
+      puzzleGame.pendingWrong = null;
+      puzzleGame.message = '';
+      puzzleGame.result = '';
+      if (session.phase === 'play' && session.mechanic === 'puzzle') renderPuzzle();
+    }, 560);
+  }
+
+  function renderPuzzle() {
+    const roundWords = currentPuzzleWords();
+    const roundKey = roundWords.map((word) => word.id).join('|');
+    if (puzzleGame.roundKey !== roundKey) resetPuzzleRound();
+    const wordById = new Map(roundWords.map((word) => [word.id, word]));
+    const board = document.createDocumentFragment();
+
+    roundWords.forEach((word) => {
+      const row = document.createElement('div');
+      row.className = 'puzzle-row';
+      const english = document.createElement('div');
+      english.className = 'puzzle-word';
+      english.textContent = word.english;
+
+      const slot = document.createElement('div');
+      slot.className = 'puzzle-slot';
+      slot.dataset.puzzleSlot = word.id;
+      slot.setAttribute('role', 'button');
+      slot.setAttribute('aria-label', `Место для перевода слова ${word.english}`);
+      const solved = puzzleGame.solvedIds.has(word.id);
+      const pendingWrong = puzzleGame.pendingWrong?.slotId === word.id ? wordById.get(puzzleGame.pendingWrong.pieceId) : null;
+      if (solved) {
+        slot.classList.add('is-correct');
+        slot.tabIndex = -1;
+        slot.textContent = word.russian;
+      } else if (pendingWrong) {
+        slot.classList.add('is-wrong');
+        slot.tabIndex = -1;
+        slot.textContent = pendingWrong.russian;
+      } else {
+        slot.tabIndex = 0;
+        slot.textContent = 'Перевод';
+        if (puzzleGame.selectedId) slot.classList.add('is-ready');
+        slot.addEventListener('click', () => {
+          if (puzzleGame.selectedId) tryPuzzlePair(puzzleGame.selectedId, word.id);
+        });
+        slot.addEventListener('keydown', (event) => {
+          if (!puzzleGame.selectedId || (event.key !== 'Enter' && event.key !== ' ')) return;
+          event.preventDefault();
+          tryPuzzlePair(puzzleGame.selectedId, word.id);
+        });
+      }
+      row.append(english, slot);
+      board.append(row);
+    });
+    $('puzzle-board').replaceChildren(board);
+
+    const tray = document.createDocumentFragment();
+    puzzleGame.pieceOrder.forEach((wordId) => {
+      if (puzzleGame.solvedIds.has(wordId) || puzzleGame.pendingWrong?.pieceId === wordId) return;
+      const word = wordById.get(wordId);
+      if (word) tray.append(createPuzzlePiece(word));
+    });
+    $('puzzle-tray').replaceChildren(tray);
+    $('puzzle-feedback').textContent = puzzleGame.message;
+    if (puzzleGame.result) $('puzzle-feedback').dataset.result = puzzleGame.result;
+    else $('puzzle-feedback').removeAttribute('data-result');
+    $('puzzle-next-button').hidden = !session.answered;
+    $('puzzle-next-button').textContent = session.index + PUZZLE_WORD_COUNT >= session.ids.length ? 'Завершить' : 'Дальше';
+  }
+
+  function nextPuzzleRound() {
+    if (session.phase !== 'play' || session.mechanic !== 'puzzle' || !session.answered) return;
+    if (session.index + PUZZLE_WORD_COUNT >= session.ids.length) {
+      setPhase('finish');
+      return;
+    }
+    session.index += PUZZLE_WORD_COUNT;
+    session.answered = false;
+    resetPuzzleRound();
+    renderExercise();
   }
 
   function evaluateFiveLetterGuess(guess, answer) {
@@ -2381,6 +2650,7 @@
   $('next-button').addEventListener('click', nextCard);
   $('quiz-next-button').addEventListener('click', nextCard);
   $('typing-next-button').addEventListener('click', nextCard);
+  $('puzzle-next-button').addEventListener('click', nextPuzzleRound);
   $('typing-form').addEventListener('submit', (event) => { event.preventDefault(); answerTyping(); });
   $('typing-input').addEventListener('input', () => {
     if ($('typing-feedback').dataset.result !== 'warning') return;

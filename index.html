@@ -10,7 +10,7 @@
     <link rel="icon" href="./favicon.png" type="image/png" />
     <link rel="apple-touch-icon" href="./favicon.png" />
     <link rel="manifest" href="./site.webmanifest" />
-    <link rel="stylesheet" href="./styles.css?v=five-letter-edges-18" />
+    <link rel="stylesheet" href="./styles.css?v=puzzle-label-28" />
   </head>
   <body class="is-home">
     <div class="app-shell">
@@ -75,6 +75,7 @@
 
         <section id="dictionary-view" class="view" aria-label="Словарь" hidden>
           <div class="dictionary-shell">
+            <h1 class="section-page-title">Словарь</h1>
             <div class="dictionary-page-heading">
               <label class="dictionary-search" for="dictionary-search-input">
                 <span class="visually-hidden">Поиск слова</span>
@@ -179,10 +180,7 @@
 
         <section id="cards-view" class="view" aria-labelledby="cards-title" hidden>
           <div id="study-feed" class="study-feed">
-            <div class="study-feed-heading">
-              <h2 id="cards-title">Учить слова</h2>
-              <p>выбирай подходящую механику для себя</p>
-            </div>
+            <h1 id="cards-title" class="section-page-title">Учить</h1>
 
             <div class="study-method-list" aria-label="Способы тренировки">
               <button class="study-method study-method-cover" type="button" data-study="cards" aria-label="Флеш-карточки: начать тренировку">
@@ -199,6 +197,9 @@
               </button>
               <button id="five-letter-start" class="study-method study-method-cover five-letter-cover" type="button" data-study="five-letter" aria-label="Пять букв: начать игру">
                 <img src="./icons/five-letter-cover.png?v=3" alt="" width="3888" height="1264" draggable="false" />
+              </button>
+              <button id="puzzle-start" class="study-method study-method-cover" type="button" data-study="puzzle" aria-label="Пазлы: соединить три слова с переводами">
+                <img src="./icons/puzzle-cover.png?v=1" alt="" width="3888" height="1264" draggable="false" />
               </button>
             </div>
             <div id="study-empty-hint" class="study-empty-hint" hidden>
@@ -255,7 +256,6 @@
 
               <div id="timed-activity" class="timed-activity" hidden>
                 <div class="timed-score" aria-label="Количество верных ответов">
-                  <span class="timed-score-icon" aria-hidden="true">✓</span>
                   <strong id="timed-score">0</strong>
                 </div>
                 <div class="timed-question">
@@ -277,6 +277,13 @@
                 <p id="five-letter-feedback" class="five-letter-feedback" role="status" aria-live="polite"></p>
                 <button id="five-letter-finish" class="primary-button study-next-button five-letter-finish" type="button" hidden>Завершить</button>
               </div>
+
+              <div id="puzzle-activity" class="puzzle-activity" hidden>
+                <div id="puzzle-board" class="puzzle-board" aria-label="Слова и места для переводов"></div>
+                <div id="puzzle-tray" class="puzzle-tray" aria-label="Перемешанные переводы"></div>
+                <p id="puzzle-feedback" class="puzzle-feedback" role="status" aria-live="polite" hidden></p>
+                <button id="puzzle-next-button" class="primary-button study-next-button puzzle-next-button" type="button" hidden>Дальше</button>
+              </div>
             </div>
 
             <div id="study-finish" class="study-panel finish-panel" hidden>
@@ -292,7 +299,7 @@
 
         <section id="rating-view" class="view rating-view" aria-labelledby="rating-title" hidden>
           <div class="rating-shell">
-            <h1 id="rating-title" class="visually-hidden">Рейтинг</h1>
+            <h1 id="rating-title" class="section-page-title">Рейтинг</h1>
             <span id="profile-rating-rank" class="visually-hidden">—</span>
 
             <section class="rating-card" aria-label="Рейтинг пользователей Вордика">
@@ -478,7 +485,7 @@
     <script src="./word-catalog.js" defer></script>
     <script src="./collections.js" defer></script>
     <script src="./quick-pick-words.js" defer></script>
-    <script src="./app.js?v=five-letter-attempts-17" defer></script>
+    <script src="./app.js?v=difficulty-badges-25" defer></script>
     <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
   </body>
 </html>
