@@ -34,7 +34,7 @@
   ],
   "vars": {
     "ALLOW_GUEST_RATINGS": "false",
-    "ALLOWED_ORIGINS": "",
-    "PUBLIC_APP_URL": "https://vordik-ratings-api.skorokirzhaboy.workers.dev"
+    "ALLOWED_ORIGINS": "https://nykval.github.io",
+    "PUBLIC_APP_URL": "https://nykval.github.io/vordik"
   }
 }
