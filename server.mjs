@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { networkInterfaces } from 'node:os';
 import { extname, dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -10,7 +11,8 @@ const DEFAULT_PORT = 4173;
 const MAX_BODY_BYTES = 16 * 1024;
 const MAX_RATING_SCORE = 10_000_000;
 const MAX_VOCABULARY_SIZE = 100_000;
-const MAX_SCORE_PER_WORD = 60;
+const MAX_SCORE_PER_WORD = 6;
+const MAX_AUDIO_WORD_LENGTH = 80;
 const TELEGRAM_AUTH_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
 const AVATAR_IDS = Object.freeze([
   'avatar-blond-green',
@@ -37,6 +39,7 @@ const contentTypes = new Map([
   ['.jpeg', 'image/jpeg'],
   ['.webp', 'image/webp'],
   ['.ico', 'image/x-icon'],
+  ['.mp3', 'audio/mpeg'],
 ]);
 
 function sendJson(response, status, body, extraHeaders = {}) {
@@ -59,6 +62,114 @@ function integerInRange(value, min, max, field) {
     throw Object.assign(new Error(`Некорректное поле: ${field}`), { statusCode: 400 });
   }
   return number;
+}
+
+function cleanAudioWord(value) {
+  const word = String(value ?? '').trim().replace(/\s+/g, ' ');
+  if (!word || word.length > MAX_AUDIO_WORD_LENGTH) {
+    throw Object.assign(new Error('Некорректное английское слово'), { statusCode: 400 });
+  }
+  return word;
+}
+
+function makeAudioFilename(word) {
+  let filenameWord = cleanAudioWord(word)
+    .replace(/\s+/g, '')
+    .replace(/[\\/:*?"<>|\u0000-\u001f\u007f]/g, '');
+  while (filenameWord.includes('..')) filenameWord = filenameWord.replaceAll('..', '');
+  filenameWord = filenameWord.replace(/^\.+|\.+$/g, '');
+  if (!filenameWord) throw Object.assign(new Error('Невозможно создать имя аудиофайла'), { statusCode: 400 });
+  return `${filenameWord}1.mp3`;
+}
+
+async function nonEmptyFile(path) {
+  try {
+    const details = await stat(path);
+    return details.isFile() && details.size > 0;
+  } catch {
+    return false;
+  }
+}
+
+function createAudioGenerator(config) {
+  const inFlight = new Map();
+  const queue = [];
+  let activeCount = 0;
+
+  async function existingRelativePath(word) {
+    const filename = makeAudioFilename(word);
+    if (await nonEmptyFile(join(config.audioDir, filename))) return filename;
+    if (await nonEmptyFile(join(config.audioDir, 'common', filename))) return `common/${filename}`;
+    return null;
+  }
+
+  function run(word) {
+    return new Promise((resolvePromise, rejectPromise) => {
+      const child = spawn(config.pythonExecutable, [config.audioGeneratorScript, '--word', word, '--json'], {
+        cwd: root,
+        env: { ...process.env, VORDIK_AUDIO_DIR: config.audioDir },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      let output = '';
+      let errors = '';
+      child.stdout.on('data', (chunk) => { output += chunk.toString(); });
+      child.stderr.on('data', (chunk) => { errors += chunk.toString(); });
+      child.once('error', rejectPromise);
+      child.once('close', (code) => {
+        if (code === 0) {
+          resolvePromise(output.trim());
+          return;
+        }
+        rejectPromise(new Error(errors.trim() || output.trim() || `Генератор аудио завершился с кодом ${code}`));
+      });
+    });
+  }
+
+  function startQueuedTasks() {
+    while (activeCount < config.audioConcurrency && queue.length) {
+      const task = queue.shift();
+      activeCount += 1;
+      run(task.word)
+        .then(task.resolve, task.reject)
+        .finally(() => {
+          activeCount -= 1;
+          startQueuedTasks();
+        });
+    }
+  }
+
+  function enqueue(word) {
+    const filename = makeAudioFilename(word);
+    if (inFlight.has(filename)) return inFlight.get(filename);
+    const promise = new Promise((resolvePromise, rejectPromise) => {
+      queue.push({ word, resolve: resolvePromise, reject: rejectPromise });
+      startQueuedTasks();
+    }).finally(() => inFlight.delete(filename));
+    inFlight.set(filename, promise);
+    return promise;
+  }
+
+  return {
+    existingRelativePath,
+    enqueue,
+    isPending(word) { return inFlight.has(makeAudioFilename(word)); },
+  };
+}
+
+function audioRequestAllowed(request, config) {
+  if (!config.audioServiceSecret) return true;
+  const supplied = String(request.headers['x-vordik-audio-secret'] ?? '');
+  const expectedBuffer = Buffer.from(config.audioServiceSecret);
+  const suppliedBuffer = Buffer.from(supplied);
+  return suppliedBuffer.length === expectedBuffer.length && timingSafeEqual(suppliedBuffer, expectedBuffer);
+}
+
+function publicAudioUrl(request, config, relativePath) {
+  const forwardedProtocol = String(request.headers['x-forwarded-proto'] ?? '').split(',')[0].trim();
+  const protocol = forwardedProtocol === 'https' ? 'https' : 'http';
+  const base = config.audioPublicBaseUrl || `${protocol}://${request.headers.host || 'localhost'}`;
+  const encodedPath = relativePath.split('/').map((part) => encodeURIComponent(part)).join('/');
+  return new URL(`/audio/${encodedPath}`, base).href;
 }
 
 function defaultAvatarId(userId) {
@@ -93,6 +204,7 @@ function publicLeaderboard(database, currentUserId = '') {
     avatarCustomized: player.avatarCustomized === true,
     score: player.score,
     vocabularySize: player.vocabularySize,
+    averageDifficulty: Math.min(6, Math.max(0, Number(player.averageDifficulty) || 0)),
     updatedAt: player.updatedAt,
     isMe: player.id === currentUserId,
   }));
@@ -205,6 +317,7 @@ export function createRatingsStore(filePath) {
           avatarCustomized,
           score: values.score,
           vocabularySize: values.vocabularySize,
+          averageDifficulty: values.averageDifficulty,
           createdAt: previous?.createdAt ?? new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
@@ -262,6 +375,29 @@ async function serveStatic(pathname, request, response, staticRoot) {
   }
 }
 
+async function serveAudio(pathname, request, response, audioDir) {
+  let decodedPath;
+  try { decodedPath = decodeURIComponent(pathname); } catch { response.writeHead(400); response.end('Bad request'); return; }
+  const relativePath = decodedPath.replace(/^\/audio\/+/, '');
+  const target = resolve(audioDir, relativePath);
+  if (!relativePath || extname(target).toLowerCase() !== '.mp3' || !target.startsWith(`${resolve(audioDir)}${sep}`)) {
+    response.writeHead(404); response.end('Not found'); return;
+  }
+  try {
+    const content = await readFile(target);
+    if (!content.length) throw new Error('Empty audio file');
+    response.writeHead(200, {
+      'Content-Type': 'audio/mpeg',
+      'Content-Length': content.length,
+      'Cache-Control': 'public, max-age=31536000, immutable',
+      'X-Content-Type-Options': 'nosniff',
+    });
+    response.end(request.method === 'HEAD' ? undefined : content);
+  } catch {
+    response.writeHead(404); response.end('Not found');
+  }
+}
+
 export function createVordikServer(options = {}) {
   const botToken = options.botToken ?? process.env.BOT_TOKEN ?? '';
   const allowGuestRatings = options.allowGuestRatings
@@ -271,9 +407,16 @@ export function createVordikServer(options = {}) {
     botToken,
     allowGuestRatings,
     allowedOrigins: new Set(options.allowedOrigins ?? String(process.env.ALLOWED_ORIGINS ?? '').split(',').map((item) => item.trim()).filter(Boolean)),
+    audioDir: resolve(options.audioDir ?? process.env.VORDIK_AUDIO_DIR ?? join(root, 'audio')),
+    audioGeneratorScript: resolve(options.audioGeneratorScript ?? join(root, 'audio_generator.py')),
+    pythonExecutable: options.pythonExecutable ?? process.env.VORDIK_PYTHON ?? 'python3',
+    audioConcurrency: Math.min(10, Math.max(1, Math.floor(Number(options.audioConcurrency ?? process.env.AUDIO_GENERATION_CONCURRENCY) || 3))),
+    audioPublicBaseUrl: String(options.audioPublicBaseUrl ?? process.env.AUDIO_PUBLIC_BASE_URL ?? '').trim().replace(/\/+$/, ''),
+    audioServiceSecret: String(options.audioServiceSecret ?? process.env.AUDIO_SERVICE_SECRET ?? ''),
   };
   const ratingsFile = options.ratingsFile ?? process.env.RATINGS_DATA_FILE ?? join(root, 'data', 'ratings.json');
   const ratings = createRatingsStore(ratingsFile);
+  const audioGenerator = createAudioGenerator(config);
 
   return createServer(async (request, response) => {
     const url = new URL(request.url, 'http://localhost');
@@ -284,6 +427,40 @@ export function createVordikServer(options = {}) {
         if (request.method === 'OPTIONS') { response.writeHead(204, corsHeaders); response.end(); return; }
         if (url.pathname === '/api/health' && request.method === 'GET') {
           sendJson(response, 200, { ok: true }, corsHeaders); return;
+        }
+        if (url.pathname === '/api/audio/generate' && request.method === 'POST') {
+          if (!audioRequestAllowed(request, config)) {
+            throw Object.assign(new Error('Доступ к генератору аудио запрещён'), { statusCode: 403 });
+          }
+          const payload = await readJsonBody(request);
+          const word = cleanAudioWord(payload.word);
+          const filename = makeAudioFilename(word);
+          const existingPath = await audioGenerator.existingRelativePath(word);
+          if (existingPath) {
+            sendJson(response, 200, {
+              status: 'ready',
+              filename,
+              audioUrl: publicAudioUrl(request, config, existingPath),
+            }, corsHeaders);
+            return;
+          }
+          void audioGenerator.enqueue(word).catch((error) => {
+            console.error(`Не удалось создать аудио для ${word}:`, error);
+          });
+          sendJson(response, 202, { status: 'pending', filename }, corsHeaders);
+          return;
+        }
+        if (url.pathname === '/api/audio/status' && request.method === 'GET') {
+          if (!audioRequestAllowed(request, config)) {
+            throw Object.assign(new Error('Доступ к генератору аудио запрещён'), { statusCode: 403 });
+          }
+          const word = cleanAudioWord(url.searchParams.get('word'));
+          const filename = makeAudioFilename(word);
+          const existingPath = await audioGenerator.existingRelativePath(word);
+          sendJson(response, 200, existingPath
+            ? { status: 'ready', filename, audioUrl: publicAudioUrl(request, config, existingPath) }
+            : { status: audioGenerator.isPending(word) ? 'pending' : 'missing', filename }, corsHeaders);
+          return;
         }
         if (url.pathname === '/api/ratings' && request.method === 'GET') {
           const limit = Math.min(100, Math.max(1, Number.parseInt(url.searchParams.get('limit') ?? '50', 10) || 50));
@@ -296,6 +473,7 @@ export function createVordikServer(options = {}) {
           const avatarId = cleanAvatarId(payload.avatarId, identity.id);
           const score = integerInRange(payload.score, 0, MAX_RATING_SCORE, 'score');
           const vocabularySize = integerInRange(payload.vocabularySize, 0, MAX_VOCABULARY_SIZE, 'vocabularySize');
+          const averageDifficulty = integerInRange(payload.averageDifficulty ?? 0, 0, 6, 'averageDifficulty');
           if (score > vocabularySize * MAX_SCORE_PER_WORD) {
             throw Object.assign(new Error('Количество баллов не соответствует размеру словаря'), { statusCode: 400 });
           }
@@ -304,12 +482,16 @@ export function createVordikServer(options = {}) {
             avatarCustomized: payload.avatarCustomized === true,
             score,
             vocabularySize,
+            averageDifficulty,
           });
           sendJson(response, 200, result, corsHeaders); return;
         }
         sendJson(response, 404, { error: 'API method not found' }, corsHeaders); return;
       }
       if (!['GET', 'HEAD'].includes(request.method)) { response.writeHead(405); response.end('Method not allowed'); return; }
+      if (url.pathname.startsWith('/audio/')) {
+        await serveAudio(url.pathname, request, response, config.audioDir); return;
+      }
       await serveStatic(url.pathname, request, response, config.staticRoot);
     } catch (error) {
       const status = Number(error?.statusCode) || 500;

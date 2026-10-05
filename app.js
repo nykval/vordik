@@ -14,7 +14,7 @@
   const PUZZLE_WORD_COUNT = 3;
   const KNOWLEDGE_MAX = 10;
   const KNOWLEDGE_SCALE_VERSION = 10;
-  const KNOWLEDGE_GAIN_BY_DIFFICULTY = Object.freeze([0, 4, 3, 3, 2, 2, 1]);
+  const KNOWLEDGE_GAIN_BY_DIFFICULTY = Object.freeze([0, 2, 2, 1, 1, 1, 1]);
   const DAY_MS = 24 * 60 * 60 * 1000;
   const AVATAR_OPTIONS = Object.freeze([
     { id: 'avatar-blond-green', label: 'Аватар 1', src: './icons/avatars-pack/avatar-blond-green.png?v=2' },
@@ -30,6 +30,14 @@
   ]);
   const avatarById = new Map(AVATAR_OPTIONS.map((avatar) => [avatar.id, avatar]));
   const CEFR_DIFFICULTY = Object.freeze({ A1: 1, A2: 2, B1: 3, B2: 4, C1: 5, C2: 6 });
+  const WORD_LEVEL_DISTRIBUTION = Object.freeze({
+    1: Object.freeze([40, 21, 15, 12, 9, 3]),
+    2: Object.freeze([15, 40, 21, 12, 9, 3]),
+    3: Object.freeze([9, 15, 40, 21, 12, 3]),
+    4: Object.freeze([3, 9, 15, 40, 21, 12]),
+    5: Object.freeze([3, 9, 12, 15, 40, 21]),
+    6: Object.freeze([3, 9, 12, 15, 21, 40]),
+  });
   const commonAudioFiles = new Set(Array.isArray(window.VORDIK_COMMON_AUDIO_FILES) ? window.VORDIK_COMMON_AUDIO_FILES : []);
   const wordCatalog = Array.isArray(window.VORDIK_WORD_CATALOG) ? window.VORDIK_WORD_CATALOG : [];
   const commonWords = [];
@@ -80,6 +88,8 @@
       russian: commonWord.translations[0],
       translations: [...commonWord.translations],
       commonWordId: commonWord.id,
+      difficulty: commonWord.difficulty,
+      cefr: commonWord.cefr,
       audio: commonWord.audio,
     };
   }).filter(Boolean);
@@ -121,6 +131,7 @@
   let quickPickFlipped = false;
   let quickPickSuppressClick = false;
   let ratingRequestVersion = 0;
+  const audioGenerationPolls = new Map();
 
   function localDateKey(date) {
     const year = date.getFullYear();
@@ -136,6 +147,7 @@
   function normalizeStoredKnowledge(value, scaleVersion) {
     const numeric = Number(value) || 0;
     if (scaleVersion === KNOWLEDGE_SCALE_VERSION) return clampKnowledge(numeric);
+    if (scaleVersion === 5) return clampKnowledge(numeric * 2);
     if (numeric >= 0 && numeric <= 1) return clampKnowledge(numeric * KNOWLEDGE_MAX);
     return clampKnowledge(numeric);
   }
@@ -147,6 +159,14 @@
   function normalizeCefr(value) {
     const level = String(value ?? '').trim().toLocaleUpperCase('en-US');
     return CEFR_DIFFICULTY[level] ? level : null;
+  }
+
+  function normalizeStoredAudio(value) {
+    const audio = typeof value === 'string' ? value.trim() : '';
+    if (!audio) return null;
+    if (/^https?:\/\/[^\s]+$/i.test(audio)) return audio;
+    if (/^(?:\.\/|\/)audio\/[a-zA-Z0-9%._'()\/-]+\.mp3$/i.test(audio) && !audio.includes('..')) return audio;
+    return null;
   }
 
   function difficultyKey(english, russian = '') {
@@ -272,6 +292,8 @@
     const enteredRussian = normalizeDictionaryText(word.russian, 'ru-RU').slice(0, 120);
     const commonWord = findStoredCommonWord(word, english, enteredRussian, allowLegacyQuickPickMigration);
     const translations = commonWord ? [...commonWord.translations] : [enteredRussian].filter(Boolean);
+    const storedAudio = normalizeStoredAudio(word.audio);
+    const audio = commonWord?.audio ?? storedAudio;
     return {
       id: word.id,
       english: commonWord?.word ?? english,
@@ -282,7 +304,9 @@
       part_of_speech: commonWord?.partOfSpeech ?? null,
       difficulty: commonWord?.difficulty ?? null,
       cefr_level: commonWord?.cefr ?? null,
-      audio: commonWord?.audio ?? null,
+      audio,
+      audio_pending: !audio && word.audio_pending === true,
+      audio_filename: typeof word.audio_filename === 'string' ? word.audio_filename : null,
       knowledge: normalizeStoredKnowledge(word.knowledge ?? initialKnowledge, word.knowledge_scale),
       knowledge_scale: KNOWLEDGE_SCALE_VERSION,
       last_review_at: validIsoDate(word.last_review_at),
@@ -309,7 +333,6 @@
     if (knowledge <= 4) return 'частично знает';
     if (knowledge <= 6) return 'хорошо знает';
     if (knowledge <= 8) return 'уверенно знает';
-    if (knowledge < KNOWLEDGE_MAX) return 'почти освоено';
     return 'освоено';
   }
 
@@ -322,10 +345,10 @@
   }
 
   function correctKnowledgeGain(word, knowledge) {
-    if (knowledge >= 8) return 1;
+    if (knowledge >= KNOWLEDGE_MAX - 1) return 1;
     const difficulty = Math.min(6, Math.max(1, Math.round(Number(word.difficulty) || 1)));
     const baseGain = KNOWLEDGE_GAIN_BY_DIFFICULTY[difficulty];
-    const taperedGain = knowledge >= 5 ? Math.min(baseGain, 2) : baseGain;
+    const taperedGain = knowledge >= 3 ? Math.min(baseGain, 1) : baseGain;
     const consecutiveCorrectBonus = word.last_result === 'correct' ? 1 : 0;
     return Math.max(1, taperedGain + consecutiveCorrectBonus);
   }
@@ -551,6 +574,7 @@
     const sessions = profileStats.sessionsCompleted;
     const averageMs = sessions ? profileStats.totalSessionMs / sessions : 0;
     const vocabularyLevel = vocabularyScore();
+    const averageDifficulty = averageVocabularyDifficulty();
     const streak = streakLength();
     if ($('home-greeting')) $('home-greeting').textContent = `Привет, ${userProfile.name}!`;
     $('profile-name').textContent = userProfile.name;
@@ -561,6 +585,7 @@
     $('profile-average-time').textContent = durationLabel(averageMs);
     $('profile-total-time').textContent = durationLabel(currentAppUsageMs());
     $('profile-vocabulary-level').textContent = `${vocabularyLevel} ${pointNoun(vocabularyLevel)}`;
+    $('profile-average-difficulty').textContent = `${averageDifficulty} из 6`;
     $('profile-streak-message').textContent = streak
       ? 'Продолжайте заниматься каждый день, чтобы сохранить серию.'
       : 'Начните занятие сегодня — первый день серии уже близко.';
@@ -1163,11 +1188,93 @@
   }
 
   function vocabularyScore(now = Date.now()) {
-    return words.reduce((total, word) => total + ((Number(word.difficulty) || 1) * currentKnowledge(word, now)), 0);
+    return words.reduce((total, word) => {
+      const difficulty = Math.min(6, Math.max(1, Math.round(Number(word.difficulty) || 1)));
+      return total + Math.round((difficulty * currentKnowledge(word, now)) / KNOWLEDGE_MAX);
+    }, 0);
+  }
+
+  function roundHalfDown(value) {
+    const lower = Math.floor(value);
+    return value - lower > 0.5 ? lower + 1 : lower;
+  }
+
+  function averageVocabularyDifficulty() {
+    const difficulties = words
+      .map((word) => Number(word.difficulty))
+      .filter((difficulty) => Number.isInteger(difficulty) && difficulty >= 1 && difficulty <= 6);
+    if (!difficulties.length) return 0;
+    return roundHalfDown(difficulties.reduce((total, difficulty) => total + difficulty, 0) / difficulties.length);
   }
 
   function ratingApiUrl(path) {
     return configuredRatingApiBase ? `${configuredRatingApiBase}${path}` : path;
+  }
+
+  function finishGeneratedAudio(word, result) {
+    if (!word || !result?.audioUrl) return false;
+    const audio = normalizeStoredAudio(result.audioUrl);
+    if (!audio) return false;
+    word.audio = audio;
+    word.audio_pending = false;
+    word.audio_filename = typeof result.filename === 'string' ? result.filename : word.audio_filename;
+    audioGenerationPolls.delete(word.id);
+    saveWords();
+    renderDictionary();
+    return true;
+  }
+
+  function scheduleGeneratedAudioCheck(word, attempt = 0) {
+    if (!word || word.audio || attempt >= 15 || audioGenerationPolls.has(word.id)) return;
+    const timer = setTimeout(async () => {
+      audioGenerationPolls.delete(word.id);
+      if (!words.includes(word) || word.audio) return;
+      try {
+        const response = await fetch(ratingApiUrl(`/api/audio/status?word=${encodeURIComponent(word.english)}`), {
+          headers: { Accept: 'application/json' },
+        });
+        const result = await response.json().catch(() => ({}));
+        if (response.ok && result.status === 'ready' && finishGeneratedAudio(word, result)) return;
+        if (response.ok && result.status === 'pending') {
+          scheduleGeneratedAudioCheck(word, attempt + 1);
+          return;
+        }
+      } catch { /* The word remains saved even when audio generation is unavailable. */ }
+      word.audio_pending = true;
+      saveWords();
+      renderDictionary();
+    }, 2000);
+    audioGenerationPolls.set(word.id, timer);
+  }
+
+  async function requestGeneratedAudio(word) {
+    if (!word || word.audio) return;
+    word.audio_pending = true;
+    saveWords();
+    try {
+      const response = await fetch(ratingApiUrl('/api/audio/generate'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ word: word.english }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (response.ok && result.status === 'ready' && finishGeneratedAudio(word, result)) return;
+      if (response.ok && result.status === 'pending') {
+        word.audio_filename = typeof result.filename === 'string' ? result.filename : null;
+        saveWords();
+        scheduleGeneratedAudioCheck(word);
+        return;
+      }
+    } catch { /* Creation of the word must not fail with audio generation. */ }
+    word.audio_pending = true;
+    saveWords();
+    renderDictionary();
+  }
+
+  function resumePendingAudioGeneration() {
+    words.filter((word) => !word.audio && word.audio_pending).forEach((word) => {
+      void requestGeneratedAudio(word);
+    });
   }
 
   function renderRatingPodium(leaders) {
@@ -1238,7 +1345,8 @@
       name.textContent = entry.isMe ? `${entry.name} · вы` : entry.name;
       const details = document.createElement('small');
       const vocabularySize = Math.max(0, Number(entry.vocabularySize) || 0);
-      details.textContent = `${vocabularySize} ${wordNoun(vocabularySize)} в словаре`;
+      const averageDifficulty = Math.min(6, Math.max(0, Number(entry.averageDifficulty) || 0));
+      details.textContent = `${vocabularySize} ${wordNoun(vocabularySize)} в словаре · средняя сложность ${averageDifficulty}`;
       identity.append(name, details);
 
       const points = document.createElement('b');
@@ -1256,6 +1364,7 @@
     const card = document.querySelector('.rating-card');
     const status = $('profile-rating-status');
     const score = vocabularyScore();
+    const averageDifficulty = averageVocabularyDifficulty();
     $('profile-rating-score').textContent = `${score} ${pointNoun(score)}`;
     card?.setAttribute('aria-busy', 'true');
     if (!silent) status.textContent = 'Обновляем рейтинг…';
@@ -1271,6 +1380,7 @@
           avatarCustomized: userProfile.avatarCustomized,
           score,
           vocabularySize: words.length,
+          averageDifficulty,
         }),
       });
       const result = await response.json().catch(() => ({}));
@@ -1308,6 +1418,7 @@
       throw new Error('Не удалось сохранить слово на устройстве. Проверьте настройки браузера.');
     }
     renderDictionary();
+    if (!word.audio) void requestGeneratedAudio(word);
     return word;
   }
 
@@ -1598,6 +1709,51 @@
     return result;
   }
 
+  function distributionTargetDifficulty() {
+    return Math.min(6, Math.max(1, averageVocabularyDifficulty() || 1));
+  }
+
+  function selectionDifficulty(word, targetDifficulty) {
+    const difficulty = Number(word?.difficulty);
+    return Number.isInteger(difficulty) && difficulty >= 1 && difficulty <= 6
+      ? difficulty
+      : targetDifficulty;
+  }
+
+  function weightedMechanicWords(candidates, count, { prioritizeKnowledge = false } = {}) {
+    const targetDifficulty = distributionTargetDifficulty();
+    const weights = WORD_LEVEL_DISTRIBUTION[targetDifficulty];
+    const groups = Array.from({ length: 6 }, () => []);
+    candidates.forEach((word) => groups[selectionDifficulty(word, targetDifficulty) - 1].push(word));
+    groups.forEach((group, index) => {
+      groups[index] = shuffled(group);
+      if (prioritizeKnowledge) {
+        groups[index].sort((left, right) => currentKnowledge(left) - currentKnowledge(right));
+      }
+    });
+
+    const selected = [];
+    const selectionLimit = Math.min(Math.max(0, count), candidates.length);
+    while (selected.length < selectionLimit) {
+      const availableLevels = groups
+        .map((group, index) => ({ index, weight: weights[index] }))
+        .filter(({ index }) => groups[index].length);
+      if (!availableLevels.length) break;
+      const totalWeight = availableLevels.reduce((total, level) => total + level.weight, 0);
+      let roll = Math.random() * totalWeight;
+      let chosenLevel = availableLevels[availableLevels.length - 1].index;
+      for (const level of availableLevels) {
+        roll -= level.weight;
+        if (roll < 0) {
+          chosenLevel = level.index;
+          break;
+        }
+      }
+      selected.push(groups[chosenLevel].shift());
+    }
+    return selected;
+  }
+
   function quickPickWordById(id) {
     return quickPickWords.find((word) => word.id === id) ?? null;
   }
@@ -1617,7 +1773,7 @@
   }
 
   function createQuickPickSession() {
-    const deck = shuffled(availableQuickPickWords()).slice(0, QUICK_PICK_WORD_COUNT).map((word) => word.id);
+    const deck = weightedMechanicWords(availableQuickPickWords(), QUICK_PICK_WORD_COUNT).map((word) => word.id);
     quickPickSession = { deck, index: 0, unknown: [], history: [], selected: null };
     saveQuickPickSession();
   }
@@ -1814,6 +1970,7 @@
       }
       renderDictionary();
       syncSession();
+      additions.filter((word) => !word.audio).forEach((word) => { void requestGeneratedAudio(word); });
     }
     finishQuickPick(additions.length ? `Добавлено ${additions.length} ${wordNoun(additions.length)}` : 'Все слова уже есть в словаре');
   }
@@ -1840,6 +1997,7 @@
       }
       renderDictionary();
       syncSession();
+      additions.filter((word) => !word.audio).forEach((word) => { void requestGeneratedAudio(word); });
     }
     finishQuickPick(additions.length ? `Добавлено ${additions.length} ${wordNoun(additions.length)}` : 'Новые слова не добавлены');
   }
@@ -1897,44 +2055,20 @@
     });
   }
 
-  function weakestStudyWordIds() {
-    const now = Date.now();
-    return words
-      .map((word, index) => ({ word, index, knowledge: currentKnowledge(word, now) }))
-      .sort((left, right) => (
-        left.knowledge - right.knowledge
-        || (Number(left.word.difficulty) || 1) - (Number(right.word.difficulty) || 1)
-        || left.index - right.index
-      ))
-      .slice(0, STUDY_SERIES_SIZE)
-      .map(({ word }) => word.id);
+  function mechanicStudyWordIds() {
+    return weightedMechanicWords(words, STUDY_SERIES_SIZE, { prioritizeKnowledge: true })
+      .map((word) => word.id);
   }
 
   function fiveLetterStudyWords() {
-    const now = Date.now();
-    return words
-      .filter((word) => /^[a-z]{5}$/i.test(word.english.trim()))
-      .map((word, index) => ({ word, index, knowledge: currentKnowledge(word, now) }))
-      .sort((left, right) => (
-        left.knowledge - right.knowledge
-        || (Number(left.word.difficulty) || 1) - (Number(right.word.difficulty) || 1)
-        || left.index - right.index
-      ))
-      .map(({ word }) => word);
+    return words.filter((word) => /^[a-z]{5}$/i.test(word.english.trim()));
   }
 
   function puzzleStudyWordIds() {
-    const now = Date.now();
     const selected = [];
     const translations = new Set();
-    words
-      .map((word, index) => ({ word, index, knowledge: currentKnowledge(word, now) }))
-      .sort((left, right) => (
-        left.knowledge - right.knowledge
-        || (Number(left.word.difficulty) || 1) - (Number(right.word.difficulty) || 1)
-        || left.index - right.index
-      ))
-      .some(({ word }) => {
+    weightedMechanicWords(words, words.length, { prioritizeKnowledge: true })
+      .some((word) => {
         const translation = wordTranslations(word).find((value) => !translations.has(value));
         if (!translation || translations.has(translation)) return false;
         translations.add(translation);
@@ -1978,14 +2112,13 @@
     if (mechanic === 'puzzle' && puzzleCandidates.length < PUZZLE_WORD_COUNT) return;
     stopTimedRound();
     session.mechanic = mechanic;
-    if (mechanic === 'timed') session.ids = shuffled(words.map((word) => word.id));
+    if (mechanic === 'timed') session.ids = mechanicStudyWordIds();
     else if (mechanic === 'five-letter') {
-      const weakestPool = fiveLetterCandidates.slice(0, Math.min(5, fiveLetterCandidates.length));
-      const selectedWord = weakestPool[Math.floor(Math.random() * weakestPool.length)];
+      const selectedWord = weightedMechanicWords(fiveLetterCandidates, 1, { prioritizeKnowledge: true })[0];
       session.ids = [selectedWord.id];
       resetFiveLetterGame(selectedWord);
     } else if (mechanic === 'puzzle') session.ids = puzzleCandidates;
-    else session.ids = weakestStudyWordIds();
+    else session.ids = mechanicStudyWordIds();
     initializeSessionTranslations();
     session.index = 0;
     session.flipped = false;
@@ -2881,4 +3014,5 @@
   renderStreak();
   renderProfile();
   updateQuickPickLaunch();
+  resumePendingAudioGeneration();
 })();

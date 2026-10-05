@@ -1,7 +1,7 @@
 const MAX_BODY_BYTES = 16 * 1024;
 const MAX_RATING_SCORE = 10_000_000;
 const MAX_VOCABULARY_SIZE = 100_000;
-const MAX_SCORE_PER_WORD = 60;
+const MAX_SCORE_PER_WORD = 6;
 const TELEGRAM_AUTH_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
 const AVATAR_IDS = Object.freeze([
   'avatar-blond-green',
@@ -160,6 +160,7 @@ function publicPlayer(row, rank, currentUserId = '') {
     avatarCustomized,
     score: Number(row.score),
     vocabularySize: Number(row.vocabulary_size),
+    averageDifficulty: Number(row.average_difficulty),
     updatedAt: row.updated_at,
     isMe: row.user_id === currentUserId,
   };
@@ -167,7 +168,7 @@ function publicPlayer(row, rank, currentUserId = '') {
 
 async function listLeaderboard(database, limit, currentUserId = '') {
   const { results } = await database.prepare(`
-    SELECT user_id, name, avatar_id, avatar_customized, score, vocabulary_size, updated_at
+    SELECT user_id, name, avatar_id, avatar_customized, score, vocabulary_size, average_difficulty, updated_at
     FROM ratings
     ORDER BY score DESC, vocabulary_size DESC, name ASC, user_id ASC
     LIMIT ?
@@ -175,16 +176,17 @@ async function listLeaderboard(database, limit, currentUserId = '') {
   return results.map((row, index) => publicPlayer(row, index + 1, currentUserId));
 }
 
-async function upsertRating(database, identity, avatarId, avatarCustomized, score, vocabularySize) {
+async function upsertRating(database, identity, avatarId, avatarCustomized, score, vocabularySize, averageDifficulty) {
   await database.prepare(`
-    INSERT INTO ratings (user_id, name, avatar_id, avatar_customized, score, vocabulary_size, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    INSERT INTO ratings (user_id, name, avatar_id, avatar_customized, score, vocabulary_size, average_difficulty, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     ON CONFLICT(user_id) DO UPDATE SET
       name = excluded.name,
       avatar_id = CASE WHEN ? = 1 THEN excluded.avatar_id ELSE ratings.avatar_id END,
       avatar_customized = CASE WHEN ? = 1 THEN 1 ELSE ratings.avatar_customized END,
       score = excluded.score,
       vocabulary_size = excluded.vocabulary_size,
+      average_difficulty = excluded.average_difficulty,
       updated_at = CURRENT_TIMESTAMP
   `).bind(
     identity.id,
@@ -193,13 +195,14 @@ async function upsertRating(database, identity, avatarId, avatarCustomized, scor
     avatarCustomized ? 1 : 0,
     score,
     vocabularySize,
+    averageDifficulty,
     avatarCustomized ? 1 : 0,
     avatarCustomized ? 1 : 0,
   ).run();
 
   const [current, rankRow, totalRow, leaders] = await Promise.all([
     database.prepare(`
-      SELECT user_id, name, avatar_id, avatar_customized, score, vocabulary_size, updated_at
+      SELECT user_id, name, avatar_id, avatar_customized, score, vocabulary_size, average_difficulty, updated_at
       FROM ratings WHERE user_id = ?
     `).bind(identity.id).first(),
     database.prepare(`
@@ -222,10 +225,33 @@ async function upsertRating(database, identity, avatarId, avatarCustomized, scor
   };
 }
 
+async function proxyAudioRequest(request, env, headers) {
+  const serviceBase = String(env.AUDIO_SERVICE_URL ?? '').trim().replace(/\/+$/, '');
+  if (!serviceBase) throw httpError('Сервис генерации аудио не подключён', 503);
+  const sourceUrl = new URL(request.url);
+  const targetUrl = new URL(`${sourceUrl.pathname}${sourceUrl.search}`, `${serviceBase}/`);
+  const proxyHeaders = new Headers();
+  const contentType = request.headers.get('Content-Type');
+  if (contentType) proxyHeaders.set('Content-Type', contentType);
+  if (env.AUDIO_SERVICE_SECRET) proxyHeaders.set('X-Vordik-Audio-Secret', String(env.AUDIO_SERVICE_SECRET));
+  const result = await fetch(targetUrl, {
+    method: request.method,
+    headers: proxyHeaders,
+    body: request.method === 'GET' || request.method === 'HEAD' ? undefined : request.body,
+  });
+  const responseHeaders = new Headers(result.headers);
+  Object.entries(headers).forEach(([name, value]) => responseHeaders.set(name, value));
+  responseHeaders.set('Cache-Control', 'no-store');
+  return new Response(result.body, { status: result.status, headers: responseHeaders });
+}
+
 async function handleApi(request, env) {
   const url = new URL(request.url);
   const headers = corsHeaders(request, env);
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers });
+  if (url.pathname === '/api/audio/generate' || url.pathname === '/api/audio/status') {
+    return proxyAudioRequest(request, env, headers);
+  }
   if (!env.DB) throw httpError('База рейтинга не подключена', 500);
 
   if (url.pathname === '/api/health' && request.method === 'GET') {
@@ -242,6 +268,7 @@ async function handleApi(request, env) {
     const avatarId = cleanAvatarId(payload.avatarId, identity.id);
     const score = integerInRange(payload.score, 0, MAX_RATING_SCORE, 'score');
     const vocabularySize = integerInRange(payload.vocabularySize, 0, MAX_VOCABULARY_SIZE, 'vocabularySize');
+    const averageDifficulty = integerInRange(payload.averageDifficulty ?? 0, 0, 6, 'averageDifficulty');
     if (score > vocabularySize * MAX_SCORE_PER_WORD) {
       throw httpError('Количество баллов не соответствует размеру словаря', 400);
     }
@@ -252,6 +279,7 @@ async function handleApi(request, env) {
       payload.avatarCustomized === true,
       score,
       vocabularySize,
+      averageDifficulty,
     ), 200, headers);
   }
   return json({ error: 'API method not found' }, 404, headers);

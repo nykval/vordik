@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS ratings (
   avatar_customized INTEGER NOT NULL DEFAULT 0 CHECK (avatar_customized IN (0, 1)),
   score INTEGER NOT NULL DEFAULT 0 CHECK (score >= 0),
   vocabulary_size INTEGER NOT NULL DEFAULT 0 CHECK (vocabulary_size >= 0),
+  average_difficulty INTEGER NOT NULL DEFAULT 0 CHECK (average_difficulty BETWEEN 0 AND 6),
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
