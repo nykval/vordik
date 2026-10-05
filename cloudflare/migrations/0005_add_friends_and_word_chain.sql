@@ -1,22 +1,13 @@
-CREATE TABLE IF NOT EXISTS ratings (
-  user_id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  avatar_id TEXT NOT NULL DEFAULT 'avatar-blond-green',
-  avatar_customized INTEGER NOT NULL DEFAULT 0 CHECK (avatar_customized IN (0, 1)),
-  score INTEGER NOT NULL DEFAULT 0 CHECK (score >= 0),
-  vocabulary_size INTEGER NOT NULL DEFAULT 0 CHECK (vocabulary_size >= 0),
-  average_difficulty INTEGER NOT NULL DEFAULT 0 CHECK (average_difficulty BETWEEN 0 AND 6),
-  friend_code TEXT,
-  friend_invite_token TEXT,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
+ALTER TABLE ratings ADD COLUMN friend_code TEXT;
+ALTER TABLE ratings ADD COLUMN friend_invite_token TEXT;
 
-CREATE INDEX IF NOT EXISTS ratings_order_idx
-ON ratings(score DESC, vocabulary_size DESC, name ASC);
+CREATE UNIQUE INDEX IF NOT EXISTS ratings_friend_code_idx
+  ON ratings(friend_code)
+  WHERE friend_code IS NOT NULL;
 
-CREATE UNIQUE INDEX IF NOT EXISTS ratings_friend_code_idx ON ratings(friend_code) WHERE friend_code IS NOT NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS ratings_friend_invite_token_idx ON ratings(friend_invite_token) WHERE friend_invite_token IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS ratings_friend_invite_token_idx
+  ON ratings(friend_invite_token)
+  WHERE friend_invite_token IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS friend_requests (
   requester_id TEXT NOT NULL,
@@ -27,7 +18,9 @@ CREATE TABLE IF NOT EXISTS friend_requests (
   FOREIGN KEY (addressee_id) REFERENCES ratings(user_id) ON DELETE CASCADE,
   CHECK (requester_id <> addressee_id)
 );
-CREATE INDEX IF NOT EXISTS friend_requests_addressee_idx ON friend_requests(addressee_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS friend_requests_addressee_idx
+  ON friend_requests(addressee_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS friendships (
   user_a TEXT NOT NULL,
@@ -38,7 +31,9 @@ CREATE TABLE IF NOT EXISTS friendships (
   FOREIGN KEY (user_b) REFERENCES ratings(user_id) ON DELETE CASCADE,
   CHECK (user_a < user_b)
 );
-CREATE INDEX IF NOT EXISTS friendships_user_b_idx ON friendships(user_b, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS friendships_user_b_idx
+  ON friendships(user_b, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS games (
   id TEXT PRIMARY KEY,
@@ -55,8 +50,12 @@ CREATE TABLE IF NOT EXISTS games (
   FOREIGN KEY (winner_id) REFERENCES ratings(user_id) ON DELETE SET NULL,
   CHECK (player_one_id <> player_two_id)
 );
-CREATE INDEX IF NOT EXISTS games_player_one_idx ON games(player_one_id, status, created_at DESC);
-CREATE INDEX IF NOT EXISTS games_player_two_idx ON games(player_two_id, status, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS games_player_one_idx
+  ON games(player_one_id, status, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS games_player_two_idx
+  ON games(player_two_id, status, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS game_invites (
   id TEXT PRIMARY KEY,
@@ -71,7 +70,9 @@ CREATE TABLE IF NOT EXISTS game_invites (
   FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE SET NULL,
   CHECK (inviter_id <> invitee_id)
 );
-CREATE INDEX IF NOT EXISTS game_invites_incoming_idx ON game_invites(invitee_id, status, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS game_invites_incoming_idx
+  ON game_invites(invitee_id, status, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS game_connection_tokens (
   token_hash TEXT PRIMARY KEY,
@@ -81,4 +82,6 @@ CREATE TABLE IF NOT EXISTS game_connection_tokens (
   FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
   FOREIGN KEY (user_id) REFERENCES ratings(user_id) ON DELETE CASCADE
 );
-CREATE INDEX IF NOT EXISTS game_connection_tokens_expiry_idx ON game_connection_tokens(expires_at);
+
+CREATE INDEX IF NOT EXISTS game_connection_tokens_expiry_idx
+  ON game_connection_tokens(expires_at);

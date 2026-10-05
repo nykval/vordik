@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "vordik",
+  "name": "vordik-ratings-api",
   "main": "./cloudflare/worker.mjs",
   "compatibility_date": "2026-09-30",
   "assets": {
@@ -14,12 +14,27 @@
     {
       "binding": "DB",
       "database_name": "vordik-ratings",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "3e4006e6-985b-4c7e-82e5-70ab76387df4",
       "migrations_dir": "cloudflare/migrations"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "WORD_CHAIN_GAMES",
+        "class_name": "WordChainGame"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1-word-chain-game",
+      "new_sqlite_classes": ["WordChainGame"]
     }
   ],
   "vars": {
     "ALLOW_GUEST_RATINGS": "false",
-    "ALLOWED_ORIGINS": ""
+    "ALLOWED_ORIGINS": "",
+    "PUBLIC_APP_URL": "https://vordik-ratings-api.skorokirzhaboy.workers.dev"
   }
 }

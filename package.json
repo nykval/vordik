@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build:assets": "node tools/build-cloudflare-assets.mjs",
+    "build:word-game": "node tools/build-word-game-dictionary.mjs",
+    "build:assets": "npm run build:word-game && node tools/build-cloudflare-assets.mjs",
     "predev": "npm run build:assets",
     "dev": "wrangler dev",
     "predeploy": "npm run build:assets",

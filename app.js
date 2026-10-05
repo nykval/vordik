@@ -131,6 +131,14 @@
   let quickPickFlipped = false;
   let quickPickSuppressClick = false;
   let ratingRequestVersion = 0;
+  let socialRequestVersion = 0;
+  let socialState = null;
+  let socialPollTimer = 0;
+  let wordChainSocket = null;
+  let wordChainGameId = '';
+  let wordChainSnapshot = null;
+  let wordChainClockOffset = 0;
+  let wordChainClockTimer = 0;
   const audioGenerationPolls = new Map();
 
   function localDateKey(date) {
@@ -1404,6 +1412,310 @@
     }
   }
 
+  function socialAuthPayload(extra = {}) {
+    return {
+      telegramInitData: window.Telegram?.WebApp?.initData ?? '',
+      guestId: ratingGuestId,
+      name: userProfile.name,
+      avatarId: userProfile.avatarId,
+      avatarCustomized: userProfile.avatarCustomized,
+      ...extra,
+    };
+  }
+
+  async function socialPost(path, extra = {}) {
+    const response = await fetch(ratingApiUrl(path), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(socialAuthPayload(extra)),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || 'Не удалось связаться с сервером');
+    return result;
+  }
+
+  function friendRow(player, subtitle, actions = []) {
+    const row = document.createElement('div');
+    row.className = 'friend-row';
+
+    const avatar = document.createElement('span');
+    avatar.className = 'friend-row-avatar';
+    avatar.append(createAvatarImage(player.avatarId));
+
+    const copy = document.createElement('span');
+    copy.className = 'friend-row-copy';
+    const name = document.createElement('strong');
+    name.textContent = player.name;
+    const detail = document.createElement('small');
+    detail.textContent = subtitle;
+    copy.append(name, detail);
+
+    const buttons = document.createElement('span');
+    buttons.className = 'friend-row-actions';
+    actions.forEach((action) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = action.label;
+      button.dataset.friendAction = action.type;
+      Object.entries(action.data ?? {}).forEach(([key, value]) => { button.dataset[key] = value; });
+      if (action.primary) button.classList.add(action.primary);
+      buttons.append(button);
+    });
+    row.append(avatar, copy, buttons);
+    return row;
+  }
+
+  function renderFriends(state) {
+    if (!state?.me) return;
+    socialState = state;
+    $('friend-code').textContent = state.me.friendCode;
+    $('friends-count').textContent = String(state.friends.length);
+    $('friends-card').setAttribute('aria-busy', 'false');
+    $('friends-status').textContent = 'Список обновлён';
+
+    const requests = document.createDocumentFragment();
+    state.incomingRequests.forEach((player) => requests.append(friendRow(player, 'Хочет добавить вас в друзья', [
+      { label: 'Принять', type: 'accept-friend', data: { userId: player.id }, primary: 'is-accept' },
+      { label: 'Отклонить', type: 'reject-friend', data: { userId: player.id } },
+    ])));
+    state.outgoingRequests.forEach((player) => requests.append(friendRow(player, 'Заявка отправлена')));
+    $('friend-request-list').replaceChildren(requests);
+    $('friend-requests-block').hidden = !(state.incomingRequests.length || state.outgoingRequests.length);
+
+    const invitations = document.createDocumentFragment();
+    state.gameInvites.forEach((invite) => invitations.append(friendRow(invite.from, 'Приглашает в «Цепочку слов»', [
+      { label: 'Играть', type: 'accept-game', data: { inviteId: invite.id }, primary: 'is-primary' },
+      { label: 'Не сейчас', type: 'reject-game', data: { inviteId: invite.id } },
+    ])));
+    $('game-invite-list').replaceChildren(invitations);
+    $('game-invites-block').hidden = !state.gameInvites.length;
+
+    const games = document.createDocumentFragment();
+    state.games.forEach((game) => {
+      const finished = game.status === 'finished';
+      const won = finished && game.winnerId === state.me.id;
+      const subtitle = finished
+        ? (won ? 'Матч завершён · вы победили' : 'Матч завершён')
+        : (game.status === 'active' ? 'Матч идёт' : 'Ждём подключения игроков');
+      games.append(friendRow(game.opponent, subtitle, finished ? [] : [
+        { label: game.status === 'active' ? 'Вернуться' : 'Открыть', type: 'open-game', data: { gameId: game.id, opponentId: game.opponent.id }, primary: 'is-primary' },
+      ]));
+    });
+    $('active-game-list').replaceChildren(games);
+    $('active-games-block').hidden = !state.games.length;
+
+    const friends = document.createDocumentFragment();
+    state.friends.forEach((player) => friends.append(friendRow(player, 'В друзьях', [
+      { label: 'Играть', type: 'invite-game', data: { userId: player.id }, primary: 'is-primary' },
+    ])));
+    $('friend-list').replaceChildren(friends);
+    $('friends-empty').hidden = state.friends.length > 0;
+  }
+
+  function scheduleSocialRefresh() {
+    clearTimeout(socialPollTimer);
+    if (activeTab !== 'profile') return;
+    socialPollTimer = window.setTimeout(() => void loadSocialState({ quiet: true }), 5000);
+  }
+
+  async function loadSocialState({ quiet = false } = {}) {
+    const version = ++socialRequestVersion;
+    $('friends-card').setAttribute('aria-busy', 'true');
+    if (!quiet) $('friends-status').textContent = 'Загружаем друзей…';
+    try {
+      const result = await socialPost('/api/social/state');
+      if (version !== socialRequestVersion) return;
+      renderFriends(result);
+    } catch (error) {
+      if (version !== socialRequestVersion) return;
+      $('friends-card').setAttribute('aria-busy', 'false');
+      $('friends-status').textContent = error instanceof TypeError
+        ? 'Не удалось подключиться к серверу друзей.'
+        : (error.message || 'Не удалось загрузить друзей.');
+    } finally {
+      if (version === socialRequestVersion) scheduleSocialRefresh();
+    }
+  }
+
+  async function updateFriendship(path, payload, successMessage) {
+    try {
+      const result = await socialPost(path, payload);
+      showToast(result.message || successMessage);
+      await loadSocialState({ quiet: true });
+      return result;
+    } catch (error) {
+      showToast(error.message || 'Не удалось выполнить действие');
+      return null;
+    }
+  }
+
+  function socialPlayerById(userId) {
+    if (!socialState) return null;
+    return [
+      ...socialState.friends,
+      ...socialState.incomingRequests,
+      ...socialState.outgoingRequests,
+      ...socialState.gameInvites.map((invite) => invite.from),
+      ...socialState.games.map((game) => game.opponent),
+    ].find((player) => player.id === userId) ?? null;
+  }
+
+  async function copyText(value, successMessage) {
+    try {
+      await navigator.clipboard.writeText(value);
+      showToast(successMessage);
+    } catch {
+      const field = document.createElement('textarea');
+      field.value = value;
+      field.style.position = 'fixed';
+      field.style.opacity = '0';
+      document.body.append(field);
+      field.select();
+      document.execCommand('copy');
+      field.remove();
+      showToast(successMessage);
+    }
+  }
+
+  function closeWordChain() {
+    clearInterval(wordChainClockTimer);
+    wordChainClockTimer = 0;
+    if (wordChainSocket) {
+      wordChainSocket.close(1000, 'Screen closed');
+      wordChainSocket = null;
+    }
+    wordChainGameId = '';
+    wordChainSnapshot = null;
+    $('word-chain-screen').hidden = true;
+    document.body.classList.remove('is-word-chain-open');
+    if (activeTab === 'profile') void loadSocialState({ quiet: true });
+  }
+
+  function updateWordChainClock() {
+    const deadline = Number(wordChainSnapshot?.deadline) || 0;
+    const seconds = deadline && wordChainSnapshot?.status === 'active'
+      ? Math.max(0, Math.ceil((deadline - (Date.now() + wordChainClockOffset)) / 1000))
+      : 15;
+    $('word-chain-timer').querySelector('span').textContent = String(seconds);
+    $('word-chain-timer').setAttribute('aria-label', `${seconds} секунд`);
+    $('word-chain-timer').classList.toggle('is-low', seconds <= 5 && wordChainSnapshot?.status === 'active');
+  }
+
+  function renderWordChainState(state) {
+    wordChainSnapshot = state;
+    wordChainClockOffset = Number(state.serverNow) - Date.now();
+    const meId = socialState?.me?.id ?? '';
+    const opponent = state.players.find((player) => player.id !== meId);
+    if (opponent) $('word-chain-opponent-name').textContent = opponent.name;
+    const moves = document.createDocumentFragment();
+    state.moves.forEach((move) => {
+      const item = document.createElement('li');
+      item.className = 'word-chain-word';
+      item.classList.toggle('is-mine', move.userId === meId);
+      item.textContent = move.word;
+      const marker = document.createElement('em');
+      marker.textContent = move.userId === meId ? 'вы' : opponent?.name ?? 'друг';
+      item.append(marker);
+      moves.append(item);
+    });
+    $('word-chain-list').replaceChildren(moves);
+    $('word-chain-empty').hidden = state.moves.length > 0;
+    $('word-chain-letter-label').textContent = state.requiredLetter
+      ? `Нужно слово на «${state.requiredLetter.toUpperCase()}»`
+      : 'Первое слово — любое';
+
+    const myTurn = state.status === 'active' && state.turnUserId === meId;
+    if (state.status === 'waiting') $('word-chain-turn-label').textContent = 'Ждём второго игрока…';
+    else if (state.status === 'active') $('word-chain-turn-label').textContent = myTurn ? 'Ваш ход' : `Ходит ${opponent?.name ?? 'друг'}`;
+    else {
+      const won = state.winnerId === meId;
+      $('word-chain-turn-label').textContent = won ? 'Вы победили!' : `${opponent?.name ?? 'Друг'} победил`;
+      $('word-chain-status').textContent = state.finishReason === 'timeout'
+        ? (won ? 'У соперника закончилось время.' : 'Время на ваш ход закончилось.')
+        : 'Матч завершён.';
+      $('word-chain-status').dataset.result = won ? 'success' : 'error';
+      void loadSocialState({ quiet: true });
+    }
+    $('word-chain-input').disabled = !myTurn;
+    $('word-chain-submit').disabled = !myTurn;
+    if (myTurn) requestAnimationFrame(() => $('word-chain-input').focus());
+    updateWordChainClock();
+  }
+
+  async function openWordChain(gameId, opponent = null) {
+    try {
+      if (wordChainSocket) wordChainSocket.close(1000, 'Opening another game');
+      clearInterval(wordChainClockTimer);
+      wordChainGameId = gameId;
+      wordChainSnapshot = null;
+      $('word-chain-list').replaceChildren();
+      $('word-chain-empty').hidden = false;
+      $('word-chain-status').textContent = 'Подключаемся к игре…';
+      $('word-chain-status').removeAttribute('data-result');
+      $('word-chain-input').value = '';
+      $('word-chain-input').disabled = true;
+      $('word-chain-submit').disabled = true;
+      if (opponent) {
+        $('word-chain-opponent-name').textContent = opponent.name;
+        $('word-chain-opponent-avatar').src = avatarSource(opponent.avatarId);
+      }
+      $('word-chain-screen').hidden = false;
+      document.body.classList.add('is-word-chain-open');
+      const connection = await socialPost(`/api/games/${encodeURIComponent(gameId)}/connect`);
+      if (wordChainGameId !== gameId) return;
+      const socket = new WebSocket(connection.websocketUrl);
+      wordChainSocket = socket;
+      socket.addEventListener('open', () => {
+        $('word-chain-status').textContent = 'Соединение установлено';
+        wordChainClockTimer = window.setInterval(updateWordChainClock, 250);
+      });
+      socket.addEventListener('message', (event) => {
+        let message;
+        try { message = JSON.parse(event.data); } catch { return; }
+        if (message.type === 'state') {
+          $('word-chain-status').textContent = '';
+          $('word-chain-status').removeAttribute('data-result');
+          renderWordChainState(message);
+        } else if (message.type === 'error') {
+          $('word-chain-status').textContent = message.message;
+          $('word-chain-status').dataset.result = 'error';
+        }
+      });
+      socket.addEventListener('close', () => {
+        clearInterval(wordChainClockTimer);
+        if (wordChainSocket === socket) wordChainSocket = null;
+        if (wordChainSnapshot?.status !== 'finished' && wordChainGameId === gameId) {
+          $('word-chain-status').textContent = 'Соединение прервано. Закройте игру и откройте её снова.';
+          $('word-chain-status').dataset.result = 'error';
+          $('word-chain-input').disabled = true;
+          $('word-chain-submit').disabled = true;
+        }
+      });
+      socket.addEventListener('error', () => {
+        $('word-chain-status').textContent = 'Не удалось подключиться к игре.';
+        $('word-chain-status').dataset.result = 'error';
+      });
+    } catch (error) {
+      $('word-chain-status').textContent = error.message || 'Не удалось открыть игру.';
+      $('word-chain-status').dataset.result = 'error';
+    }
+  }
+
+  async function acceptPendingFriendInvite() {
+    const pageUrl = new URL(window.location.href);
+    const inviteToken = pageUrl.searchParams.get('friendInvite');
+    if (!inviteToken) return;
+    pageUrl.searchParams.delete('friendInvite');
+    window.history.replaceState({}, '', `${pageUrl.pathname}${pageUrl.search}${pageUrl.hash}`);
+    try {
+      const result = await socialPost('/api/friends/invite/accept', { inviteToken });
+      showToast(`${result.friendName} теперь у вас в друзьях`);
+      if (activeTab === 'profile') await loadSocialState({ quiet: true });
+    } catch (error) {
+      showToast(error.message || 'Не удалось принять приглашение');
+    }
+  }
+
   function addWord(englishValue, russianValue) {
     const english = normalizeDictionaryText(englishValue, 'en-US');
     const russian = normalizeDictionaryText(russianValue, 'ru-RU');
@@ -1637,6 +1949,7 @@
     if (tab !== 'dictionary' && !$('delete-overlay').hidden) setDeleteConfirm(false, pendingDeleteId, false);
     if (tab !== 'dictionary' && !$('word-card-overlay').hidden) setWordCardOpen(false, activeWordCardId, false);
     if (tab !== 'home' && !$('quick-pick-screen').hidden) closeQuickPick();
+    if (tab !== 'profile') clearTimeout(socialPollTimer);
     activeTab = tab;
     document.body.classList.toggle('is-home', tab === 'home');
     document.body.classList.toggle('is-profile', tab === 'profile');
@@ -1657,7 +1970,10 @@
     $('profile-view').hidden = tab !== 'profile';
     $('profile-button').setAttribute('aria-pressed', String(tab === 'profile'));
     if (tab === 'home' || tab === 'dictionary') renderDictionary();
-    if (tab === 'profile') renderProfile();
+    if (tab === 'profile') {
+      renderProfile();
+      void loadSocialState();
+    }
     if (tab === 'rating') void syncRating();
     window.scrollTo(0, 0);
   }
@@ -2793,6 +3109,82 @@
     const option = event.target.closest('[data-avatar-id]');
     if (option) selectAvatar(option.dataset.avatarId);
   });
+  $('copy-friend-code').addEventListener('click', () => {
+    const code = socialState?.me?.friendCode;
+    if (code) void copyText(code, 'Код друга скопирован');
+  });
+  $('share-friend-link').addEventListener('click', async () => {
+    const inviteUrl = socialState?.me?.inviteUrl;
+    if (!inviteUrl) {
+      showToast('Ссылка ещё загружается');
+      return;
+    }
+    const shareData = {
+      title: 'Добавить меня в друзья в Вордике',
+      text: 'Давай учить английские слова и играть вместе в Вордике!',
+      url: inviteUrl,
+    };
+    try {
+      if (navigator.share) await navigator.share(shareData);
+      else await copyText(inviteUrl, 'Ссылка-приглашение скопирована');
+    } catch (error) {
+      if (error?.name !== 'AbortError') await copyText(inviteUrl, 'Ссылка-приглашение скопирована');
+    }
+  });
+  $('friend-code-input').addEventListener('input', (event) => {
+    const cleaned = event.currentTarget.value.toUpperCase().replace(/[^A-Z0-9#]/g, '').slice(0, 6);
+    event.currentTarget.value = cleaned.startsWith('#') ? cleaned : (cleaned ? `#${cleaned.replaceAll('#', '')}` : '');
+  });
+  $('friend-code-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const friendCode = $('friend-code-input').value;
+    const result = await updateFriendship('/api/friends/request', { friendCode }, 'Заявка отправлена');
+    if (result) $('friend-code-input').value = '';
+  });
+  $('friends-card').addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-friend-action]');
+    if (!button) return;
+    const action = button.dataset.friendAction;
+    button.disabled = true;
+    try {
+      if (action === 'accept-friend' || action === 'reject-friend') {
+        await updateFriendship('/api/friends/respond', {
+          requesterId: button.dataset.userId,
+          action: action === 'accept-friend' ? 'accept' : 'reject',
+        }, action === 'accept-friend' ? 'Пользователь добавлен в друзья' : 'Заявка отклонена');
+        return;
+      }
+      if (action === 'invite-game') {
+        await updateFriendship('/api/games/invite', { friendId: button.dataset.userId }, 'Приглашение в игру отправлено');
+        return;
+      }
+      if (action === 'reject-game') {
+        await updateFriendship('/api/games/respond', { inviteId: button.dataset.inviteId, action: 'reject' }, 'Приглашение отклонено');
+        return;
+      }
+      if (action === 'accept-game') {
+        const invitation = socialState?.gameInvites.find((item) => item.id === button.dataset.inviteId);
+        const result = await updateFriendship('/api/games/respond', { inviteId: button.dataset.inviteId, action: 'accept' }, 'Игра создана');
+        if (result?.gameId) await openWordChain(result.gameId, invitation?.from ?? null);
+        return;
+      }
+      if (action === 'open-game') {
+        await openWordChain(button.dataset.gameId, socialPlayerById(button.dataset.opponentId));
+      }
+    } finally {
+      if (button.isConnected) button.disabled = false;
+    }
+  });
+  $('word-chain-close').addEventListener('click', closeWordChain);
+  $('word-chain-form').addEventListener('submit', (event) => {
+    event.preventDefault();
+    const word = $('word-chain-input').value.trim();
+    if (!word || wordChainSocket?.readyState !== WebSocket.OPEN) return;
+    wordChainSocket.send(JSON.stringify({ type: 'play', word }));
+    $('word-chain-input').value = '';
+    $('word-chain-status').textContent = '';
+    $('word-chain-status').removeAttribute('data-result');
+  });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       stopActiveAudio();
@@ -2948,10 +3340,16 @@
   // Telegram provides this object when the page is opened from a bot's Web App button.
   window.addEventListener('load', () => {
     const webApp = window.Telegram?.WebApp;
-    if (!webApp) return;
+    if (!webApp) {
+      void acceptPendingFriendInvite();
+      return;
+    }
     const telegramLaunchParams = `${window.location.search}${window.location.hash}`.includes('tgWebAppVersion');
     const isTelegramContext = Boolean(webApp.initData || telegramLaunchParams || (webApp.platform && webApp.platform !== 'unknown'));
-    if (!isTelegramContext) return;
+    if (!isTelegramContext) {
+      void acceptPendingFriendInvite();
+      return;
+    }
     document.documentElement.classList.add('telegram-app');
     if (webApp.initData) syncTelegramProfile(webApp);
     const syncTelegramSafeArea = () => {
@@ -2972,6 +3370,7 @@
     syncTelegramSafeArea();
     requestAnimationFrame(syncTelegramSafeArea);
     setTimeout(syncTelegramSafeArea, 300);
+    void acceptPendingFriendInvite();
   });
 
   // Supported browsers can expose the same dictionary actions to an assistant.

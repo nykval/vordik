@@ -10,7 +10,7 @@
     <link rel="icon" href="./favicon.png" type="image/png" />
     <link rel="apple-touch-icon" href="./favicon.png" />
     <link rel="manifest" href="./site.webmanifest" />
-    <link rel="stylesheet" href="./styles.css?v=missing-audio-38" />
+    <link rel="stylesheet" href="./styles.css?v=friends-game-46" />
   </head>
   <body class="is-home">
     <div class="app-shell">
@@ -392,6 +392,50 @@
                 </div>
               </section>
 
+              <section class="profile-section" aria-labelledby="profile-friends-title">
+                <div class="profile-section-heading profile-friends-heading">
+                  <h2 id="profile-friends-title">Друзья</h2>
+                  <span id="friends-count" class="friends-count">0</span>
+                </div>
+                <div id="friends-card" class="friends-card" aria-busy="false">
+                  <div class="friend-code-panel">
+                    <div>
+                      <small>Ваш код</small>
+                      <strong id="friend-code">#-----</strong>
+                    </div>
+                    <button id="copy-friend-code" class="friend-secondary-button" type="button">Копировать</button>
+                  </div>
+                  <button id="share-friend-link" class="friend-invite-link" type="button">Пригласить друга по ссылке</button>
+
+                  <form id="friend-code-form" class="friend-code-form">
+                    <label for="friend-code-input">Добавить по коду</label>
+                    <div>
+                      <input id="friend-code-input" type="text" inputmode="text" maxlength="6" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="#H7G65" />
+                      <button type="submit">Отправить</button>
+                    </div>
+                  </form>
+
+                  <p id="friends-status" class="friends-status" role="status" aria-live="polite">Загружаем список друзей…</p>
+                  <div id="friend-requests-block" class="friends-group" hidden>
+                    <h3>Заявки в друзья</h3>
+                    <div id="friend-request-list" class="friends-list"></div>
+                  </div>
+                  <div id="game-invites-block" class="friends-group" hidden>
+                    <h3>Приглашения в игру</h3>
+                    <div id="game-invite-list" class="friends-list"></div>
+                  </div>
+                  <div id="active-games-block" class="friends-group" hidden>
+                    <h3>Ваши игры</h3>
+                    <div id="active-game-list" class="friends-list"></div>
+                  </div>
+                  <div class="friends-group">
+                    <h3>Все друзья</h3>
+                    <div id="friend-list" class="friends-list"></div>
+                    <p id="friends-empty" class="friends-empty">Здесь появятся друзья, которых вы добавите по коду или ссылке.</p>
+                  </div>
+                </div>
+              </section>
+
               <section class="profile-section" aria-labelledby="profile-streak-title">
                 <div class="profile-section-heading">
                   <h2 id="profile-streak-title">Серия занятий</h2>
@@ -422,6 +466,37 @@
             <p>Он будет отображаться в профиле и в таблице рейтинга.</p>
             <div id="avatar-options" class="avatar-options" role="group" aria-label="Доступные аватары"></div>
             <button class="primary-button avatar-picker-done" type="button" data-avatar-close>Готово</button>
+          </section>
+        </div>
+
+        <div id="word-chain-screen" class="word-chain-screen" hidden>
+          <section class="word-chain-shell" aria-labelledby="word-chain-title">
+            <header class="word-chain-header">
+              <div>
+                <span>ИГРА С ДРУГОМ</span>
+                <h2 id="word-chain-title">Цепочка слов</h2>
+              </div>
+              <button id="word-chain-close" type="button" aria-label="Закрыть игру"><img src="./icons/close.svg" alt="" aria-hidden="true" /></button>
+            </header>
+            <div class="word-chain-opponent">
+              <span class="word-chain-avatar"><img id="word-chain-opponent-avatar" src="./icons/avatars-pack/avatar-blond-green.png?v=2" alt="" /></span>
+              <span><small>Ваш соперник</small><strong id="word-chain-opponent-name">Друг</strong></span>
+            </div>
+            <div class="word-chain-turn-card">
+              <div id="word-chain-timer" class="word-chain-timer" aria-label="15 секунд"><span>15</span></div>
+              <div>
+                <small id="word-chain-letter-label">Первое слово — любое</small>
+                <strong id="word-chain-turn-label">Ждём второго игрока…</strong>
+              </div>
+            </div>
+            <ol id="word-chain-list" class="word-chain-list" aria-label="Цепочка сыгранных слов"></ol>
+            <p id="word-chain-empty" class="word-chain-empty">Первое слово может начинаться с любой буквы.</p>
+            <form id="word-chain-form" class="word-chain-form">
+              <label class="visually-hidden" for="word-chain-input">Введите английское слово</label>
+              <input id="word-chain-input" type="text" lang="en" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="Введите слово" maxlength="60" disabled />
+              <button id="word-chain-submit" type="submit" disabled>Ход</button>
+            </form>
+            <p id="word-chain-status" class="word-chain-status" role="status" aria-live="polite"></p>
           </section>
         </div>
 
@@ -492,7 +567,7 @@
     <script src="./audio-manifest.js?v=common-audio-39" defer></script>
     <script src="./collections.js?v=common-dictionary-32" defer></script>
     <script src="./quick-pick-words.js?v=common-dictionary-32" defer></script>
-    <script src="./app.js?v=generated-audio-45" defer></script>
+    <script src="./app.js?v=friends-game-46" defer></script>
     <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
   </body>
 </html>
