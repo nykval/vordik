@@ -861,16 +861,16 @@
   }
 
   const collectionCardThemes = [
-    ['#d9ed74', '#0c6df8', '#ffffff'],
-    ['#ffdc61', '#ff6d2d', '#17323e'],
-    ['#8fd8ff', '#0c6df8', '#d9ed74'],
-    ['#ffb7d4', '#f04f88', '#fff5d9'],
-    ['#8be0bd', '#008c54', '#fffdf8'],
-    ['#bfb5ff', '#7454e8', '#ffdc61'],
-    ['#ffd08b', '#ff7a1a', '#17323e'],
-    ['#abdcec', '#17323e', '#ffffff'],
-    ['#ffaaa6', '#df454d', '#fffdf8'],
-    ['#c7e890', '#4b8a55', '#fffdf8'],
+    ['#e7f5ef', '#68bfa3', '#4667d9'],
+    ['#fcede8', '#ee9582', '#26324b'],
+    ['#f0ecfa', '#a99bdd', '#4667d9'],
+    ['#fff5db', '#eac268', '#26324b'],
+    ['#f0f3fe', '#4667d9', '#68bfa3'],
+    ['#e7f5ef', '#a99bdd', '#26324b'],
+    ['#fcede8', '#eac268', '#4667d9'],
+    ['#f0ecfa', '#68bfa3', '#26324b'],
+    ['#fff5db', '#4667d9', '#ee9582'],
+    ['#4667d9', '#a99bdd', '#ffffff'],
   ];
 
   function renderReadyCollections() {
@@ -2085,7 +2085,7 @@
     activeTab = tab;
     document.body.classList.toggle('is-home', tab === 'home');
     document.body.classList.toggle('is-profile', tab === 'profile');
-    const headerColor = '#f3f5f2';
+    const headerColor = '#f6f8fc';
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', headerColor);
     window.Telegram?.WebApp?.setHeaderColor?.(headerColor);
     document.querySelector('.bottom-nav').dataset.active = tab;
@@ -3559,8 +3559,8 @@
     webApp.expand();
     if (webApp.isVersionAtLeast?.('8.0') && !webApp.isFullscreen) webApp.requestFullscreen?.();
     if (webApp.isVersionAtLeast?.('7.7')) webApp.disableVerticalSwipes?.();
-    webApp.setHeaderColor?.('#f3f5f2');
-    webApp.setBackgroundColor?.('#f3f5f2');
+    webApp.setHeaderColor?.('#f6f8fc');
+    webApp.setBackgroundColor?.('#f6f8fc');
     syncTelegramSafeArea();
     requestAnimationFrame(syncTelegramSafeArea);
     setTimeout(syncTelegramSafeArea, 300);
