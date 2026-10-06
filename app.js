@@ -9,6 +9,7 @@
   const QUICK_PICK_KNOWN_KEY = 'vordik.quickPickKnown.v1';
   const QUICK_PICK_SESSION_KEY = 'vordik.quickPickSession.v1';
   const PENDING_GAME_FRIEND_KEY = 'vordik.pendingGameFriend.v1';
+  const TELEGRAM_BOT_USERNAME = 'vordikforyou_bot';
   const QUICK_PICK_WORD_COUNT = 15;
   const STUDY_SERIES_SIZE = 15;
   const FIVE_LETTER_ATTEMPTS = 7;
@@ -1450,6 +1451,18 @@
     } catch { /* The game still works when storage is unavailable. */ }
   }
 
+  function telegramFriendInviteUrl(value) {
+    try {
+      const url = new URL(value);
+      if (url.hostname === 't.me' || url.hostname === 'telegram.me') return url.toString();
+      const inviteToken = url.searchParams.get('friendInvite') ?? '';
+      if (/^[a-f\d-]{36}$/i.test(inviteToken)) {
+        return `https://t.me/${TELEGRAM_BOT_USERNAME}?startapp=${encodeURIComponent(`friend_${inviteToken}`)}`;
+      }
+    } catch { /* Keep the original URL when it cannot be parsed. */ }
+    return value;
+  }
+
   function friendRow(player, subtitle, actions = []) {
     const row = document.createElement('div');
     row.className = 'friend-row';
@@ -1698,14 +1711,29 @@
     const opponent = state.players.find((player) => player.id !== meId);
     if (opponent) $('word-chain-opponent-name').textContent = opponent.name;
     const moves = document.createDocumentFragment();
-    state.moves.forEach((move) => {
+    [...state.moves].reverse().forEach((move, index) => {
+      const latest = index === 0;
       const item = document.createElement('li');
       item.className = 'word-chain-word';
+      item.classList.toggle('is-latest', latest);
+      item.classList.toggle('is-previous', !latest);
       item.classList.toggle('is-mine', move.userId === meId);
-      item.textContent = move.word;
+      const word = document.createElement('span');
+      word.className = 'word-chain-word-text';
+      if (latest) {
+        const characters = Array.from(move.word);
+        const lastLetter = characters.pop() ?? '';
+        word.append(document.createTextNode(characters.join('')));
+        const highlight = document.createElement('b');
+        highlight.className = 'word-chain-last-letter';
+        highlight.textContent = lastLetter;
+        word.append(highlight);
+      } else {
+        word.textContent = move.word;
+      }
       const marker = document.createElement('em');
       marker.textContent = move.userId === meId ? 'вы' : opponent?.name ?? 'друг';
-      item.append(marker);
+      item.append(word, marker);
       moves.append(item);
     });
     $('word-chain-list').replaceChildren(moves);
@@ -1793,9 +1821,16 @@
 
   async function acceptPendingFriendInvite() {
     const pageUrl = new URL(window.location.href);
-    const inviteToken = pageUrl.searchParams.get('friendInvite');
+    const telegramStartParam = String(
+      window.Telegram?.WebApp?.initDataUnsafe?.start_param
+        ?? pageUrl.searchParams.get('tgWebAppStartParam')
+        ?? '',
+    ).trim();
+    const telegramInvite = telegramStartParam.match(/^friend_([a-f\d-]{36})$/i);
+    const inviteToken = pageUrl.searchParams.get('friendInvite') || telegramInvite?.[1] || '';
     if (!inviteToken) return;
     pageUrl.searchParams.delete('friendInvite');
+    pageUrl.searchParams.delete('tgWebAppStartParam');
     window.history.replaceState({}, '', `${pageUrl.pathname}${pageUrl.search}${pageUrl.hash}`);
     try {
       const result = await socialPost('/api/friends/invite/accept', { inviteToken });
@@ -3203,7 +3238,7 @@
     if (code) void copyText(code, 'Код друга скопирован');
   });
   $('share-friend-link').addEventListener('click', async () => {
-    const inviteUrl = socialState?.me?.inviteUrl;
+    const inviteUrl = telegramFriendInviteUrl(socialState?.me?.inviteUrl ?? '');
     if (!inviteUrl) {
       showToast('Ссылка ещё загружается');
       return;

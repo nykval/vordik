@@ -35,6 +35,7 @@
   "vars": {
     "ALLOW_GUEST_RATINGS": "false",
     "ALLOWED_ORIGINS": "https://nykval.github.io",
-    "PUBLIC_APP_URL": "https://nykval.github.io/vordik"
+    "PUBLIC_APP_URL": "https://nykval.github.io/vordik",
+    "TELEGRAM_BOT_USERNAME": "vordikforyou_bot"
   }
 }

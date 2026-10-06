@@ -370,11 +370,16 @@ async function socialState(database, identity, profile, request, env) {
     `).bind(identity.id, identity.id, identity.id).all(),
   ]);
   const appUrl = String(env.PUBLIC_APP_URL ?? '').trim().replace(/\/$/, '') || new URL(request.url).origin;
+  const botUsername = String(env.TELEGRAM_BOT_USERNAME ?? '').trim().replace(/^@/, '');
+  const inviteStartParam = `friend_${profile.friend_invite_token}`;
+  const inviteUrl = botUsername
+    ? `https://t.me/${encodeURIComponent(botUsername)}?startapp=${encodeURIComponent(inviteStartParam)}`
+    : `${appUrl}/?friendInvite=${encodeURIComponent(profile.friend_invite_token)}`;
   return {
     me: {
       ...socialPlayer(profile),
       friendCode: `#${profile.friend_code}`,
-      inviteUrl: `${appUrl}/?friendInvite=${encodeURIComponent(profile.friend_invite_token)}`,
+      inviteUrl,
     },
     friends: friendsResult.results.map((row) => ({ ...socialPlayer(row), friendsSince: row.created_at })),
     incomingRequests: incomingResult.results.map((row) => ({ ...socialPlayer(row), createdAt: row.created_at })),
