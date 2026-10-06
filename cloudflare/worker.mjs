@@ -96,6 +96,47 @@ function normalizeFriendCode(value) {
   return String(value ?? '').trim().replace(/^#/, '').toUpperCase();
 }
 
+function telegramChatId(userId) {
+  const match = String(userId ?? '').match(/^telegram:(\d+)$/);
+  return match?.[1] ?? '';
+}
+
+function activityTimestamp(value) {
+  const source = String(value ?? '').trim();
+  if (!source) return 0;
+  const timestamp = Date.parse(source.includes('T') ? source : `${source.replace(' ', 'T')}Z`);
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function isRecentlyActive(updatedAt, now = Date.now()) {
+  const timestamp = activityTimestamp(updatedAt);
+  return timestamp > 0 && now - timestamp >= 0 && now - timestamp <= 10_000;
+}
+
+async function sendGameInviteMessage(env, invitee, inviterName, inviteId) {
+  const chatId = telegramChatId(invitee?.user_id);
+  const botToken = String(env.BOT_TOKEN ?? '').trim();
+  const botUsername = String(env.TELEGRAM_BOT_USERNAME ?? '').trim().replace(/^@/, '');
+  if (!chatId || !botToken || !botUsername || isRecentlyActive(invitee?.updated_at)) return false;
+  const gameUrl = `https://t.me/${encodeURIComponent(botUsername)}?startapp=${encodeURIComponent(`game_${inviteId}`)}`;
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: `🎮 ${cleanName(inviterName)} приглашает вас сыграть в «Цепочку слов».\n\nНа каждый ход даётся 15 секунд.`,
+        reply_markup: {
+          inline_keyboard: [[{ text: 'Открыть приглашение', url: gameUrl }]],
+        },
+      }),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
 function friendshipPair(left, right) {
   return left < right ? [left, right] : [right, left];
 }
@@ -476,7 +517,7 @@ async function proxyAudioRequest(request, env, headers) {
   return new Response(result.body, { status: result.status, headers: responseHeaders });
 }
 
-async function handleApi(request, env) {
+async function handleApi(request, env, context) {
   const url = new URL(request.url);
   const headers = corsHeaders(request, env);
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers });
@@ -521,6 +562,14 @@ async function handleApi(request, env) {
   if (url.pathname === '/api/social/state' && request.method === 'POST') {
     const { identity, profile } = await authenticateSocialRequest(request, env);
     return json(await socialState(env.DB, identity, profile, request, env), 200, headers);
+  }
+
+  if (url.pathname === '/api/social/offline' && request.method === 'POST') {
+    const { identity } = await authenticateSocialRequest(request, env);
+    await env.DB.prepare(`
+      UPDATE ratings SET updated_at = '1970-01-01 00:00:00' WHERE user_id = ?
+    `).bind(identity.id).run();
+    return json({ ok: true }, 200, headers);
   }
 
   if (url.pathname === '/api/friends/request' && request.method === 'POST') {
@@ -599,6 +648,12 @@ async function handleApi(request, env) {
     await env.DB.prepare(`
       INSERT INTO game_invites (id, inviter_id, invitee_id) VALUES (?, ?, ?)
     `).bind(inviteId, identity.id, friendId).run();
+    const invitee = await env.DB.prepare(`
+      SELECT user_id, updated_at FROM ratings WHERE user_id = ?
+    `).bind(friendId).first();
+    const notification = sendGameInviteMessage(env, invitee, identity.name, inviteId);
+    if (context?.waitUntil) context.waitUntil(notification);
+    else void notification;
     return json({ ok: true, inviteId }, 200, headers);
   }
 
@@ -658,10 +713,10 @@ async function handleApi(request, env) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, context) {
     try {
       const url = new URL(request.url);
-      if (url.pathname.startsWith('/api/')) return await handleApi(request, env);
+      if (url.pathname.startsWith('/api/')) return await handleApi(request, env, context);
       return json({ ok: true, service: 'vordik-ratings', health: '/api/health' });
     } catch (error) {
       const status = Number(error?.statusCode) || 500;
