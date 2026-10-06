@@ -1610,14 +1610,22 @@
 
   function scheduleSocialRefresh() {
     clearTimeout(socialPollTimer);
-    if (!socialUpdatesEnabled) return;
-    socialPollTimer = window.setTimeout(() => void loadSocialState({ quiet: true }), document.hidden ? 15000 : 3500);
+    if (!socialUpdatesEnabled || document.hidden) return;
+    socialPollTimer = window.setTimeout(() => void loadSocialState({ quiet: true }), 3500);
   }
 
   function startSocialUpdates() {
     if (socialUpdatesEnabled) return;
     socialUpdatesEnabled = true;
     void loadSocialState({ quiet: true });
+  }
+
+  function markSocialOffline() {
+    if (!socialUpdatesEnabled) return;
+    clearTimeout(socialPollTimer);
+    try {
+      navigator.sendBeacon(ratingApiUrl('/api/social/offline'), JSON.stringify(socialAuthPayload()));
+    } catch { /* Presence also expires when polling stops. */ }
   }
 
   async function loadSocialState({ quiet = false } = {}) {
@@ -3370,6 +3378,7 @@
     if (document.hidden) {
       stopActiveAudio();
       commitAppUsage();
+      markSocialOffline();
       return;
     }
     appVisibleStartedAt = Date.now();
@@ -3382,7 +3391,10 @@
       if (word) speakWord(word, { silent: true });
     }
   });
-  window.addEventListener('pagehide', commitAppUsage);
+  window.addEventListener('pagehide', () => {
+    commitAppUsage();
+    markSocialOffline();
+  });
 
   $('add-form').addEventListener('submit', (event) => {
     event.preventDefault();
