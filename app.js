@@ -9,6 +9,7 @@
   const QUICK_PICK_KNOWN_KEY = 'vordik.quickPickKnown.v1';
   const QUICK_PICK_SESSION_KEY = 'vordik.quickPickSession.v1';
   const PENDING_GAME_FRIEND_KEY = 'vordik.pendingGameFriend.v1';
+  const TELEGRAM_BOT_USERNAME = 'vordikforyou_bot';
   const QUICK_PICK_WORD_COUNT = 15;
   const STUDY_SERIES_SIZE = 15;
   const FIVE_LETTER_ATTEMPTS = 7;
@@ -1450,6 +1451,18 @@
     } catch { /* The game still works when storage is unavailable. */ }
   }
 
+  function telegramFriendInviteUrl(value) {
+    try {
+      const url = new URL(value);
+      if (url.hostname === 't.me' || url.hostname === 'telegram.me') return url.toString();
+      const inviteToken = url.searchParams.get('friendInvite') ?? '';
+      if (/^[a-f\d-]{36}$/i.test(inviteToken)) {
+        return `https://t.me/${TELEGRAM_BOT_USERNAME}?startapp=${encodeURIComponent(`friend_${inviteToken}`)}`;
+      }
+    } catch { /* Keep the original URL when it cannot be parsed. */ }
+    return value;
+  }
+
   function friendRow(player, subtitle, actions = []) {
     const row = document.createElement('div');
     row.className = 'friend-row';
@@ -1793,9 +1806,16 @@
 
   async function acceptPendingFriendInvite() {
     const pageUrl = new URL(window.location.href);
-    const inviteToken = pageUrl.searchParams.get('friendInvite');
+    const telegramStartParam = String(
+      window.Telegram?.WebApp?.initDataUnsafe?.start_param
+        ?? pageUrl.searchParams.get('tgWebAppStartParam')
+        ?? '',
+    ).trim();
+    const telegramInvite = telegramStartParam.match(/^friend_([a-f\d-]{36})$/i);
+    const inviteToken = pageUrl.searchParams.get('friendInvite') || telegramInvite?.[1] || '';
     if (!inviteToken) return;
     pageUrl.searchParams.delete('friendInvite');
+    pageUrl.searchParams.delete('tgWebAppStartParam');
     window.history.replaceState({}, '', `${pageUrl.pathname}${pageUrl.search}${pageUrl.hash}`);
     try {
       const result = await socialPost('/api/friends/invite/accept', { inviteToken });
@@ -3203,7 +3223,7 @@
     if (code) void copyText(code, 'Код друга скопирован');
   });
   $('share-friend-link').addEventListener('click', async () => {
-    const inviteUrl = socialState?.me?.inviteUrl;
+    const inviteUrl = telegramFriendInviteUrl(socialState?.me?.inviteUrl ?? '');
     if (!inviteUrl) {
       showToast('Ссылка ещё загружается');
       return;
