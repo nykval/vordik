@@ -1711,14 +1711,29 @@
     const opponent = state.players.find((player) => player.id !== meId);
     if (opponent) $('word-chain-opponent-name').textContent = opponent.name;
     const moves = document.createDocumentFragment();
-    state.moves.forEach((move) => {
+    [...state.moves].reverse().forEach((move, index) => {
+      const latest = index === 0;
       const item = document.createElement('li');
       item.className = 'word-chain-word';
+      item.classList.toggle('is-latest', latest);
+      item.classList.toggle('is-previous', !latest);
       item.classList.toggle('is-mine', move.userId === meId);
-      item.textContent = move.word;
+      const word = document.createElement('span');
+      word.className = 'word-chain-word-text';
+      if (latest) {
+        const characters = Array.from(move.word);
+        const lastLetter = characters.pop() ?? '';
+        word.append(document.createTextNode(characters.join('')));
+        const highlight = document.createElement('b');
+        highlight.className = 'word-chain-last-letter';
+        highlight.textContent = lastLetter;
+        word.append(highlight);
+      } else {
+        word.textContent = move.word;
+      }
       const marker = document.createElement('em');
       marker.textContent = move.userId === meId ? 'вы' : opponent?.name ?? 'друг';
-      item.append(marker);
+      item.append(word, marker);
       moves.append(item);
     });
     $('word-chain-list').replaceChildren(moves);
