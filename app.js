@@ -8,6 +8,7 @@
   const RATING_GUEST_ID_KEY = 'vordik.ratingGuestId.v1';
   const QUICK_PICK_KNOWN_KEY = 'vordik.quickPickKnown.v1';
   const QUICK_PICK_SESSION_KEY = 'vordik.quickPickSession.v1';
+  const PENDING_GAME_FRIEND_KEY = 'vordik.pendingGameFriend.v1';
   const QUICK_PICK_WORD_COUNT = 15;
   const STUDY_SERIES_SIZE = 15;
   const FIVE_LETTER_ATTEMPTS = 7;
@@ -134,6 +135,8 @@
   let socialRequestVersion = 0;
   let socialState = null;
   let socialPollTimer = 0;
+  let socialUpdatesEnabled = false;
+  let pendingGameFriendId = loadPendingGameFriendId();
   let wordChainSocket = null;
   let wordChainGameId = '';
   let wordChainSnapshot = null;
@@ -1434,6 +1437,19 @@
     return result;
   }
 
+  function loadPendingGameFriendId() {
+    try { return localStorage.getItem(PENDING_GAME_FRIEND_KEY) ?? ''; }
+    catch { return ''; }
+  }
+
+  function savePendingGameFriendId(friendId = '') {
+    pendingGameFriendId = friendId;
+    try {
+      if (friendId) localStorage.setItem(PENDING_GAME_FRIEND_KEY, friendId);
+      else localStorage.removeItem(PENDING_GAME_FRIEND_KEY);
+    } catch { /* The game still works when storage is unavailable. */ }
+  }
+
   function friendRow(player, subtitle, actions = []) {
     const row = document.createElement('div');
     row.className = 'friend-row';
@@ -1450,19 +1466,109 @@
     detail.textContent = subtitle;
     copy.append(name, detail);
 
-    const buttons = document.createElement('span');
-    buttons.className = 'friend-row-actions';
-    actions.forEach((action) => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.textContent = action.label;
-      button.dataset.friendAction = action.type;
-      Object.entries(action.data ?? {}).forEach(([key, value]) => { button.dataset[key] = value; });
-      if (action.primary) button.classList.add(action.primary);
-      buttons.append(button);
-    });
-    row.append(avatar, copy, buttons);
+    row.append(avatar, copy);
+    if (actions.length) {
+      const buttons = document.createElement('span');
+      buttons.className = 'friend-row-actions';
+      actions.forEach((action) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = action.label;
+        button.dataset.friendAction = action.type;
+        Object.entries(action.data ?? {}).forEach(([key, value]) => { button.dataset[key] = value; });
+        if (action.primary) button.classList.add(action.primary);
+        buttons.append(button);
+      });
+      row.append(buttons);
+    } else {
+      row.classList.add('is-static');
+    }
     return row;
+  }
+
+  function renderWordChainLobby(state = socialState) {
+    if (!state) return;
+    const activeGames = state.games.filter((game) => game.status !== 'finished');
+    const games = document.createDocumentFragment();
+    activeGames.forEach((game) => games.append(friendRow(
+      game.opponent,
+      game.status === 'active' ? 'Игра уже идёт' : 'Можно продолжить',
+      [{
+        label: game.status === 'active' ? 'Вернуться' : 'Открыть',
+        type: 'lobby-open-game',
+        data: { gameId: game.id, opponentId: game.opponent.id },
+        primary: 'is-primary',
+      }],
+    )));
+    $('word-chain-active-list').replaceChildren(games);
+    $('word-chain-active-group').hidden = activeGames.length === 0;
+
+    const friends = document.createDocumentFragment();
+    state.friends.forEach((player) => friends.append(friendRow(player, 'В друзьях', [{
+      label: 'Пригласить',
+      type: 'lobby-invite-game',
+      data: { userId: player.id },
+      primary: 'is-primary',
+    }])));
+    $('word-chain-friend-list').replaceChildren(friends);
+    $('word-chain-no-friends').hidden = state.friends.length > 0;
+    $('word-chain-lobby-status').textContent = '';
+  }
+
+  function setWordChainLobbyOpen(open) {
+    $('word-chain-lobby-overlay').hidden = !open;
+    document.body.classList.toggle('is-word-chain-lobby-open', open);
+    if (!open) return;
+    $('word-chain-lobby-status').textContent = socialState ? '' : 'Загружаем друзей…';
+    if (socialState) renderWordChainLobby(socialState);
+    void loadSocialState({ quiet: true });
+  }
+
+  function hideGameInvitePush() {
+    const push = $('game-invite-push');
+    push.hidden = true;
+    delete push.dataset.key;
+    delete push.dataset.mode;
+    delete push.dataset.inviteId;
+    delete push.dataset.gameId;
+    delete push.dataset.opponentId;
+  }
+
+  function showGameInvitePush({ mode, player, inviteId = '', gameId = '' }) {
+    if (!$('word-chain-screen').hidden) return;
+    const push = $('game-invite-push');
+    const key = `${mode}:${inviteId || gameId}`;
+    if (!push.hidden && push.dataset.key === key) return;
+    push.dataset.key = key;
+    push.dataset.mode = mode;
+    push.dataset.inviteId = inviteId;
+    push.dataset.gameId = gameId;
+    push.dataset.opponentId = player.id;
+    $('game-invite-push-avatar').src = avatarSource(player.avatarId);
+    $('game-invite-push-kicker').textContent = mode === 'invite' ? 'ПРИГЛАШЕНИЕ В ИГРУ' : 'ДРУГ ГОТОВ ИГРАТЬ';
+    $('game-invite-push-title').textContent = mode === 'invite'
+      ? `${player.name} зовёт играть`
+      : `${player.name} принял приглашение`;
+    $('game-invite-push-text').textContent = 'Цепочка слов · 15 секунд на ход';
+    $('game-invite-push-accept').textContent = mode === 'invite' ? 'Играть' : 'Открыть';
+    $('game-invite-push-decline').textContent = mode === 'invite' ? 'Не сейчас' : 'Позже';
+    push.hidden = false;
+  }
+
+  function syncGameInvitePush(state) {
+    const invitation = state.gameInvites[0];
+    if (invitation) {
+      showGameInvitePush({ mode: 'invite', player: invitation.from, inviteId: invitation.id });
+      return;
+    }
+    if (pendingGameFriendId) {
+      const game = state.games.find((item) => item.status !== 'finished' && item.opponent.id === pendingGameFriendId);
+      if (game) {
+        showGameInvitePush({ mode: 'ready', player: game.opponent, gameId: game.id });
+        return;
+      }
+    }
+    if ($('game-invite-push').dataset.mode === 'invite') hideGameInvitePush();
   }
 
   function renderFriends(state) {
@@ -1482,40 +1588,23 @@
     $('friend-request-list').replaceChildren(requests);
     $('friend-requests-block').hidden = !(state.incomingRequests.length || state.outgoingRequests.length);
 
-    const invitations = document.createDocumentFragment();
-    state.gameInvites.forEach((invite) => invitations.append(friendRow(invite.from, 'Приглашает в «Цепочку слов»', [
-      { label: 'Играть', type: 'accept-game', data: { inviteId: invite.id }, primary: 'is-primary' },
-      { label: 'Не сейчас', type: 'reject-game', data: { inviteId: invite.id } },
-    ])));
-    $('game-invite-list').replaceChildren(invitations);
-    $('game-invites-block').hidden = !state.gameInvites.length;
-
-    const games = document.createDocumentFragment();
-    state.games.forEach((game) => {
-      const finished = game.status === 'finished';
-      const won = finished && game.winnerId === state.me.id;
-      const subtitle = finished
-        ? (won ? 'Матч завершён · вы победили' : 'Матч завершён')
-        : (game.status === 'active' ? 'Матч идёт' : 'Ждём подключения игроков');
-      games.append(friendRow(game.opponent, subtitle, finished ? [] : [
-        { label: game.status === 'active' ? 'Вернуться' : 'Открыть', type: 'open-game', data: { gameId: game.id, opponentId: game.opponent.id }, primary: 'is-primary' },
-      ]));
-    });
-    $('active-game-list').replaceChildren(games);
-    $('active-games-block').hidden = !state.games.length;
-
     const friends = document.createDocumentFragment();
-    state.friends.forEach((player) => friends.append(friendRow(player, 'В друзьях', [
-      { label: 'Играть', type: 'invite-game', data: { userId: player.id }, primary: 'is-primary' },
-    ])));
+    state.friends.forEach((player) => friends.append(friendRow(player, 'В друзьях')));
     $('friend-list').replaceChildren(friends);
     $('friends-empty').hidden = state.friends.length > 0;
+    renderWordChainLobby(state);
   }
 
   function scheduleSocialRefresh() {
     clearTimeout(socialPollTimer);
-    if (activeTab !== 'profile') return;
-    socialPollTimer = window.setTimeout(() => void loadSocialState({ quiet: true }), 5000);
+    if (!socialUpdatesEnabled) return;
+    socialPollTimer = window.setTimeout(() => void loadSocialState({ quiet: true }), document.hidden ? 15000 : 3500);
+  }
+
+  function startSocialUpdates() {
+    if (socialUpdatesEnabled) return;
+    socialUpdatesEnabled = true;
+    void loadSocialState({ quiet: true });
   }
 
   async function loadSocialState({ quiet = false } = {}) {
@@ -1526,6 +1615,7 @@
       const result = await socialPost('/api/social/state');
       if (version !== socialRequestVersion) return;
       renderFriends(result);
+      syncGameInvitePush(result);
     } catch (error) {
       if (version !== socialRequestVersion) return;
       $('friends-card').setAttribute('aria-busy', 'false');
@@ -1588,7 +1678,7 @@
     wordChainSnapshot = null;
     $('word-chain-screen').hidden = true;
     document.body.classList.remove('is-word-chain-open');
-    if (activeTab === 'profile') void loadSocialState({ quiet: true });
+    if (socialUpdatesEnabled) void loadSocialState({ quiet: true });
   }
 
   function updateWordChainClock() {
@@ -1710,7 +1800,7 @@
     try {
       const result = await socialPost('/api/friends/invite/accept', { inviteToken });
       showToast(`${result.friendName} теперь у вас в друзьях`);
-      if (activeTab === 'profile') await loadSocialState({ quiet: true });
+      if (socialUpdatesEnabled || activeTab === 'profile') await loadSocialState({ quiet: true });
     } catch (error) {
       showToast(error.message || 'Не удалось принять приглашение');
     }
@@ -1949,7 +2039,6 @@
     if (tab !== 'dictionary' && !$('delete-overlay').hidden) setDeleteConfirm(false, pendingDeleteId, false);
     if (tab !== 'dictionary' && !$('word-card-overlay').hidden) setWordCardOpen(false, activeWordCardId, false);
     if (tab !== 'home' && !$('quick-pick-screen').hidden) closeQuickPick();
-    if (tab !== 'profile') clearTimeout(socialPollTimer);
     activeTab = tab;
     document.body.classList.toggle('is-home', tab === 'home');
     document.body.classList.toggle('is-profile', tab === 'profile');
@@ -3152,27 +3241,84 @@
           requesterId: button.dataset.userId,
           action: action === 'accept-friend' ? 'accept' : 'reject',
         }, action === 'accept-friend' ? 'Пользователь добавлен в друзья' : 'Заявка отклонена');
-        return;
-      }
-      if (action === 'invite-game') {
-        await updateFriendship('/api/games/invite', { friendId: button.dataset.userId }, 'Приглашение в игру отправлено');
-        return;
-      }
-      if (action === 'reject-game') {
-        await updateFriendship('/api/games/respond', { inviteId: button.dataset.inviteId, action: 'reject' }, 'Приглашение отклонено');
-        return;
-      }
-      if (action === 'accept-game') {
-        const invitation = socialState?.gameInvites.find((item) => item.id === button.dataset.inviteId);
-        const result = await updateFriendship('/api/games/respond', { inviteId: button.dataset.inviteId, action: 'accept' }, 'Игра создана');
-        if (result?.gameId) await openWordChain(result.gameId, invitation?.from ?? null);
-        return;
-      }
-      if (action === 'open-game') {
-        await openWordChain(button.dataset.gameId, socialPlayerById(button.dataset.opponentId));
       }
     } finally {
       if (button.isConnected) button.disabled = false;
+    }
+  });
+  $('word-chain-start').addEventListener('click', () => setWordChainLobbyOpen(true));
+  document.querySelectorAll('[data-word-chain-lobby-close]').forEach((button) => {
+    button.addEventListener('click', () => setWordChainLobbyOpen(false));
+  });
+  $('word-chain-open-friends').addEventListener('click', () => {
+    setWordChainLobbyOpen(false);
+    switchTab('profile');
+  });
+  $('word-chain-lobby-overlay').addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-friend-action]');
+    if (!button) return;
+    button.disabled = true;
+    try {
+      if (button.dataset.friendAction === 'lobby-invite-game') {
+        const result = await updateFriendship(
+          '/api/games/invite',
+          { friendId: button.dataset.userId },
+          'Приглашение в игру отправлено',
+        );
+        if (result) {
+          savePendingGameFriendId(button.dataset.userId);
+          setWordChainLobbyOpen(false);
+        }
+      } else if (button.dataset.friendAction === 'lobby-open-game') {
+        const opponent = socialPlayerById(button.dataset.opponentId);
+        setWordChainLobbyOpen(false);
+        await openWordChain(button.dataset.gameId, opponent);
+      }
+    } finally {
+      if (button.isConnected) button.disabled = false;
+    }
+  });
+  $('game-invite-push-accept').addEventListener('click', async () => {
+    const push = $('game-invite-push');
+    const button = $('game-invite-push-accept');
+    const opponent = socialPlayerById(push.dataset.opponentId);
+    button.disabled = true;
+    try {
+      if (push.dataset.mode === 'invite') {
+        const result = await updateFriendship(
+          '/api/games/respond',
+          { inviteId: push.dataset.inviteId, action: 'accept' },
+          'Игра создана',
+        );
+        hideGameInvitePush();
+        if (result?.gameId) await openWordChain(result.gameId, opponent);
+      } else if (push.dataset.mode === 'ready') {
+        const gameId = push.dataset.gameId;
+        savePendingGameFriendId();
+        hideGameInvitePush();
+        await openWordChain(gameId, opponent);
+      }
+    } finally {
+      button.disabled = false;
+    }
+  });
+  $('game-invite-push-decline').addEventListener('click', async () => {
+    const push = $('game-invite-push');
+    const button = $('game-invite-push-decline');
+    button.disabled = true;
+    try {
+      if (push.dataset.mode === 'invite') {
+        await updateFriendship(
+          '/api/games/respond',
+          { inviteId: push.dataset.inviteId, action: 'reject' },
+          'Приглашение отклонено',
+        );
+      } else if (push.dataset.mode === 'ready') {
+        savePendingGameFriendId();
+      }
+      hideGameInvitePush();
+    } finally {
+      button.disabled = false;
     }
   });
   $('word-chain-close').addEventListener('click', closeWordChain);
@@ -3195,6 +3341,7 @@
     renderStreak();
     renderProfile();
     updateTimedClock();
+    if (socialUpdatesEnabled) void loadSocialState({ quiet: true });
     if (!$('quick-pick-screen').hidden && quickPickSession && quickPickSession.index < quickPickSession.deck.length) {
       const word = quickPickWordById(quickPickSession.deck[quickPickSession.index]);
       if (word) speakWord(word, { silent: true });
@@ -3370,6 +3517,7 @@
     syncTelegramSafeArea();
     requestAnimationFrame(syncTelegramSafeArea);
     setTimeout(syncTelegramSafeArea, 300);
+    startSocialUpdates();
     void acceptPendingFriendInvite();
   });
 
