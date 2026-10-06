@@ -10,7 +10,7 @@
     <link rel="icon" href="./favicon.png" type="image/png" />
     <link rel="apple-touch-icon" href="./favicon.png" />
     <link rel="manifest" href="./site.webmanifest" />
-    <link rel="stylesheet" href="./styles.css?v=friends-game-46" />
+    <link rel="stylesheet" href="./styles.css?v=word-chain-invites-48" />
   </head>
   <body class="is-home">
     <div class="app-shell">
@@ -200,6 +200,15 @@
               </button>
               <button id="puzzle-start" class="study-method study-method-cover" type="button" data-study="puzzle" aria-label="Пазлы: соединить три слова с переводами">
                 <img src="./icons/puzzle-cover.png?v=1" alt="" width="3888" height="1264" draggable="false" />
+              </button>
+              <button id="word-chain-start" class="study-method word-chain-launch" type="button" aria-label="Цепочка слов: пригласить друга">
+                <span class="word-chain-launch-copy">
+                  <strong>Цепочка слов</strong>
+                  <small>Играй с другом по очереди</small>
+                </span>
+                <span class="word-chain-launch-art" aria-hidden="true">
+                  <span>WORD</span><i></i><span>GAME</span>
+                </span>
               </button>
             </div>
             <div id="study-empty-hint" class="study-empty-hint" hidden>
@@ -420,14 +429,6 @@
                     <h3>Заявки в друзья</h3>
                     <div id="friend-request-list" class="friends-list"></div>
                   </div>
-                  <div id="game-invites-block" class="friends-group" hidden>
-                    <h3>Приглашения в игру</h3>
-                    <div id="game-invite-list" class="friends-list"></div>
-                  </div>
-                  <div id="active-games-block" class="friends-group" hidden>
-                    <h3>Ваши игры</h3>
-                    <div id="active-game-list" class="friends-list"></div>
-                  </div>
                   <div class="friends-group">
                     <h3>Все друзья</h3>
                     <div id="friend-list" class="friends-list"></div>
@@ -468,6 +469,46 @@
             <button class="primary-button avatar-picker-done" type="button" data-avatar-close>Готово</button>
           </section>
         </div>
+
+        <div id="word-chain-lobby-overlay" class="word-chain-lobby-overlay" hidden>
+          <button class="word-chain-lobby-backdrop" type="button" data-word-chain-lobby-close tabindex="-1" aria-label="Закрыть выбор друга"></button>
+          <section class="word-chain-lobby" role="dialog" aria-modal="true" aria-labelledby="word-chain-lobby-title">
+            <header class="word-chain-lobby-heading">
+              <div>
+                <span>ЦЕПОЧКА СЛОВ</span>
+                <h2 id="word-chain-lobby-title">Пригласите друга</h2>
+              </div>
+              <button type="button" data-word-chain-lobby-close aria-label="Закрыть"><img src="./icons/close.svg" alt="" aria-hidden="true" /></button>
+            </header>
+            <p>Выберите друга — приглашение появится у него прямо в приложении.</p>
+            <p id="word-chain-lobby-status" class="word-chain-lobby-status" role="status" aria-live="polite"></p>
+            <div id="word-chain-active-group" class="word-chain-lobby-group" hidden>
+              <h3>Текущие игры</h3>
+              <div id="word-chain-active-list" class="word-chain-lobby-list"></div>
+            </div>
+            <div class="word-chain-lobby-group">
+              <h3>Ваши друзья</h3>
+              <div id="word-chain-friend-list" class="word-chain-lobby-list"></div>
+              <div id="word-chain-no-friends" class="word-chain-no-friends" hidden>
+                <p>Сначала добавьте хотя бы одного друга.</p>
+                <button id="word-chain-open-friends" type="button">Открыть раздел друзей</button>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <aside id="game-invite-push" class="game-invite-push" aria-live="polite" hidden>
+          <span class="game-invite-push-avatar"><img id="game-invite-push-avatar" src="./icons/avatars-pack/avatar-blond-green.png?v=2" alt="" /></span>
+          <span class="game-invite-push-copy">
+            <small id="game-invite-push-kicker">ПРИГЛАШЕНИЕ В ИГРУ</small>
+            <strong id="game-invite-push-title">Друг зовёт играть</strong>
+            <span id="game-invite-push-text">Цепочка слов · 15 секунд на ход</span>
+          </span>
+          <span class="game-invite-push-actions">
+            <button id="game-invite-push-accept" class="is-primary" type="button">Играть</button>
+            <button id="game-invite-push-decline" type="button">Не сейчас</button>
+          </span>
+        </aside>
 
         <div id="word-chain-screen" class="word-chain-screen" hidden>
           <section class="word-chain-shell" aria-labelledby="word-chain-title">
@@ -567,7 +608,7 @@
     <script src="./audio-manifest.js?v=common-audio-39" defer></script>
     <script src="./collections.js?v=common-dictionary-32" defer></script>
     <script src="./quick-pick-words.js?v=common-dictionary-32" defer></script>
-    <script src="./app.js?v=friends-game-46" defer></script>
+    <script src="./app.js?v=word-chain-invites-48" defer></script>
     <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
   </body>
 </html>
