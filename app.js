@@ -488,7 +488,7 @@
 
   function ratingAvatarId(entry) {
     if (entry?.isMe) return userProfile.avatarId;
-    if (entry?.avatarCustomized === true && avatarById.has(entry?.avatarId)) return entry.avatarId;
+    if (avatarById.has(entry?.avatarId)) return entry.avatarId;
     return deterministicAvatarId(`${entry?.name ?? ''}:${entry?.rank ?? ''}`);
   }
 
