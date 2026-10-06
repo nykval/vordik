@@ -104,9 +104,7 @@ function socialPlayer(row) {
   return {
     id: row.user_id,
     name: row.name,
-    avatarId: Number(row.avatar_customized) === 1 && avatarIds.has(row.avatar_id)
-      ? row.avatar_id
-      : defaultAvatarId(row.user_id),
+    avatarId: avatarIds.has(row.avatar_id) ? row.avatar_id : defaultAvatarId(row.user_id),
     avatarCustomized: Number(row.avatar_customized) === 1,
   };
 }
@@ -195,7 +193,7 @@ function publicPlayer(row, rank, currentUserId = '') {
   return {
     rank,
     name: row.name,
-    avatarId: avatarCustomized && avatarIds.has(row.avatar_id) ? row.avatar_id : defaultAvatarId(row.user_id),
+    avatarId: avatarIds.has(row.avatar_id) ? row.avatar_id : defaultAvatarId(row.user_id),
     avatarCustomized,
     score: Number(row.score),
     vocabularySize: Number(row.vocabulary_size),
@@ -221,7 +219,10 @@ async function upsertRating(database, identity, avatarId, avatarCustomized, scor
     VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     ON CONFLICT(user_id) DO UPDATE SET
       name = excluded.name,
-      avatar_id = CASE WHEN ? = 1 THEN excluded.avatar_id ELSE ratings.avatar_id END,
+      avatar_id = CASE
+        WHEN ratings.avatar_customized = 1 AND ? = 0 THEN ratings.avatar_id
+        ELSE excluded.avatar_id
+      END,
       avatar_customized = CASE WHEN ? = 1 THEN 1 ELSE ratings.avatar_customized END,
       score = excluded.score,
       vocabulary_size = excluded.vocabulary_size,
@@ -273,7 +274,10 @@ async function ensureSocialProfile(database, identity, payload) {
     ) VALUES (?, ?, ?, ?, 0, 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     ON CONFLICT(user_id) DO UPDATE SET
       name = excluded.name,
-      avatar_id = CASE WHEN ? = 1 THEN excluded.avatar_id ELSE ratings.avatar_id END,
+      avatar_id = CASE
+        WHEN ratings.avatar_customized = 1 AND ? = 0 THEN ratings.avatar_id
+        ELSE excluded.avatar_id
+      END,
       avatar_customized = CASE WHEN ? = 1 THEN 1 ELSE ratings.avatar_customized END,
       updated_at = CURRENT_TIMESTAMP
   `).bind(
