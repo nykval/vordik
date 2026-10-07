@@ -873,6 +873,7 @@
   }
 
   const collectionCardThemes = [
+<<<<<<< HEAD
     ['#b9efff', '#355cff', '#ffd43b'],
     ['#fff0ad', '#ff943d', '#355cff'],
     ['#b2f4e5', '#45d875', '#a27af5'],
@@ -883,6 +884,18 @@
     ['#e8f7ae', '#c4e747', '#ffd43b'],
     ['#ffc6bd', '#ff7866', '#ff943d'],
     ['#dcd0ff', '#a27af5', '#f66fb1'],
+=======
+    ['#e7f5ef', '#68bfa3', '#4667d9'],
+    ['#fcede8', '#ee9582', '#26324b'],
+    ['#f0ecfa', '#a99bdd', '#4667d9'],
+    ['#fff5db', '#eac268', '#26324b'],
+    ['#f0f3fe', '#4667d9', '#68bfa3'],
+    ['#e7f5ef', '#a99bdd', '#26324b'],
+    ['#fcede8', '#eac268', '#4667d9'],
+    ['#f0ecfa', '#68bfa3', '#26324b'],
+    ['#fff5db', '#4667d9', '#ee9582'],
+    ['#4667d9', '#a99bdd', '#ffffff'],
+>>>>>>> 980804dbf920795095dc56e83ae9766cbd40ff85
   ];
 
   function renderReadyCollections() {
@@ -2388,7 +2401,11 @@
     activeTab = tab;
     document.body.classList.toggle('is-home', tab === 'home');
     document.body.classList.toggle('is-profile', tab === 'profile');
+<<<<<<< HEAD
     const headerColor = '#f7f9ff';
+=======
+    const headerColor = '#f6f8fc';
+>>>>>>> 980804dbf920795095dc56e83ae9766cbd40ff85
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', headerColor);
     window.Telegram?.WebApp?.setHeaderColor?.(headerColor);
     document.querySelector('.bottom-nav').dataset.active = tab;
@@ -3933,8 +3950,13 @@
     webApp.expand();
     if (webApp.isVersionAtLeast?.('8.0') && !webApp.isFullscreen) webApp.requestFullscreen?.();
     if (webApp.isVersionAtLeast?.('7.7')) webApp.disableVerticalSwipes?.();
+<<<<<<< HEAD
     webApp.setHeaderColor?.('#f7f9ff');
     webApp.setBackgroundColor?.('#f7f9ff');
+=======
+    webApp.setHeaderColor?.('#f6f8fc');
+    webApp.setBackgroundColor?.('#f6f8fc');
+>>>>>>> 980804dbf920795095dc56e83ae9766cbd40ff85
     syncTelegramSafeArea();
     requestAnimationFrame(syncTelegramSafeArea);
     setTimeout(syncTelegramSafeArea, 300);
