@@ -1,0 +1,37 @@
+{
+  "name": "Вордик · Яркая палитра",
+  "version": "1.0.0",
+  "brand": {
+    "50": "#EEF2FF", "100": "#DFE6FF", "200": "#BFCFFF",
+    "300": "#97B0FF", "400": "#7190FF", "500": "#5074FF",
+    "600": "#355CFF", "700": "#2948DB", "800": "#2039B4", "900": "#192D86"
+  },
+  "neutral": {
+    "background": "#F7F9FF", "surface": "#FFFFFF", "divider": "#DFE5F2",
+    "borderStrong": "#7D89A3", "textMuted": "#596680", "textMain": "#202C46"
+  },
+  "semantic": {
+    "success": {"background": "#E2F8EC", "foreground": "#167348", "accent": "#2DD881"},
+    "warning": {"background": "#FFF3CC", "foreground": "#995B00", "accent": "#FFD43B"},
+    "error": {"background": "#FFE9EC", "foreground": "#C52D42", "accent": "#FF6577"},
+    "info": {"background": "#EEF2FF", "foreground": "#2948DB", "accent": "#355CFF"}
+  },
+  "illustration": {
+    "sky": {"name": "Голубой", "light": "#B9EFFF", "base": "#39C9F4", "deep": "#087FAD"},
+    "turquoise": {"name": "Бирюзовый", "light": "#B2F4E5", "base": "#26D6B0", "deep": "#07856D"},
+    "green": {"name": "Зелёный", "light": "#BEF4CF", "base": "#45D875", "deep": "#208548"},
+    "lime": {"name": "Лаймовый", "light": "#E8F7AE", "base": "#C4E747", "deep": "#718D1D"},
+    "yellow": {"name": "Солнечный", "light": "#FFF0AD", "base": "#FFD43B", "deep": "#D9940B"},
+    "orange": {"name": "Оранжевый", "light": "#FFD4AC", "base": "#FF943D", "deep": "#D65A1C"},
+    "coral": {"name": "Коралловый", "light": "#FFC6BD", "base": "#FF7866", "deep": "#CE493D"},
+    "pink": {"name": "Розовый", "light": "#FFD0E8", "base": "#F66FB1", "deep": "#B93579"},
+    "violet": {"name": "Фиолетовый", "light": "#DCD0FF", "base": "#A27AF5", "deep": "#6240A7"}
+  },
+  "combinations": [
+    {"name": "Учёба", "background": "#B9EFFF", "object": "#355CFF", "shadow": "#2039B4", "accent": "#FFD43B"},
+    {"name": "Энергия", "background": "#FFD43B", "object": "#FF943D", "shadow": "#D65A1C", "accent": "#355CFF"},
+    {"name": "Рост", "background": "#B2F4E5", "object": "#45D875", "shadow": "#208548", "accent": "#A27AF5"},
+    {"name": "Ночь", "background": "#6240A7", "object": "#A27AF5", "shadow": "#192D86", "accent": "#B9EFFF"},
+    {"name": "Общение", "background": "#FFD0E8", "object": "#FF7866", "shadow": "#CE493D", "accent": "#355CFF"}
+  ]
+}

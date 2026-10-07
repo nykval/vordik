@@ -23,6 +23,10 @@
       {
         "name": "WORD_CHAIN_GAMES",
         "class_name": "WordChainGame"
+      },
+      {
+        "name": "AUCTION_GAMES",
+        "class_name": "AuctionGame"
       }
     ]
   },
@@ -30,6 +34,10 @@
     {
       "tag": "v1-word-chain-game",
       "new_sqlite_classes": ["WordChainGame"]
+    },
+    {
+      "tag": "v2-vocabulary-auction",
+      "new_sqlite_classes": ["AuctionGame"]
     }
   ],
   "vars": {

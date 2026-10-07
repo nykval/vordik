@@ -9,6 +9,8 @@
   const QUICK_PICK_KNOWN_KEY = 'vordik.quickPickKnown.v1';
   const QUICK_PICK_SESSION_KEY = 'vordik.quickPickSession.v1';
   const PENDING_GAME_FRIEND_KEY = 'vordik.pendingGameFriend.v1';
+  const PENDING_GAME_TYPE_KEY = 'vordik.pendingGameType.v1';
+  const AUCTION_TUTORIAL_KEY = 'vordik.auctionTutorial.v1';
   const TELEGRAM_BOT_USERNAME = 'vordikforyou_bot';
   const QUICK_PICK_WORD_COUNT = 15;
   const STUDY_SERIES_SIZE = 15;
@@ -138,11 +140,21 @@
   let socialPollTimer = 0;
   let socialUpdatesEnabled = false;
   let pendingGameFriendId = loadPendingGameFriendId();
+  let pendingGameType = loadPendingGameType();
+  let gameLobbyType = 'word_chain';
   let wordChainSocket = null;
   let wordChainGameId = '';
   let wordChainSnapshot = null;
   let wordChainClockOffset = 0;
   let wordChainClockTimer = 0;
+  let auctionSocket = null;
+  let auctionGameId = '';
+  let auctionSnapshot = null;
+  let auctionClockOffset = 0;
+  let auctionClockTimer = 0;
+  let auctionBidValue = 3;
+  let auctionTutorialStep = 0;
+  let auctionLastLoserId = '';
   const audioGenerationPolls = new Map();
 
   function localDateKey(date) {
@@ -861,16 +873,16 @@
   }
 
   const collectionCardThemes = [
-    ['#e7f5ef', '#68bfa3', '#4667d9'],
-    ['#fcede8', '#ee9582', '#26324b'],
-    ['#f0ecfa', '#a99bdd', '#4667d9'],
-    ['#fff5db', '#eac268', '#26324b'],
-    ['#f0f3fe', '#4667d9', '#68bfa3'],
-    ['#e7f5ef', '#a99bdd', '#26324b'],
-    ['#fcede8', '#eac268', '#4667d9'],
-    ['#f0ecfa', '#68bfa3', '#26324b'],
-    ['#fff5db', '#4667d9', '#ee9582'],
-    ['#4667d9', '#a99bdd', '#ffffff'],
+    ['#b9efff', '#355cff', '#ffd43b'],
+    ['#fff0ad', '#ff943d', '#355cff'],
+    ['#b2f4e5', '#45d875', '#a27af5'],
+    ['#6240a7', '#a27af5', '#b9efff'],
+    ['#ffd0e8', '#ff7866', '#355cff'],
+    ['#bfcfff', '#355cff', '#2039b4'],
+    ['#b2f4e5', '#26d6b0', '#07856d'],
+    ['#e8f7ae', '#c4e747', '#ffd43b'],
+    ['#ffc6bd', '#ff7866', '#ff943d'],
+    ['#dcd0ff', '#a27af5', '#f66fb1'],
   ];
 
   function renderReadyCollections() {
@@ -1443,11 +1455,22 @@
     catch { return ''; }
   }
 
-  function savePendingGameFriendId(friendId = '') {
+  function loadPendingGameType() {
+    try { return localStorage.getItem(PENDING_GAME_TYPE_KEY) ?? 'word_chain'; }
+    catch { return 'word_chain'; }
+  }
+
+  function savePendingGameFriendId(friendId = '', gameType = 'word_chain') {
     pendingGameFriendId = friendId;
+    pendingGameType = gameType;
     try {
-      if (friendId) localStorage.setItem(PENDING_GAME_FRIEND_KEY, friendId);
-      else localStorage.removeItem(PENDING_GAME_FRIEND_KEY);
+      if (friendId) {
+        localStorage.setItem(PENDING_GAME_FRIEND_KEY, friendId);
+        localStorage.setItem(PENDING_GAME_TYPE_KEY, gameType);
+      } else {
+        localStorage.removeItem(PENDING_GAME_FRIEND_KEY);
+        localStorage.removeItem(PENDING_GAME_TYPE_KEY);
+      }
     } catch { /* The game still works when storage is unavailable. */ }
   }
 
@@ -1499,17 +1522,23 @@
     return row;
   }
 
-  function renderWordChainLobby(state = socialState) {
+  function gameTypeTitle(gameType) {
+    return gameType === 'auction' ? 'Словарный аукцион' : 'Цепочка слов';
+  }
+
+  function renderGameLobby(state = socialState) {
     if (!state) return;
-    const activeGames = state.games.filter((game) => game.status !== 'finished');
+    const activeGames = state.games.filter((game) => game.status !== 'finished' && game.gameType === gameLobbyType);
     const games = document.createDocumentFragment();
     activeGames.forEach((game) => games.append(friendRow(
       game.opponent,
-      game.status === 'active' ? 'Игра уже идёт' : 'Можно продолжить',
+      gameLobbyType === 'auction' && game.score
+        ? `Счёт встреч ${game.score.myWins}:${game.score.opponentWins}`
+        : (game.status === 'active' ? 'Игра уже идёт' : 'Можно продолжить'),
       [{
         label: game.status === 'active' ? 'Вернуться' : 'Открыть',
         type: 'lobby-open-game',
-        data: { gameId: game.id, opponentId: game.opponent.id },
+        data: { gameId: game.id, opponentId: game.opponent.id, gameType: game.gameType },
         primary: 'is-primary',
       }],
     )));
@@ -1517,24 +1546,40 @@
     $('word-chain-active-group').hidden = activeGames.length === 0;
 
     const friends = document.createDocumentFragment();
-    state.friends.forEach((player) => friends.append(friendRow(player, 'В друзьях', [{
+    state.friends.forEach((player) => {
+      const score = player.auctionScore;
+      const subtitle = gameLobbyType === 'auction' && score
+        ? `Счёт встреч ${score.myWins}:${score.opponentWins}`
+        : 'В друзьях';
+      friends.append(friendRow(player, subtitle, [{
       label: 'Пригласить',
       type: 'lobby-invite-game',
-      data: { userId: player.id },
+      data: { userId: player.id, gameType: gameLobbyType },
       primary: 'is-primary',
-    }])));
+      }]));
+    });
     $('word-chain-friend-list').replaceChildren(friends);
     $('word-chain-no-friends').hidden = state.friends.length > 0;
     $('word-chain-lobby-status').textContent = '';
   }
 
-  function setWordChainLobbyOpen(open) {
+  function setGameLobbyOpen(open, gameType = gameLobbyType) {
+    gameLobbyType = gameType;
     $('word-chain-lobby-overlay').hidden = !open;
     document.body.classList.toggle('is-word-chain-lobby-open', open);
     if (!open) return;
+    $('word-chain-lobby-title').textContent = gameTypeTitle(gameLobbyType);
+    $('word-chain-lobby-overlay').querySelector('.word-chain-lobby-heading span').textContent = gameLobbyType === 'auction' ? 'СЛОВАРНЫЙ АУКЦИОН' : 'ЦЕПОЧКА СЛОВ';
+    $('word-chain-lobby-overlay').querySelector('.word-chain-lobby > p').textContent = gameLobbyType === 'auction'
+      ? 'Выберите друга — вместе вы будете делать ставки и проверять знание слов.'
+      : 'Выберите друга — приглашение появится у него прямо в приложении.';
     $('word-chain-lobby-status').textContent = socialState ? '' : 'Загружаем друзей…';
-    if (socialState) renderWordChainLobby(socialState);
+    if (socialState) renderGameLobby(socialState);
     void loadSocialState({ quiet: true });
+  }
+
+  function setWordChainLobbyOpen(open) {
+    setGameLobbyOpen(open, 'word_chain');
   }
 
   function hideGameInvitePush() {
@@ -1544,25 +1589,29 @@
     delete push.dataset.mode;
     delete push.dataset.inviteId;
     delete push.dataset.gameId;
+    delete push.dataset.gameType;
     delete push.dataset.opponentId;
   }
 
-  function showGameInvitePush({ mode, player, inviteId = '', gameId = '' }) {
-    if (!$('word-chain-screen').hidden) return;
+  function showGameInvitePush({ mode, player, inviteId = '', gameId = '', gameType = 'word_chain' }) {
+    if (!$('word-chain-screen').hidden || !$('auction-screen').hidden) return;
     const push = $('game-invite-push');
-    const key = `${mode}:${inviteId || gameId}`;
+    const key = `${gameType}:${mode}:${inviteId || gameId}`;
     if (!push.hidden && push.dataset.key === key) return;
     push.dataset.key = key;
     push.dataset.mode = mode;
     push.dataset.inviteId = inviteId;
     push.dataset.gameId = gameId;
+    push.dataset.gameType = gameType;
     push.dataset.opponentId = player.id;
     $('game-invite-push-avatar').src = avatarSource(player.avatarId);
     $('game-invite-push-kicker').textContent = mode === 'invite' ? 'ПРИГЛАШЕНИЕ В ИГРУ' : 'ДРУГ ГОТОВ ИГРАТЬ';
     $('game-invite-push-title').textContent = mode === 'invite'
       ? `${player.name} зовёт играть`
       : `${player.name} принял приглашение`;
-    $('game-invite-push-text').textContent = 'Цепочка слов · 15 секунд на ход';
+    $('game-invite-push-text').textContent = gameType === 'auction'
+      ? 'Словарный аукцион · 3 жизни'
+      : 'Цепочка слов · 15 секунд на ход';
     $('game-invite-push-accept').textContent = mode === 'invite' ? 'Играть' : 'Открыть';
     $('game-invite-push-decline').textContent = mode === 'invite' ? 'Не сейчас' : 'Позже';
     push.hidden = false;
@@ -1571,13 +1620,13 @@
   function syncGameInvitePush(state) {
     const invitation = state.gameInvites[0];
     if (invitation) {
-      showGameInvitePush({ mode: 'invite', player: invitation.from, inviteId: invitation.id });
+      showGameInvitePush({ mode: 'invite', player: invitation.from, inviteId: invitation.id, gameType: invitation.gameType });
       return;
     }
     if (pendingGameFriendId) {
-      const game = state.games.find((item) => item.status !== 'finished' && item.opponent.id === pendingGameFriendId);
+      const game = state.games.find((item) => item.status !== 'finished' && item.opponent.id === pendingGameFriendId && item.gameType === pendingGameType);
       if (game) {
-        showGameInvitePush({ mode: 'ready', player: game.opponent, gameId: game.id });
+        showGameInvitePush({ mode: 'ready', player: game.opponent, gameId: game.id, gameType: game.gameType });
         return;
       }
     }
@@ -1605,7 +1654,7 @@
     state.friends.forEach((player) => friends.append(friendRow(player, 'В друзьях')));
     $('friend-list').replaceChildren(friends);
     $('friends-empty').hidden = state.friends.length > 0;
-    renderWordChainLobby(state);
+    renderGameLobby(state);
   }
 
   function scheduleSocialRefresh() {
@@ -1825,6 +1874,260 @@
       $('word-chain-status').textContent = error.message || 'Не удалось открыть игру.';
       $('word-chain-status').dataset.result = 'error';
     }
+  }
+
+  const AUCTION_TUTORIAL_STEPS = Object.freeze([
+    { symbol: '3', title: 'Делай ставки', copy: 'Скажи, сколько слов по теме ты сможешь назвать.' },
+    { symbol: '↗', title: 'Блефуй или проверяй', copy: 'Повышай ставку или предложи сопернику доказать её.' },
+    { symbol: '❤️', title: 'Береги жизни', copy: 'Не подтвердил ставку — теряешь жизнь. Ошибочно проверил соперника — жизнь теряешь ты.' },
+  ]);
+
+  function renderAuctionTutorial() {
+    const step = AUCTION_TUTORIAL_STEPS[auctionTutorialStep];
+    $('auction-tutorial-symbol').textContent = step.symbol;
+    $('auction-tutorial-step').textContent = `${auctionTutorialStep + 1} ИЗ ${AUCTION_TUTORIAL_STEPS.length}`;
+    $('auction-tutorial-title').textContent = step.title;
+    $('auction-tutorial-copy').textContent = step.copy;
+    $('auction-tutorial-next').textContent = auctionTutorialStep === AUCTION_TUTORIAL_STEPS.length - 1 ? 'Играть' : 'Дальше';
+    document.querySelectorAll('.auction-tutorial-dots i').forEach((dot, index) => dot.classList.toggle('is-active', index === auctionTutorialStep));
+  }
+
+  function setAuctionTutorialOpen(open) {
+    $('auction-tutorial-overlay').hidden = !open;
+    document.body.classList.toggle('is-auction-tutorial-open', open);
+    if (open) {
+      auctionTutorialStep = 0;
+      renderAuctionTutorial();
+    }
+  }
+
+  function openAuctionEntry() {
+    let completed = false;
+    try { completed = localStorage.getItem(AUCTION_TUTORIAL_KEY) === '1'; } catch { completed = false; }
+    if (completed) setGameLobbyOpen(true, 'auction');
+    else setAuctionTutorialOpen(true);
+  }
+
+  function auctionHearts(lives) {
+    const remaining = Math.max(0, Math.min(3, Number(lives) || 0));
+    return `${'❤️'.repeat(remaining)}${'🖤'.repeat(3 - remaining)}`;
+  }
+
+  function auctionPlayerProfile(player) {
+    if (!player) return null;
+    if (player.id === socialState?.me?.id) return socialState.me;
+    return socialPlayerById(player.id) ?? player;
+  }
+
+  function closeAuction({ forfeit = true } = {}) {
+    clearInterval(auctionClockTimer);
+    auctionClockTimer = 0;
+    if (auctionSocket) {
+      if (forfeit && ['auction', 'challenge', 'countdown', 'naming'].includes(auctionSnapshot?.phase) && auctionSocket.readyState === WebSocket.OPEN) {
+        auctionSocket.send(JSON.stringify({ type: 'leave' }));
+      }
+      auctionSocket.close(1000, 'Screen closed');
+      auctionSocket = null;
+    }
+    auctionGameId = '';
+    auctionSnapshot = null;
+    $('auction-screen').hidden = true;
+    document.body.classList.remove('is-auction-open');
+    if (socialUpdatesEnabled) void loadSocialState({ quiet: true });
+  }
+
+  function setAuctionPhaseVisibility(phase) {
+    $('auction-bid-controls').hidden = phase !== 'auction';
+    $('auction-challenge-panel').hidden = phase !== 'challenge';
+    $('auction-countdown').hidden = phase !== 'countdown';
+    $('auction-word-panel').hidden = phase !== 'naming';
+    $('auction-result').hidden = phase !== 'result';
+    $('auction-finish').hidden = phase !== 'finished';
+    $('auction-message').hidden = ['countdown', 'naming', 'result', 'finished'].includes(phase);
+  }
+
+  function updateAuctionClock() {
+    const deadline = Number(auctionSnapshot?.deadline) || 0;
+    const duration = Number(auctionSnapshot?.phaseDurationMs) || 0;
+    const now = Date.now() + auctionClockOffset;
+    const remainingMs = deadline ? Math.max(0, deadline - now) : 0;
+    const seconds = deadline ? Math.max(0, Math.ceil(remainingMs / 1000)) : 0;
+    const ratio = duration ? Math.max(0, Math.min(1, remainingMs / duration)) : 0;
+    $('auction-timer-fill').style.width = `${ratio * 100}%`;
+    $('auction-timer-fill').classList.toggle('is-low', seconds <= 3 && ['auction', 'challenge'].includes(auctionSnapshot?.phase));
+    if (auctionSnapshot?.phase === 'countdown') $('auction-countdown').textContent = String(Math.max(1, seconds));
+    if (['auction', 'challenge'].includes(auctionSnapshot?.phase)) $('auction-timer-copy').textContent = `${seconds} сек`;
+    else if (auctionSnapshot?.phase === 'naming') $('auction-timer-copy').textContent = `Осталось ${seconds} сек`;
+    else if (auctionSnapshot?.phase === 'topic') $('auction-timer-copy').textContent = 'Следующая тема…';
+    else $('auction-timer-copy').textContent = '';
+  }
+
+  function renderAuctionPlayers(state) {
+    const meId = socialState?.me?.id ?? '';
+    state.players.forEach((player, index) => {
+      const suffix = index === 0 ? 'one' : 'two';
+      const card = $(`auction-player-${suffix}`);
+      const profile = auctionPlayerProfile(player);
+      $(`auction-player-${suffix}-name`).textContent = player.id === meId ? `${player.name} · вы` : player.name;
+      $(`auction-player-${suffix}-avatar`).src = avatarSource(profile?.avatarId);
+      $(`auction-player-${suffix}-lives`).textContent = auctionHearts(player.lives);
+      $(`auction-player-${suffix}-lives`).setAttribute('aria-label', `${player.lives} жизни`);
+      card.classList.toggle('is-turn', state.turnUserId === player.id);
+      const thinking = state.status === 'active' && state.turnUserId === player.id && player.id !== meId;
+      $(`auction-player-${suffix}-status`).textContent = thinking ? 'думает…' : (player.id === meId ? 'вы' : 'соперник');
+      const lostNow = state.phase === 'result' && state.lastResult?.loserId === player.id && auctionLastLoserId !== player.id;
+      card.classList.toggle('is-loser', lostNow);
+    });
+    if (state.phase === 'result') auctionLastLoserId = state.lastResult?.loserId ?? '';
+    else auctionLastLoserId = '';
+  }
+
+  function renderAuctionState(state) {
+    const previousBid = Number(auctionSnapshot?.bid) || 0;
+    const previousPhase = auctionSnapshot?.phase ?? '';
+    auctionSnapshot = state;
+    auctionClockOffset = Number(state.serverNow) - Date.now();
+    const meId = socialState?.me?.id ?? '';
+    const opponent = state.players.find((player) => player.id !== meId);
+    const leader = state.players.find((player) => player.id === state.leaderUserId);
+    const challenger = state.players.find((player) => player.id === state.challengerUserId);
+    const myTurn = state.status === 'active' && state.turnUserId === meId;
+    const iAmLeader = state.leaderUserId === meId;
+    renderAuctionPlayers(state);
+    if (state.phase === 'auction' && state.bid > 0 && state.bid !== previousBid) {
+      document.querySelector('.auction-stage')?.classList.add('is-new-bid');
+      window.setTimeout(() => document.querySelector('.auction-stage')?.classList.remove('is-new-bid'), 420);
+    }
+    $('auction-round').textContent = `РАУНД ${Math.max(1, state.roundNumber)}`;
+    if (state.topic) {
+      $('auction-topic-emoji').textContent = state.topic.emoji;
+      $('auction-topic-name').textContent = state.topic.name;
+    }
+    setAuctionPhaseVisibility(state.phase);
+    $('auction-status').textContent = '';
+    $('auction-status').removeAttribute('data-result');
+
+    if (state.phase === 'waiting') {
+      $('auction-message-kicker').textContent = 'ПОДГОТОВКА';
+      $('auction-message-title').textContent = 'Ждём второго игрока…';
+      $('auction-message-copy').textContent = 'Матч начнётся автоматически, когда друг откроет игру.';
+    } else if (state.phase === 'topic') {
+      $('auction-message-kicker').textContent = 'ТЕМА РАУНДА';
+      $('auction-message-title').textContent = `${state.topic?.emoji ?? ''} ${state.topic?.name ?? ''}`.trim();
+      $('auction-message-copy').textContent = 'Аукцион начнётся через пару секунд.';
+    } else if (state.phase === 'auction') {
+      const minimum = Math.max(3, Number(state.bid) + 1);
+      auctionBidValue = Math.max(minimum, auctionBidValue);
+      $('auction-bid-value').textContent = String(auctionBidValue);
+      $('auction-bid-submit').textContent = `Назову ${auctionBidValue}`;
+      $('auction-challenge').hidden = !state.leaderUserId;
+      $('auction-bid-controls').hidden = !myTurn;
+      $('auction-message').hidden = false;
+      $('auction-message-kicker').textContent = myTurn ? 'ТВОЙ ХОД' : 'ХОД СОПЕРНИКА';
+      $('auction-message-title').textContent = state.bid
+        ? `${leader?.name ?? 'Соперник'} заявил ${state.bid} слов`
+        : (myTurn ? 'Сколько назовёшь ты?' : `${opponent?.name ?? 'Друг'} делает первую ставку`);
+      $('auction-message-copy').textContent = myTurn ? 'Повышай ставку или проверяй соперника.' : 'Соперник думает…';
+    } else if (state.phase === 'challenge') {
+      $('auction-challenge-bid').textContent = String(state.bid);
+      $('auction-start-naming').hidden = !iAmLeader;
+      $('auction-challenge-panel').querySelector('span').textContent = iAmLeader
+        ? `${challenger?.name ?? 'Соперник'} бросает тебе вызов`
+        : `${leader?.name ?? 'Соперник'} готовится подтвердить ставку`;
+    } else if (state.phase === 'naming') {
+      $('auction-word-count').textContent = `${state.acceptedCount} / ${state.bid}`;
+      $('auction-word-input').disabled = !iAmLeader;
+      $('auction-word-submit').disabled = !iAmLeader;
+      $('auction-word-input').placeholder = iAmLeader ? 'Введите слово…' : `${leader?.name ?? 'Соперник'} называет слова…`;
+      const accepted = document.createDocumentFragment();
+      state.acceptedWords.forEach((word) => {
+        const chip = document.createElement('span');
+        chip.textContent = `✓ ${word}`;
+        accepted.append(chip);
+      });
+      $('auction-accepted-words').replaceChildren(accepted);
+      if (previousPhase === 'countdown') {
+        $('auction-status').textContent = 'Поехали!';
+        $('auction-status').dataset.result = 'success';
+      }
+      if (iAmLeader) requestAnimationFrame(() => $('auction-word-input').focus());
+    } else if (state.phase === 'result') {
+      const result = state.lastResult ?? {};
+      const roundWinner = state.players.find((player) => player.id === result.winnerId);
+      $('auction-result-symbol').textContent = result.successfulBid ? '🎉' : '❤️‍🩹';
+      $('auction-result-title').textContent = result.successfulBid
+        ? 'Ставка сыграла!'
+        : (result.reason === 'bid_failed' ? `Раунд за ${roundWinner?.name ?? 'соперником'}` : 'Время вышло');
+      $('auction-result-copy').textContent = result.target
+        ? `${result.acceptedCount ?? 0} / ${result.target} слов`
+        : `${roundWinner?.name ?? 'Соперник'} выигрывает раунд`;
+    } else if (state.phase === 'finished') {
+      const won = state.winnerId === meId;
+      $('auction-finish-title').textContent = won ? 'Ты победил!' : `${opponent?.name ?? 'Соперник'} победил`;
+      $('auction-stat-best').textContent = `${state.stats.bestRound} слов`;
+      $('auction-stat-correct').textContent = String(state.stats.correctWords);
+      $('auction-stat-bid').textContent = String(state.stats.maxBid);
+      $('auction-stat-rounds').textContent = String(state.stats.roundsPlayed);
+      void loadSocialState({ quiet: true });
+    }
+    updateAuctionClock();
+  }
+
+  async function openAuction(gameId, opponent = null) {
+    try {
+      if (auctionSocket) auctionSocket.close(1000, 'Opening another game');
+      clearInterval(auctionClockTimer);
+      auctionGameId = gameId;
+      auctionSnapshot = null;
+      auctionBidValue = 3;
+      auctionLastLoserId = '';
+      $('auction-status').textContent = 'Подключаемся к игре…';
+      $('auction-status').removeAttribute('data-result');
+      $('auction-word-input').value = '';
+      if (opponent) {
+        $('auction-player-two-name').textContent = opponent.name;
+        $('auction-player-two-avatar').src = avatarSource(opponent.avatarId);
+      }
+      $('auction-screen').hidden = false;
+      document.body.classList.add('is-auction-open');
+      const connection = await socialPost(`/api/games/${encodeURIComponent(gameId)}/connect`);
+      if (auctionGameId !== gameId) return;
+      const socket = new WebSocket(connection.websocketUrl);
+      auctionSocket = socket;
+      socket.addEventListener('open', () => {
+        $('auction-status').textContent = 'Соединение установлено';
+        auctionClockTimer = window.setInterval(updateAuctionClock, 200);
+      });
+      socket.addEventListener('message', (event) => {
+        let message;
+        try { message = JSON.parse(event.data); } catch { return; }
+        if (message.type === 'state') renderAuctionState(message);
+        else if (message.type === 'error') {
+          $('auction-status').textContent = message.message;
+          $('auction-status').dataset.result = 'error';
+        }
+      });
+      socket.addEventListener('close', () => {
+        clearInterval(auctionClockTimer);
+        if (auctionSocket === socket) auctionSocket = null;
+        if (auctionSnapshot?.status !== 'finished' && auctionGameId === gameId) {
+          $('auction-status').textContent = 'Соединение прервано. Откройте матч снова.';
+          $('auction-status').dataset.result = 'error';
+        }
+      });
+      socket.addEventListener('error', () => {
+        $('auction-status').textContent = 'Не удалось подключиться к аукциону.';
+        $('auction-status').dataset.result = 'error';
+      });
+    } catch (error) {
+      $('auction-status').textContent = error.message || 'Не удалось открыть аукцион.';
+      $('auction-status').dataset.result = 'error';
+    }
+  }
+
+  async function openSocialGame(gameId, opponent, gameType = 'word_chain') {
+    if (gameType === 'auction') await openAuction(gameId, opponent);
+    else await openWordChain(gameId, opponent);
   }
 
   async function acceptPendingFriendInvite() {
@@ -2085,7 +2388,7 @@
     activeTab = tab;
     document.body.classList.toggle('is-home', tab === 'home');
     document.body.classList.toggle('is-profile', tab === 'profile');
-    const headerColor = '#f6f8fc';
+    const headerColor = '#f7f9ff';
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', headerColor);
     window.Telegram?.WebApp?.setHeaderColor?.(headerColor);
     document.querySelector('.bottom-nav').dataset.active = tab;
@@ -3290,8 +3593,22 @@
     }
   });
   $('word-chain-start').addEventListener('click', () => setWordChainLobbyOpen(true));
+  $('auction-start').addEventListener('click', openAuctionEntry);
+  document.querySelectorAll('[data-auction-tutorial-close]').forEach((button) => {
+    button.addEventListener('click', () => setAuctionTutorialOpen(false));
+  });
+  $('auction-tutorial-next').addEventListener('click', () => {
+    if (auctionTutorialStep < AUCTION_TUTORIAL_STEPS.length - 1) {
+      auctionTutorialStep += 1;
+      renderAuctionTutorial();
+      return;
+    }
+    try { localStorage.setItem(AUCTION_TUTORIAL_KEY, '1'); } catch { /* Tutorial may repeat when storage is unavailable. */ }
+    setAuctionTutorialOpen(false);
+    setGameLobbyOpen(true, 'auction');
+  });
   document.querySelectorAll('[data-word-chain-lobby-close]').forEach((button) => {
-    button.addEventListener('click', () => setWordChainLobbyOpen(false));
+    button.addEventListener('click', () => setGameLobbyOpen(false));
   });
   $('word-chain-open-friends').addEventListener('click', () => {
     setWordChainLobbyOpen(false);
@@ -3303,19 +3620,20 @@
     button.disabled = true;
     try {
       if (button.dataset.friendAction === 'lobby-invite-game') {
+        const gameType = button.dataset.gameType || gameLobbyType;
         const result = await updateFriendship(
           '/api/games/invite',
-          { friendId: button.dataset.userId },
+          { friendId: button.dataset.userId, gameType },
           'Приглашение в игру отправлено',
         );
         if (result) {
-          savePendingGameFriendId(button.dataset.userId);
-          setWordChainLobbyOpen(false);
+          savePendingGameFriendId(button.dataset.userId, gameType);
+          setGameLobbyOpen(false);
         }
       } else if (button.dataset.friendAction === 'lobby-open-game') {
         const opponent = socialPlayerById(button.dataset.opponentId);
-        setWordChainLobbyOpen(false);
-        await openWordChain(button.dataset.gameId, opponent);
+        setGameLobbyOpen(false);
+        await openSocialGame(button.dataset.gameId, opponent, button.dataset.gameType || gameLobbyType);
       }
     } finally {
       if (button.isConnected) button.disabled = false;
@@ -3325,6 +3643,7 @@
     const push = $('game-invite-push');
     const button = $('game-invite-push-accept');
     const opponent = socialPlayerById(push.dataset.opponentId);
+    const gameType = push.dataset.gameType || 'word_chain';
     button.disabled = true;
     try {
       if (push.dataset.mode === 'invite') {
@@ -3334,12 +3653,12 @@
           'Игра создана',
         );
         hideGameInvitePush();
-        if (result?.gameId) await openWordChain(result.gameId, opponent);
+        if (result?.gameId) await openSocialGame(result.gameId, opponent, result.gameType || gameType);
       } else if (push.dataset.mode === 'ready') {
         const gameId = push.dataset.gameId;
         savePendingGameFriendId();
         hideGameInvitePush();
-        await openWordChain(gameId, opponent);
+        await openSocialGame(gameId, opponent, gameType);
       }
     } finally {
       button.disabled = false;
@@ -3374,11 +3693,63 @@
     $('word-chain-status').textContent = '';
     $('word-chain-status').removeAttribute('data-result');
   });
+  $('auction-close').addEventListener('click', () => closeAuction());
+  $('auction-exit').addEventListener('click', () => closeAuction({ forfeit: false }));
+  $('auction-bid-minus').addEventListener('click', () => {
+    const minimum = Math.max(3, Number(auctionSnapshot?.bid) + 1);
+    auctionBidValue = Math.max(minimum, auctionBidValue - 1);
+    $('auction-bid-value').textContent = String(auctionBidValue);
+    $('auction-bid-submit').textContent = `Назову ${auctionBidValue}`;
+  });
+  $('auction-bid-plus').addEventListener('click', () => {
+    auctionBidValue = Math.min(30, auctionBidValue + 1);
+    $('auction-bid-value').textContent = String(auctionBidValue);
+    $('auction-bid-submit').textContent = `Назову ${auctionBidValue}`;
+  });
+  $('auction-bid-submit').addEventListener('click', () => {
+    if (auctionSocket?.readyState !== WebSocket.OPEN) return;
+    auctionSocket.send(JSON.stringify({ type: 'bid', amount: auctionBidValue }));
+  });
+  $('auction-challenge').addEventListener('click', () => {
+    if (auctionSocket?.readyState !== WebSocket.OPEN) return;
+    auctionSocket.send(JSON.stringify({ type: 'challenge' }));
+  });
+  $('auction-start-naming').addEventListener('click', () => {
+    if (auctionSocket?.readyState !== WebSocket.OPEN) return;
+    auctionSocket.send(JSON.stringify({ type: 'start' }));
+  });
+  $('auction-word-form').addEventListener('submit', (event) => {
+    event.preventDefault();
+    const word = $('auction-word-input').value.trim();
+    if (!word || auctionSocket?.readyState !== WebSocket.OPEN) return;
+    auctionSocket.send(JSON.stringify({ type: 'word', word }));
+    $('auction-word-input').value = '';
+    $('auction-status').textContent = '';
+    $('auction-status').removeAttribute('data-result');
+  });
+  $('auction-rematch').addEventListener('click', async () => {
+    const button = $('auction-rematch');
+    if (!auctionGameId) return;
+    button.disabled = true;
+    try {
+      await socialPost('/api/games/rematch', { gameId: auctionGameId });
+      showToast('Приглашение на реванш отправлено');
+      closeAuction({ forfeit: false });
+    } catch (error) {
+      $('auction-status').textContent = error.message || 'Не удалось отправить реванш';
+      $('auction-status').dataset.result = 'error';
+    } finally {
+      button.disabled = false;
+    }
+  });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       stopActiveAudio();
       commitAppUsage();
       markSocialOffline();
+      if (auctionSocket?.readyState === WebSocket.OPEN && ['auction', 'challenge', 'countdown', 'naming'].includes(auctionSnapshot?.phase)) {
+        auctionSocket.send(JSON.stringify({ type: 'leave' }));
+      }
       return;
     }
     appVisibleStartedAt = Date.now();
@@ -3394,6 +3765,9 @@
   window.addEventListener('pagehide', () => {
     commitAppUsage();
     markSocialOffline();
+    if (auctionSocket?.readyState === WebSocket.OPEN && ['auction', 'challenge', 'countdown', 'naming'].includes(auctionSnapshot?.phase)) {
+      auctionSocket.send(JSON.stringify({ type: 'leave' }));
+    }
   });
 
   $('add-form').addEventListener('submit', (event) => {
@@ -3559,8 +3933,8 @@
     webApp.expand();
     if (webApp.isVersionAtLeast?.('8.0') && !webApp.isFullscreen) webApp.requestFullscreen?.();
     if (webApp.isVersionAtLeast?.('7.7')) webApp.disableVerticalSwipes?.();
-    webApp.setHeaderColor?.('#f6f8fc');
-    webApp.setBackgroundColor?.('#f6f8fc');
+    webApp.setHeaderColor?.('#f7f9ff');
+    webApp.setBackgroundColor?.('#f7f9ff');
     syncTelegramSafeArea();
     requestAnimationFrame(syncTelegramSafeArea);
     setTimeout(syncTelegramSafeArea, 300);

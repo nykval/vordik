@@ -3,14 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-    <meta name="theme-color" content="#f6f8fc" />
+    <meta name="theme-color" content="#f7f9ff" />
     <meta name="vordik-api-base" content="https://vordik-ratings-api.skorokirzhaboy.workers.dev" />
     <meta name="description" content="Вордик — личный словарь английских слов и тренировка с карточками." />
     <title>Вордик — учить слова</title>
     <link rel="icon" href="./favicon.png" type="image/png" />
     <link rel="apple-touch-icon" href="./favicon.png" />
     <link rel="manifest" href="./site.webmanifest" />
-    <link rel="stylesheet" href="./styles.css?v=app-palette-53" />
+    <link rel="stylesheet" href="./design-system/colors.css?v=auction-55" />
+    <link rel="stylesheet" href="./styles.css?v=auction-55" />
   </head>
   <body class="is-home">
     <div class="app-shell">
@@ -200,6 +201,16 @@
               </button>
               <button id="puzzle-start" class="study-method study-method-cover" type="button" data-study="puzzle" aria-label="Пазлы: соединить три слова с переводами">
                 <img src="./icons/puzzle-cover.png?v=1" alt="" width="3888" height="1264" draggable="false" />
+              </button>
+              <button id="auction-start" class="study-method auction-launch" type="button" aria-label="Словарный аукцион: пригласить друга">
+                <span class="auction-launch-copy">
+                  <strong>Словарный аукцион</strong>
+                  <small>Ставь слова и проверяй соперника</small>
+                </span>
+                <span class="auction-launch-art" aria-hidden="true">
+                  <span class="auction-launch-gavel">●</span>
+                  <span class="auction-launch-bid">8</span>
+                </span>
               </button>
               <button id="word-chain-start" class="study-method word-chain-launch" type="button" aria-label="Цепочка слов: пригласить друга">
                 <span class="word-chain-launch-copy">
@@ -497,6 +508,19 @@
           </section>
         </div>
 
+        <div id="auction-tutorial-overlay" class="auction-tutorial-overlay" hidden>
+          <button class="auction-tutorial-backdrop" type="button" data-auction-tutorial-close tabindex="-1" aria-label="Закрыть обучение"></button>
+          <section class="auction-tutorial" role="dialog" aria-modal="true" aria-labelledby="auction-tutorial-title">
+            <button class="auction-tutorial-close" type="button" data-auction-tutorial-close aria-label="Закрыть"><img src="./icons/close.svg" alt="" aria-hidden="true" /></button>
+            <div class="auction-tutorial-visual" aria-hidden="true"><span id="auction-tutorial-symbol">3</span></div>
+            <span id="auction-tutorial-step" class="auction-tutorial-step">1 ИЗ 3</span>
+            <h2 id="auction-tutorial-title">Делай ставки</h2>
+            <p id="auction-tutorial-copy">Скажи, сколько слов по теме ты сможешь назвать.</p>
+            <div class="auction-tutorial-dots" aria-hidden="true"><i class="is-active"></i><i></i><i></i></div>
+            <button id="auction-tutorial-next" class="primary-button" type="button">Дальше</button>
+          </section>
+        </div>
+
         <aside id="game-invite-push" class="game-invite-push" aria-live="polite" hidden>
           <span class="game-invite-push-avatar"><img id="game-invite-push-avatar" src="./icons/avatars-pack/avatar-blond-green.png?v=2" alt="" /></span>
           <span class="game-invite-push-copy">
@@ -538,6 +562,101 @@
               <button id="word-chain-submit" type="submit" disabled>Ход</button>
             </form>
             <p id="word-chain-status" class="word-chain-status" role="status" aria-live="polite"></p>
+          </section>
+        </div>
+
+        <div id="auction-screen" class="auction-screen" hidden>
+          <section class="auction-shell" aria-labelledby="auction-title">
+            <header class="auction-header">
+              <div>
+                <span>ИГРА С ДРУГОМ</span>
+                <h2 id="auction-title">Словарный аукцион</h2>
+              </div>
+              <button id="auction-close" type="button" aria-label="Закрыть игру"><img src="./icons/close.svg" alt="" aria-hidden="true" /></button>
+            </header>
+
+            <div class="auction-players">
+              <article id="auction-player-one" class="auction-player">
+                <img id="auction-player-one-avatar" src="./icons/avatars-pack/avatar-blond-green.png?v=2" alt="" />
+                <span><strong id="auction-player-one-name">Игрок 1</strong><small id="auction-player-one-status">готов</small></span>
+                <span id="auction-player-one-lives" class="auction-lives" aria-label="3 жизни">❤️❤️❤️</span>
+              </article>
+              <article id="auction-player-two" class="auction-player">
+                <img id="auction-player-two-avatar" src="./icons/avatars-pack/avatar-bob-blue.png?v=2" alt="" />
+                <span><strong id="auction-player-two-name">Игрок 2</strong><small id="auction-player-two-status">готов</small></span>
+                <span id="auction-player-two-lives" class="auction-lives" aria-label="3 жизни">❤️❤️❤️</span>
+              </article>
+            </div>
+
+            <div class="auction-stage">
+              <div class="auction-stage-topline">
+                <span id="auction-round">РАУНД 1</span>
+                <span id="auction-timer-copy">Ждём соперника…</span>
+              </div>
+              <div class="auction-timer-track" aria-hidden="true"><span id="auction-timer-fill"></span></div>
+
+              <div class="auction-topic">
+                <span id="auction-topic-emoji" aria-hidden="true">✈️</span>
+                <small>ТЕМА РАУНДА</small>
+                <strong id="auction-topic-name">Путешествия</strong>
+              </div>
+
+              <div id="auction-message" class="auction-message">
+                <span id="auction-message-kicker">ПОДГОТОВКА</span>
+                <strong id="auction-message-title">Ждём второго игрока…</strong>
+                <p id="auction-message-copy"></p>
+              </div>
+
+              <div id="auction-bid-controls" class="auction-bid-controls" hidden>
+                <span>Сколько слов ты сможешь назвать?</span>
+                <div class="auction-bid-stepper">
+                  <button id="auction-bid-minus" type="button" aria-label="Уменьшить ставку">−</button>
+                  <strong id="auction-bid-value">3</strong>
+                  <button id="auction-bid-plus" type="button" aria-label="Увеличить ставку">+</button>
+                </div>
+                <button id="auction-bid-submit" class="primary-button" type="button">Назову 3</button>
+                <button id="auction-challenge" class="auction-challenge-button" type="button" hidden>Проверим!</button>
+              </div>
+
+              <div id="auction-challenge-panel" class="auction-challenge-panel" hidden>
+                <span>Тебе бросили вызов</span>
+                <strong><b id="auction-challenge-bid">8</b> слов</strong>
+                <button id="auction-start-naming" class="primary-button" type="button">Начать</button>
+              </div>
+
+              <div id="auction-countdown" class="auction-countdown" aria-live="assertive" hidden>3</div>
+
+              <div id="auction-word-panel" class="auction-word-panel" hidden>
+                <div class="auction-word-progress"><strong id="auction-word-count">0 / 8</strong><span>правильных слов</span></div>
+                <form id="auction-word-form" autocomplete="off">
+                  <label class="visually-hidden" for="auction-word-input">Введите английское слово</label>
+                  <input id="auction-word-input" type="text" lang="en" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="Введите слово…" maxlength="60" />
+                  <button id="auction-word-submit" type="submit">Добавить</button>
+                </form>
+                <div id="auction-accepted-words" class="auction-accepted-words" aria-label="Засчитанные слова"></div>
+              </div>
+
+              <div id="auction-result" class="auction-result" hidden>
+                <span id="auction-result-symbol" aria-hidden="true">🎉</span>
+                <strong id="auction-result-title">Ставка сыграла!</strong>
+                <p id="auction-result-copy">8 / 8 слов</p>
+              </div>
+
+              <div id="auction-finish" class="auction-finish" hidden>
+                <span aria-hidden="true">🏆</span>
+                <strong id="auction-finish-title">Ты победил!</strong>
+                <dl>
+                  <div><dt>Лучший раунд</dt><dd id="auction-stat-best">0 слов</dd></div>
+                  <div><dt>Правильных слов</dt><dd id="auction-stat-correct">0</dd></div>
+                  <div><dt>Максимальная ставка</dt><dd id="auction-stat-bid">0</dd></div>
+                  <div><dt>Раундов сыграно</dt><dd id="auction-stat-rounds">0</dd></div>
+                </dl>
+                <button id="auction-rematch" class="primary-button" type="button">Реванш</button>
+                <button id="auction-exit" class="secondary-button" type="button">Выйти</button>
+              </div>
+
+              <p id="auction-status" class="auction-status" role="status" aria-live="polite"></p>
+            </div>
           </section>
         </div>
 
@@ -608,7 +727,7 @@
     <script src="./audio-manifest.js?v=common-audio-39" defer></script>
     <script src="./collections.js?v=common-dictionary-32" defer></script>
     <script src="./quick-pick-words.js?v=common-dictionary-32" defer></script>
-    <script src="./app.js?v=app-palette-53" defer></script>
+    <script src="./app.js?v=auction-55" defer></script>
     <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
   </body>
 </html>

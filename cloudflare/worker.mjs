@@ -1,4 +1,5 @@
 export { WordChainGame } from './word-chain-game.mjs';
+export { AuctionGame } from './auction-game.mjs';
 
 const MAX_BODY_BYTES = 16 * 1024;
 const MAX_RATING_SCORE = 10_000_000;
@@ -113,7 +114,11 @@ function isRecentlyActive(updatedAt, now = Date.now()) {
   return timestamp > 0 && now - timestamp >= 0 && now - timestamp <= 10_000;
 }
 
-async function sendGameInviteMessage(env, invitee, inviterName, inviteId) {
+function gameTitle(gameType) {
+  return gameType === 'auction' ? 'Словарный аукцион' : 'Цепочка слов';
+}
+
+async function sendGameInviteMessage(env, invitee, inviterName, inviteId, gameType = 'word_chain') {
   const chatId = telegramChatId(invitee?.user_id);
   const botToken = String(env.BOT_TOKEN ?? '').trim();
   const botUsername = String(env.TELEGRAM_BOT_USERNAME ?? '').trim().replace(/^@/, '');
@@ -125,7 +130,9 @@ async function sendGameInviteMessage(env, invitee, inviterName, inviteId) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         chat_id: chatId,
-        text: `🎮 ${cleanName(inviterName)} приглашает вас сыграть в «Цепочку слов».\n\nНа каждый ход даётся 15 секунд.`,
+        text: gameType === 'auction'
+          ? `🎮 ${cleanName(inviterName)} приглашает вас сыграть в «Словарный аукцион».\n\nДелайте ставки, проверяйте соперника и берегите три жизни.`
+          : `🎮 ${cleanName(inviterName)} приглашает вас сыграть в «Цепочку слов».\n\nНа каждый ход даётся 15 секунд.`,
         reply_markup: {
           inline_keyboard: [[{ text: 'Открыть приглашение', url: gameUrl }]],
         },
@@ -375,7 +382,7 @@ async function authenticateSocialRequest(request, env) {
 }
 
 async function socialState(database, identity, profile, request, env) {
-  const [friendsResult, incomingResult, outgoingResult, gameInvitesResult, gamesResult] = await Promise.all([
+  const [friendsResult, incomingResult, outgoingResult, gameInvitesResult, gamesResult, auctionScoresResult] = await Promise.all([
     database.prepare(`
       SELECT r.user_id, r.name, r.avatar_id, r.avatar_customized, f.created_at
       FROM friendships AS f
@@ -398,14 +405,15 @@ async function socialState(database, identity, profile, request, env) {
       ORDER BY fr.created_at DESC
     `).bind(identity.id).all(),
     database.prepare(`
-      SELECT gi.id, gi.created_at, r.user_id, r.name, r.avatar_id, r.avatar_customized
+      SELECT gi.id, gi.game_type, gi.created_at, r.user_id, r.name, r.avatar_id, r.avatar_customized
       FROM game_invites AS gi
       JOIN ratings AS r ON r.user_id = gi.inviter_id
       WHERE gi.invitee_id = ? AND gi.status = 'pending'
       ORDER BY gi.created_at DESC
     `).bind(identity.id).all(),
     database.prepare(`
-      SELECT g.id, g.status, g.winner_id, g.finish_reason, g.created_at,
+      SELECT g.id, g.game_type, g.status, g.winner_id, g.finish_reason, g.created_at,
+             g.rounds_played, g.correct_words, g.max_bid, g.best_round,
              r.user_id, r.name, r.avatar_id, r.avatar_customized
       FROM games AS g
       JOIN ratings AS r ON r.user_id = CASE WHEN g.player_one_id = ? THEN g.player_two_id ELSE g.player_one_id END
@@ -413,7 +421,22 @@ async function socialState(database, identity, profile, request, env) {
       ORDER BY g.created_at DESC
       LIMIT 12
     `).bind(identity.id, identity.id, identity.id).all(),
+    database.prepare(`
+      SELECT opponent_id,
+             SUM(CASE WHEN winner_id = ? THEN 1 ELSE 0 END) AS my_wins,
+             SUM(CASE WHEN winner_id IS NOT NULL AND winner_id <> ? THEN 1 ELSE 0 END) AS opponent_wins
+      FROM (
+        SELECT CASE WHEN player_one_id = ? THEN player_two_id ELSE player_one_id END AS opponent_id, winner_id
+        FROM games
+        WHERE game_type = 'auction' AND status = 'finished' AND (player_one_id = ? OR player_two_id = ?)
+      )
+      GROUP BY opponent_id
+    `).bind(identity.id, identity.id, identity.id, identity.id, identity.id).all(),
   ]);
+  const auctionScores = new Map(auctionScoresResult.results.map((row) => [row.opponent_id, {
+    myWins: Number(row.my_wins) || 0,
+    opponentWins: Number(row.opponent_wins) || 0,
+  }]));
   const appUrl = String(env.PUBLIC_APP_URL ?? '').trim().replace(/\/$/, '') || new URL(request.url).origin;
   const botUsername = String(env.TELEGRAM_BOT_USERNAME ?? '').trim().replace(/^@/, '');
   const inviteStartParam = `friend_${profile.friend_invite_token}`;
@@ -426,20 +449,33 @@ async function socialState(database, identity, profile, request, env) {
       friendCode: `#${profile.friend_code}`,
       inviteUrl,
     },
-    friends: friendsResult.results.map((row) => ({ ...socialPlayer(row), friendsSince: row.created_at })),
+    friends: friendsResult.results.map((row) => ({
+      ...socialPlayer(row),
+      friendsSince: row.created_at,
+      auctionScore: auctionScores.get(row.user_id) ?? { myWins: 0, opponentWins: 0 },
+    })),
     incomingRequests: incomingResult.results.map((row) => ({ ...socialPlayer(row), createdAt: row.created_at })),
     outgoingRequests: outgoingResult.results.map((row) => ({ ...socialPlayer(row), createdAt: row.created_at })),
     gameInvites: gameInvitesResult.results.map((row) => ({
       id: row.id,
+      gameType: row.game_type || 'word_chain',
       from: socialPlayer(row),
       createdAt: row.created_at,
     })),
     games: gamesResult.results.map((row) => ({
       id: row.id,
+      gameType: row.game_type || 'word_chain',
       status: row.status,
       winnerId: row.winner_id,
       finishReason: row.finish_reason,
       createdAt: row.created_at,
+      stats: {
+        roundsPlayed: Number(row.rounds_played) || 0,
+        correctWords: Number(row.correct_words) || 0,
+        maxBid: Number(row.max_bid) || 0,
+        bestRound: Number(row.best_round) || 0,
+      },
+      score: auctionScores.get(row.user_id) ?? { myWins: 0, opponentWins: 0 },
       opponent: socialPlayer(row),
     })),
   };
@@ -456,8 +492,7 @@ async function createFriendship(database, leftId, rightId) {
   ]);
 }
 
-async function connectToWordChain(request, env, url) {
-  if (!env.WORD_CHAIN_GAMES) throw httpError('Игровые комнаты не подключены', 503);
+async function connectToGame(request, env, url) {
   if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') {
     throw httpError('Ожидается WebSocket-подключение', 426);
   }
@@ -475,7 +510,7 @@ async function connectToWordChain(request, env, url) {
   if (Number(deletion.meta?.changes ?? 0) !== 1) throw httpError('Ссылка на игру уже использована', 401);
 
   const game = await env.DB.prepare(`
-    SELECT g.id, g.player_one_id, g.player_two_id, p1.name AS player_one_name, p2.name AS player_two_name
+    SELECT g.id, g.game_type, g.player_one_id, g.player_two_id, p1.name AS player_one_name, p2.name AS player_two_name
     FROM games AS g
     JOIN ratings AS p1 ON p1.user_id = g.player_one_id
     JOIN ratings AS p2 ON p2.user_id = g.player_two_id
@@ -485,8 +520,11 @@ async function connectToWordChain(request, env, url) {
     throw httpError('Игра не найдена', 404);
   }
 
-  const durableId = env.WORD_CHAIN_GAMES.idFromName(gameId);
-  const room = env.WORD_CHAIN_GAMES.get(durableId);
+  const gameType = game.game_type || 'word_chain';
+  const binding = gameType === 'auction' ? env.AUCTION_GAMES : env.WORD_CHAIN_GAMES;
+  if (!binding) throw httpError('Игровые комнаты не подключены', 503);
+  const durableId = binding.idFromName(gameId);
+  const room = binding.get(durableId);
   await room.initialize({
     gameId,
     playerOne: { id: game.player_one_id, name: game.player_one_name },
@@ -527,7 +565,7 @@ async function handleApi(request, env, context) {
   if (!env.DB) throw httpError('База рейтинга не подключена', 500);
 
   if (/^\/api\/games\/[a-f\d-]{20,80}\/ws$/i.test(url.pathname) && request.method === 'GET') {
-    return connectToWordChain(request, env, url);
+    return connectToGame(request, env, url);
   }
 
   if (url.pathname === '/api/health' && request.method === 'GET') {
@@ -634,27 +672,30 @@ async function handleApi(request, env, context) {
   if (url.pathname === '/api/games/invite' && request.method === 'POST') {
     const { payload, identity } = await authenticateSocialRequest(request, env);
     const friendId = String(payload.friendId ?? '');
+    const gameType = String(payload.gameType ?? 'word_chain');
+    if (!['word_chain', 'auction'].includes(gameType)) throw httpError('Неизвестная игровая механика', 400);
     const [userA, userB] = friendshipPair(identity.id, friendId);
     const friendship = await env.DB.prepare('SELECT 1 AS found FROM friendships WHERE user_a = ? AND user_b = ?')
       .bind(userA, userB).first();
     if (!friendship) throw httpError('Играть можно только с другом', 403);
     const existing = await env.DB.prepare(`
       SELECT id FROM game_invites
-      WHERE status = 'pending' AND ((inviter_id = ? AND invitee_id = ?) OR (inviter_id = ? AND invitee_id = ?))
+      WHERE status = 'pending' AND game_type = ?
+        AND ((inviter_id = ? AND invitee_id = ?) OR (inviter_id = ? AND invitee_id = ?))
       LIMIT 1
-    `).bind(identity.id, friendId, friendId, identity.id).first();
+    `).bind(gameType, identity.id, friendId, friendId, identity.id).first();
     if (existing) throw httpError('Между вами уже есть приглашение в игру', 409);
     const inviteId = crypto.randomUUID();
     await env.DB.prepare(`
-      INSERT INTO game_invites (id, inviter_id, invitee_id) VALUES (?, ?, ?)
-    `).bind(inviteId, identity.id, friendId).run();
+      INSERT INTO game_invites (id, inviter_id, invitee_id, game_type) VALUES (?, ?, ?, ?)
+    `).bind(inviteId, identity.id, friendId, gameType).run();
     const invitee = await env.DB.prepare(`
       SELECT user_id, updated_at FROM ratings WHERE user_id = ?
     `).bind(friendId).first();
-    const notification = sendGameInviteMessage(env, invitee, identity.name, inviteId);
+    const notification = sendGameInviteMessage(env, invitee, identity.name, inviteId, gameType);
     if (context?.waitUntil) context.waitUntil(notification);
     else void notification;
-    return json({ ok: true, inviteId }, 200, headers);
+    return json({ ok: true, inviteId, gameType }, 200, headers);
   }
 
   if (url.pathname === '/api/games/respond' && request.method === 'POST') {
@@ -662,7 +703,7 @@ async function handleApi(request, env, context) {
     const inviteId = String(payload.inviteId ?? '');
     const action = String(payload.action ?? '');
     const invitation = await env.DB.prepare(`
-      SELECT id, inviter_id, invitee_id FROM game_invites
+      SELECT id, inviter_id, invitee_id, game_type FROM game_invites
       WHERE id = ? AND invitee_id = ? AND status = 'pending'
     `).bind(inviteId, identity.id).first();
     if (!invitation) throw httpError('Приглашение уже обработано', 404);
@@ -676,15 +717,40 @@ async function handleApi(request, env, context) {
     const gameId = crypto.randomUUID();
     await env.DB.batch([
       env.DB.prepare(`
-        INSERT INTO games (id, player_one_id, player_two_id) VALUES (?, ?, ?)
-      `).bind(gameId, invitation.inviter_id, invitation.invitee_id),
+        INSERT INTO games (id, player_one_id, player_two_id, game_type) VALUES (?, ?, ?, ?)
+      `).bind(gameId, invitation.inviter_id, invitation.invitee_id, invitation.game_type || 'word_chain'),
       env.DB.prepare(`
         UPDATE game_invites
         SET status = 'accepted', game_id = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ? AND status = 'pending'
       `).bind(gameId, inviteId),
     ]);
-    return json({ ok: true, gameId }, 200, headers);
+    return json({ ok: true, gameId, gameType: invitation.game_type || 'word_chain' }, 200, headers);
+  }
+
+  if (url.pathname === '/api/games/rematch' && request.method === 'POST') {
+    const { payload, identity } = await authenticateSocialRequest(request, env);
+    const previousGameId = String(payload.gameId ?? '');
+    const previous = await env.DB.prepare(`
+      SELECT id, game_type, player_one_id, player_two_id FROM games
+      WHERE id = ? AND status = 'finished' AND (player_one_id = ? OR player_two_id = ?)
+    `).bind(previousGameId, identity.id, identity.id).first();
+    if (!previous) throw httpError('Завершённый матч не найден', 404);
+    const friendId = previous.player_one_id === identity.id ? previous.player_two_id : previous.player_one_id;
+    const existing = await env.DB.prepare(`
+      SELECT id FROM game_invites WHERE status = 'pending' AND game_type = ?
+        AND ((inviter_id = ? AND invitee_id = ?) OR (inviter_id = ? AND invitee_id = ?)) LIMIT 1
+    `).bind(previous.game_type, identity.id, friendId, friendId, identity.id).first();
+    if (existing) return json({ ok: true, inviteId: existing.id, gameType: previous.game_type }, 200, headers);
+    const inviteId = crypto.randomUUID();
+    await env.DB.prepare(`
+      INSERT INTO game_invites (id, inviter_id, invitee_id, game_type) VALUES (?, ?, ?, ?)
+    `).bind(inviteId, identity.id, friendId, previous.game_type).run();
+    const invitee = await env.DB.prepare('SELECT user_id, updated_at FROM ratings WHERE user_id = ?').bind(friendId).first();
+    const notification = sendGameInviteMessage(env, invitee, identity.name, inviteId, previous.game_type);
+    if (context?.waitUntil) context.waitUntil(notification);
+    else void notification;
+    return json({ ok: true, inviteId, gameType: previous.game_type }, 200, headers);
   }
 
   const connectMatch = url.pathname.match(/^\/api\/games\/([a-f\d-]{20,80})\/connect$/i);
@@ -692,7 +758,7 @@ async function handleApi(request, env, context) {
     const { identity } = await authenticateSocialRequest(request, env);
     const gameId = connectMatch[1];
     const game = await env.DB.prepare(`
-      SELECT id FROM games
+      SELECT id, game_type FROM games
       WHERE id = ? AND status IN ('waiting', 'active') AND (player_one_id = ? OR player_two_id = ?)
     `).bind(gameId, identity.id, identity.id).first();
     if (!game) throw httpError('Активная игра не найдена', 404);
@@ -707,7 +773,7 @@ async function handleApi(request, env, context) {
     const websocketUrl = new URL(`/api/games/${encodeURIComponent(gameId)}/ws`, request.url);
     websocketUrl.protocol = websocketUrl.protocol === 'https:' ? 'wss:' : 'ws:';
     websocketUrl.searchParams.set('token', token);
-    return json({ websocketUrl: websocketUrl.toString() }, 200, headers);
+    return json({ websocketUrl: websocketUrl.toString(), gameType: game.game_type || 'word_chain' }, 200, headers);
   }
   return json({ error: 'API method not found' }, 404, headers);
 }

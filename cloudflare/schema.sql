@@ -44,9 +44,14 @@ CREATE TABLE IF NOT EXISTS games (
   id TEXT PRIMARY KEY,
   player_one_id TEXT NOT NULL,
   player_two_id TEXT NOT NULL,
+  game_type TEXT NOT NULL DEFAULT 'word_chain',
   status TEXT NOT NULL DEFAULT 'waiting' CHECK (status IN ('waiting', 'active', 'finished')),
   winner_id TEXT,
   finish_reason TEXT,
+  rounds_played INTEGER NOT NULL DEFAULT 0,
+  correct_words INTEGER NOT NULL DEFAULT 0,
+  max_bid INTEGER NOT NULL DEFAULT 0,
+  best_round INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   started_at TEXT,
   finished_at TEXT,
@@ -57,11 +62,13 @@ CREATE TABLE IF NOT EXISTS games (
 );
 CREATE INDEX IF NOT EXISTS games_player_one_idx ON games(player_one_id, status, created_at DESC);
 CREATE INDEX IF NOT EXISTS games_player_two_idx ON games(player_two_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS games_type_players_idx ON games(game_type, player_one_id, player_two_id, status, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS game_invites (
   id TEXT PRIMARY KEY,
   inviter_id TEXT NOT NULL,
   invitee_id TEXT NOT NULL,
+  game_type TEXT NOT NULL DEFAULT 'word_chain',
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected', 'cancelled')),
   game_id TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -72,6 +79,7 @@ CREATE TABLE IF NOT EXISTS game_invites (
   CHECK (inviter_id <> invitee_id)
 );
 CREATE INDEX IF NOT EXISTS game_invites_incoming_idx ON game_invites(invitee_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS game_invites_type_idx ON game_invites(game_type, invitee_id, status, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS game_connection_tokens (
   token_hash TEXT PRIMARY KEY,
