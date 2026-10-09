@@ -38,16 +38,16 @@ test('rating server stores users and orders the leaderboard', async () => {
     assert.deepEqual(await health.json(), { ok: true });
 
     const aliceResponse = await syncPlayer(baseUrl, {
-      guestId: 'alice-user-1', name: 'Алиса', avatarId: 'avatar-cat', score: 120, vocabularySize: 30,
+      guestId: 'alice-user-1', name: 'Алиса', avatarId: 'avatar-01-dark-hair', score: 120, vocabularySize: 30,
     });
     assert.equal(aliceResponse.status, 200);
     const alice = await aliceResponse.json();
     assert.equal(alice.player.rank, 1);
     assert.equal(alice.player.isMe, true);
-    assert.equal(alice.player.avatarId, 'avatar-cat');
+    assert.equal(alice.player.avatarId, 'avatar-01-dark-hair');
 
     const bobResponse = await syncPlayer(baseUrl, {
-      guestId: 'bob-user-0001', name: 'Борис', avatarId: 'avatar-dog', score: 250, vocabularySize: 20,
+      guestId: 'bob-user-0001', name: 'Борис', avatarId: 'avatar-02-curly-hair', score: 250, vocabularySize: 20,
     });
     assert.equal(bobResponse.status, 200);
     const bob = await bobResponse.json();
@@ -55,34 +55,34 @@ test('rating server stores users and orders the leaderboard', async () => {
     assert.deepEqual(bob.leaders.map((entry) => entry.name), ['Борис', 'Алиса']);
 
     const promotedResponse = await syncPlayer(baseUrl, {
-      guestId: 'alice-user-1', name: 'Алиса', avatarId: 'avatar-cat', score: 300, vocabularySize: 31,
+      guestId: 'alice-user-1', name: 'Алиса', avatarId: 'avatar-01-dark-hair', score: 300, vocabularySize: 31,
     });
     const promoted = await promotedResponse.json();
     assert.equal(promoted.player.rank, 1);
     assert.equal(promoted.totalPlayers, 2);
 
     const passiveDeviceResponse = await syncPlayer(baseUrl, {
-      guestId: 'alice-user-1', name: 'Алиса', avatarId: 'avatar-dog', avatarCustomized: false, score: 300, vocabularySize: 31,
+      guestId: 'alice-user-1', name: 'Алиса', avatarId: 'avatar-02-curly-hair', avatarCustomized: false, score: 300, vocabularySize: 31,
     });
     const passiveDevice = await passiveDeviceResponse.json();
-    assert.equal(passiveDevice.player.avatarId, 'avatar-cat');
+    assert.equal(passiveDevice.player.avatarId, 'avatar-01-dark-hair');
 
     const customizedResponse = await syncPlayer(baseUrl, {
-      guestId: 'alice-user-1', name: 'Алиса', avatarId: 'avatar-rabbit', avatarCustomized: true, score: 300, vocabularySize: 31,
+      guestId: 'alice-user-1', name: 'Алиса', avatarId: 'avatar-09-glasses', avatarCustomized: true, score: 300, vocabularySize: 31,
     });
     const customized = await customizedResponse.json();
-    assert.equal(customized.player.avatarId, 'avatar-rabbit');
+    assert.equal(customized.player.avatarId, 'avatar-09-glasses');
 
     const publicResponse = await fetch(`${baseUrl}/api/ratings?limit=1`);
     const publicRating = await publicResponse.json();
     assert.equal(publicRating.leaders.length, 1);
     assert.equal(publicRating.leaders[0].name, 'Алиса');
-    assert.equal(publicRating.leaders[0].avatarId, 'avatar-rabbit');
+    assert.equal(publicRating.leaders[0].avatarId, 'avatar-09-glasses');
     assert.equal('id' in publicRating.leaders[0], false);
 
     const stored = JSON.parse(await readFile(ratingsFile, 'utf8'));
     assert.equal(Object.keys(stored.users).length, 2);
-    assert.equal(stored.users['guest:alice-user-1'].avatarId, 'avatar-rabbit');
+    assert.equal(stored.users['guest:alice-user-1'].avatarId, 'avatar-09-glasses');
   });
 });
 

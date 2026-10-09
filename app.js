@@ -21,16 +21,20 @@
   const KNOWLEDGE_GAIN_BY_DIFFICULTY = Object.freeze([0, 2, 2, 1, 1, 1, 1]);
   const DAY_MS = 24 * 60 * 60 * 1000;
   const AVATAR_OPTIONS = Object.freeze([
-    { id: 'avatar-blond-green', label: 'Аватар 1', src: './icons/avatars-pack/avatar-blond-green.png?v=2' },
-    { id: 'avatar-bob-blue', label: 'Аватар 2', src: './icons/avatars-pack/avatar-bob-blue.png?v=2' },
-    { id: 'avatar-bun-pink', label: 'Аватар 3', src: './icons/avatars-pack/avatar-bun-pink.png?v=2' },
-    { id: 'avatar-cat', label: 'Аватар 4', src: './icons/avatars-pack/avatar-cat.png?v=2' },
-    { id: 'avatar-curly-yellow', label: 'Аватар 5', src: './icons/avatars-pack/avatar-curly-yellow.png?v=2' },
-    { id: 'avatar-dog', label: 'Аватар 6', src: './icons/avatars-pack/avatar-dog.png?v=2' },
-    { id: 'avatar-frog', label: 'Аватар 7', src: './icons/avatars-pack/avatar-frog.png?v=2' },
-    { id: 'avatar-panda', label: 'Аватар 8', src: './icons/avatars-pack/avatar-panda.png?v=2' },
-    { id: 'avatar-rabbit', label: 'Аватар 9', src: './icons/avatars-pack/avatar-rabbit.png?v=2' },
-    { id: 'avatar-short-hair-cyan', label: 'Аватар 10', src: './icons/avatars-pack/avatar-short-hair-cyan.png?v=2' },
+    { id: 'avatar-01-dark-hair', label: 'Тёмные волосы', src: './icons/avatars-pack/avatar-01-dark-hair.png?v=1' },
+    { id: 'avatar-02-curly-hair', label: 'Кудрявые волосы', src: './icons/avatars-pack/avatar-02-curly-hair.png?v=1' },
+    { id: 'avatar-03-silver-bun', label: 'Серебристый пучок', src: './icons/avatars-pack/avatar-03-silver-bun.png?v=1' },
+    { id: 'avatar-04-cap-and-beard', label: 'Кепка и борода', src: './icons/avatars-pack/avatar-04-cap-and-beard.png?v=1' },
+    { id: 'avatar-05-red-hair', label: 'Рыжие волосы', src: './icons/avatars-pack/avatar-05-red-hair.png?v=1' },
+    { id: 'avatar-06-afro', label: 'Афро', src: './icons/avatars-pack/avatar-06-afro.png?v=1' },
+    { id: 'avatar-07-silver-moustache', label: 'Серебристые усы', src: './icons/avatars-pack/avatar-07-silver-moustache.png?v=1' },
+    { id: 'avatar-08-ponytail', label: 'Высокий хвост', src: './icons/avatars-pack/avatar-08-ponytail.png?v=1' },
+    { id: 'avatar-09-glasses', label: 'Очки', src: './icons/avatars-pack/avatar-09-glasses.png?v=1' },
+    { id: 'avatar-10-bear', label: 'Медведь', src: './icons/avatars-pack/avatar-10-bear.png?v=1' },
+    { id: 'avatar-11-cat', label: 'Кот', src: './icons/avatars-pack/avatar-11-cat.png?v=1' },
+    { id: 'avatar-12-dog', label: 'Собака', src: './icons/avatars-pack/avatar-12-dog.png?v=1' },
+    { id: 'avatar-13-lion', label: 'Лев', src: './icons/avatars-pack/avatar-13-lion.png?v=1' },
+    { id: 'avatar-14-owl', label: 'Сова', src: './icons/avatars-pack/avatar-14-owl.png?v=1' },
   ]);
   const avatarById = new Map(AVATAR_OPTIONS.map((avatar) => [avatar.id, avatar]));
   const CEFR_DIFFICULTY = Object.freeze({ A1: 1, A2: 2, B1: 3, B2: 4, C1: 5, C2: 6 });
@@ -484,8 +488,8 @@
     const image = document.createElement('img');
     image.src = avatarSource(avatarId);
     image.alt = '';
-    image.width = 700;
-    image.height = 525;
+    image.width = 1024;
+    image.height = 1024;
     return image;
   }
 
@@ -1571,7 +1575,7 @@
     $('word-chain-lobby-title').textContent = gameTypeTitle(gameLobbyType);
     $('word-chain-lobby-overlay').querySelector('.word-chain-lobby-heading span').textContent = gameLobbyType === 'auction' ? 'СЛОВАРНЫЙ АУКЦИОН' : 'ЦЕПОЧКА СЛОВ';
     $('word-chain-lobby-overlay').querySelector('.word-chain-lobby > p').textContent = gameLobbyType === 'auction'
-      ? 'Выберите друга — вместе вы будете делать ставки и проверять знание слов.'
+      ? 'Выберите друга.'
       : 'Выберите друга — приглашение появится у него прямо в приложении.';
     $('word-chain-lobby-status').textContent = socialState ? '' : 'Загружаем друзей…';
     if (socialState) renderGameLobby(socialState);
@@ -1877,9 +1881,9 @@
   }
 
   const AUCTION_TUTORIAL_STEPS = Object.freeze([
-    { symbol: '3', title: 'Делай ставки', copy: 'Скажи, сколько слов по теме ты сможешь назвать.' },
-    { symbol: '↗', title: 'Блефуй или проверяй', copy: 'Повышай ставку или предложи сопернику доказать её.' },
-    { symbol: '❤️', title: 'Береги жизни', copy: 'Не подтвердил ставку — теряешь жизнь. Ошибочно проверил соперника — жизнь теряешь ты.' },
+    { symbol: '3', title: 'Ставь', copy: 'Назови число слов.' },
+    { symbol: '?', title: 'Проверяй', copy: 'Останови соперника.' },
+    { symbol: '♥', title: '3 жизни', copy: 'Ошибка забирает одну.' },
   ]);
 
   function renderAuctionTutorial() {
@@ -1910,7 +1914,7 @@
 
   function auctionHearts(lives) {
     const remaining = Math.max(0, Math.min(3, Number(lives) || 0));
-    return `${'❤️'.repeat(remaining)}${'🖤'.repeat(3 - remaining)}`;
+    return `${'♥'.repeat(remaining)}${'♡'.repeat(3 - remaining)}`;
   }
 
   function auctionPlayerProfile(player) {
@@ -1943,7 +1947,7 @@
     $('auction-word-panel').hidden = phase !== 'naming';
     $('auction-result').hidden = phase !== 'result';
     $('auction-finish').hidden = phase !== 'finished';
-    $('auction-message').hidden = ['countdown', 'naming', 'result', 'finished'].includes(phase);
+    $('auction-message').hidden = ['topic', 'countdown', 'naming', 'result', 'finished'].includes(phase);
   }
 
   function updateAuctionClock() {
@@ -1956,9 +1960,8 @@
     $('auction-timer-fill').style.width = `${ratio * 100}%`;
     $('auction-timer-fill').classList.toggle('is-low', seconds <= 3 && ['auction', 'challenge'].includes(auctionSnapshot?.phase));
     if (auctionSnapshot?.phase === 'countdown') $('auction-countdown').textContent = String(Math.max(1, seconds));
-    if (['auction', 'challenge'].includes(auctionSnapshot?.phase)) $('auction-timer-copy').textContent = `${seconds} сек`;
-    else if (auctionSnapshot?.phase === 'naming') $('auction-timer-copy').textContent = `Осталось ${seconds} сек`;
-    else if (auctionSnapshot?.phase === 'topic') $('auction-timer-copy').textContent = 'Следующая тема…';
+    if (['auction', 'challenge', 'naming'].includes(auctionSnapshot?.phase)) $('auction-timer-copy').textContent = `${seconds} сек`;
+    else if (auctionSnapshot?.phase === 'topic') $('auction-timer-copy').textContent = 'Тема';
     else $('auction-timer-copy').textContent = '';
   }
 
@@ -2008,37 +2011,35 @@
     $('auction-status').removeAttribute('data-result');
 
     if (state.phase === 'waiting') {
-      $('auction-message-kicker').textContent = 'ПОДГОТОВКА';
-      $('auction-message-title').textContent = 'Ждём второго игрока…';
-      $('auction-message-copy').textContent = 'Матч начнётся автоматически, когда друг откроет игру.';
+      $('auction-message-kicker').textContent = 'ОЖИДАНИЕ';
+      $('auction-message-title').textContent = 'Ждём друга';
+      $('auction-message-copy').textContent = '';
     } else if (state.phase === 'topic') {
-      $('auction-message-kicker').textContent = 'ТЕМА РАУНДА';
-      $('auction-message-title').textContent = `${state.topic?.emoji ?? ''} ${state.topic?.name ?? ''}`.trim();
-      $('auction-message-copy').textContent = 'Аукцион начнётся через пару секунд.';
+      $('auction-message-copy').textContent = '';
     } else if (state.phase === 'auction') {
       const minimum = Math.max(3, Number(state.bid) + 1);
       auctionBidValue = Math.max(minimum, auctionBidValue);
       $('auction-bid-value').textContent = String(auctionBidValue);
-      $('auction-bid-submit').textContent = `Назову ${auctionBidValue}`;
+      $('auction-bid-submit').textContent = `Ставка ${auctionBidValue}`;
       $('auction-challenge').hidden = !state.leaderUserId;
       $('auction-bid-controls').hidden = !myTurn;
       $('auction-message').hidden = false;
-      $('auction-message-kicker').textContent = myTurn ? 'ТВОЙ ХОД' : 'ХОД СОПЕРНИКА';
+      $('auction-message-kicker').textContent = myTurn ? 'ВАШ ХОД' : 'СОПЕРНИК';
       $('auction-message-title').textContent = state.bid
-        ? `${leader?.name ?? 'Соперник'} заявил ${state.bid} слов`
-        : (myTurn ? 'Сколько назовёшь ты?' : `${opponent?.name ?? 'Друг'} делает первую ставку`);
-      $('auction-message-copy').textContent = myTurn ? 'Повышай ставку или проверяй соперника.' : 'Соперник думает…';
+        ? `Ставка: ${state.bid}`
+        : (myTurn ? 'Сделай ставку' : 'Ждём ставку');
+      $('auction-message-copy').textContent = '';
     } else if (state.phase === 'challenge') {
       $('auction-challenge-bid').textContent = String(state.bid);
       $('auction-start-naming').hidden = !iAmLeader;
       $('auction-challenge-panel').querySelector('span').textContent = iAmLeader
-        ? `${challenger?.name ?? 'Соперник'} бросает тебе вызов`
-        : `${leader?.name ?? 'Соперник'} готовится подтвердить ставку`;
+        ? `${challenger?.name ?? 'Соперник'} проверяет`
+        : `${leader?.name ?? 'Соперник'} отвечает`;
     } else if (state.phase === 'naming') {
       $('auction-word-count').textContent = `${state.acceptedCount} / ${state.bid}`;
       $('auction-word-input').disabled = !iAmLeader;
       $('auction-word-submit').disabled = !iAmLeader;
-      $('auction-word-input').placeholder = iAmLeader ? 'Введите слово…' : `${leader?.name ?? 'Соперник'} называет слова…`;
+      $('auction-word-input').placeholder = iAmLeader ? 'Слово' : 'Ход соперника';
       const accepted = document.createDocumentFragment();
       state.acceptedWords.forEach((word) => {
         const chip = document.createElement('span');
@@ -2054,16 +2055,16 @@
     } else if (state.phase === 'result') {
       const result = state.lastResult ?? {};
       const roundWinner = state.players.find((player) => player.id === result.winnerId);
-      $('auction-result-symbol').textContent = result.successfulBid ? '🎉' : '❤️‍🩹';
+      $('auction-result-symbol').textContent = result.successfulBid ? '✓' : '×';
       $('auction-result-title').textContent = result.successfulBid
-        ? 'Ставка сыграла!'
-        : (result.reason === 'bid_failed' ? `Раунд за ${roundWinner?.name ?? 'соперником'}` : 'Время вышло');
+        ? 'Ставка принята'
+        : (result.reason === 'bid_failed' ? 'Ставка не сыграла' : 'Время вышло');
       $('auction-result-copy').textContent = result.target
         ? `${result.acceptedCount ?? 0} / ${result.target} слов`
         : `${roundWinner?.name ?? 'Соперник'} выигрывает раунд`;
     } else if (state.phase === 'finished') {
       const won = state.winnerId === meId;
-      $('auction-finish-title').textContent = won ? 'Ты победил!' : `${opponent?.name ?? 'Соперник'} победил`;
+      $('auction-finish-title').textContent = won ? 'Победа' : `${opponent?.name ?? 'Соперник'} победил`;
       $('auction-stat-best').textContent = `${state.stats.bestRound} слов`;
       $('auction-stat-correct').textContent = String(state.stats.correctWords);
       $('auction-stat-bid').textContent = String(state.stats.maxBid);
@@ -2081,7 +2082,7 @@
       auctionSnapshot = null;
       auctionBidValue = 3;
       auctionLastLoserId = '';
-      $('auction-status').textContent = 'Подключаемся к игре…';
+      $('auction-status').textContent = 'Подключение…';
       $('auction-status').removeAttribute('data-result');
       $('auction-word-input').value = '';
       if (opponent) {
@@ -2095,7 +2096,7 @@
       const socket = new WebSocket(connection.websocketUrl);
       auctionSocket = socket;
       socket.addEventListener('open', () => {
-        $('auction-status').textContent = 'Соединение установлено';
+        $('auction-status').textContent = '';
         auctionClockTimer = window.setInterval(updateAuctionClock, 200);
       });
       socket.addEventListener('message', (event) => {

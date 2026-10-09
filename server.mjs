@@ -15,16 +15,20 @@ const MAX_SCORE_PER_WORD = 6;
 const MAX_AUDIO_WORD_LENGTH = 80;
 const TELEGRAM_AUTH_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
 const AVATAR_IDS = Object.freeze([
-  'avatar-blond-green',
-  'avatar-bob-blue',
-  'avatar-bun-pink',
-  'avatar-cat',
-  'avatar-curly-yellow',
-  'avatar-dog',
-  'avatar-frog',
-  'avatar-panda',
-  'avatar-rabbit',
-  'avatar-short-hair-cyan',
+  'avatar-01-dark-hair',
+  'avatar-02-curly-hair',
+  'avatar-03-silver-bun',
+  'avatar-04-cap-and-beard',
+  'avatar-05-red-hair',
+  'avatar-06-afro',
+  'avatar-07-silver-moustache',
+  'avatar-08-ponytail',
+  'avatar-09-glasses',
+  'avatar-10-bear',
+  'avatar-11-cat',
+  'avatar-12-dog',
+  'avatar-13-lion',
+  'avatar-14-owl',
 ]);
 const avatarIds = new Set(AVATAR_IDS);
 
@@ -281,9 +285,23 @@ export function createRatingsStore(filePath) {
     if (!databasePromise) {
       databasePromise = readFile(filePath, 'utf8')
         .then((source) => JSON.parse(source))
-        .then((value) => ({ version: 1, users: value?.users && typeof value.users === 'object' ? value.users : {} }))
+        .then(async (value) => {
+          const database = {
+            version: Number(value?.version) || 1,
+            users: value?.users && typeof value.users === 'object' ? value.users : {},
+          };
+          if (database.version < 3) {
+            Object.values(database.users).forEach((player) => {
+              player.avatarId = AVATAR_IDS[Math.floor(Math.random() * AVATAR_IDS.length)];
+              player.avatarCustomized = false;
+            });
+            database.version = 3;
+            await persist(database);
+          }
+          return database;
+        })
         .catch((error) => {
-          if (error?.code === 'ENOENT' || error instanceof SyntaxError) return { version: 1, users: {} };
+          if (error?.code === 'ENOENT' || error instanceof SyntaxError) return { version: 3, users: {} };
           throw error;
         });
     }

@@ -10,14 +10,14 @@
     <link rel="icon" href="./favicon.png" type="image/png" />
     <link rel="apple-touch-icon" href="./favicon.png" />
     <link rel="manifest" href="./site.webmanifest" />
-    <link rel="stylesheet" href="./design-system/colors.css?v=auction-55" />
-    <link rel="stylesheet" href="./styles.css?v=auction-56" />
+    <link rel="stylesheet" href="./design-system/colors.css?v=auction-57" />
+    <link rel="stylesheet" href="./styles.css?v=avatars-58" />
   </head>
   <body class="is-home">
     <div class="app-shell">
       <header class="utility-header" aria-label="Состояние приложения">
         <button id="profile-button" class="utility-button profile-button" type="button" aria-label="Профиль пользователя" title="Профиль">
-          <img id="profile-button-avatar" src="./icons/avatars-pack/avatar-blond-green.png?v=2" alt="" width="46" height="46" style="width:100%;height:100%;display:block;object-fit:cover;object-position:center;border-radius:50%" />
+          <img id="profile-button-avatar" src="./icons/avatars-pack/avatar-01-dark-hair.png?v=1" alt="" width="46" height="46" style="width:100%;height:100%;display:block;object-fit:cover;object-position:center;border-radius:50%" />
         </button>
         <span id="home-greeting" class="utility-greeting">Привет, Пользователь Вордик!</span>
       </header>
@@ -205,11 +205,11 @@
               <button id="auction-start" class="study-method auction-launch" type="button" aria-label="Словарный аукцион: пригласить друга">
                 <span class="auction-launch-copy">
                   <strong>Словарный аукцион</strong>
-                  <small>Ставь слова и проверяй соперника</small>
+                  <small>Ставь · проверяй · побеждай</small>
                 </span>
                 <span class="auction-launch-art" aria-hidden="true">
-                  <span class="auction-launch-gavel">●</span>
-                  <span class="auction-launch-bid">8</span>
+                  <i>5</i>
+                  <b>8</b>
                 </span>
               </button>
               <button id="word-chain-start" class="study-method word-chain-launch" type="button" aria-label="Цепочка слов: пригласить друга">
@@ -366,7 +366,7 @@
                 <span class="profile-topbar-spacer" aria-hidden="true"></span>
               </div>
               <button id="profile-avatar-button" class="profile-avatar" type="button" aria-label="Выбрать аватар" aria-haspopup="dialog" aria-controls="avatar-picker-overlay">
-                <img id="profile-avatar-image" src="./icons/avatars-pack/avatar-blond-green.png?v=2" alt="" />
+                <img id="profile-avatar-image" src="./icons/avatars-pack/avatar-01-dark-hair.png?v=1" alt="" />
                 <span class="profile-avatar-edit" aria-hidden="true">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg>
                 </span>
@@ -514,15 +514,15 @@
             <button class="auction-tutorial-close" type="button" data-auction-tutorial-close aria-label="Закрыть"><img src="./icons/close.svg" alt="" aria-hidden="true" /></button>
             <div class="auction-tutorial-visual" aria-hidden="true"><span id="auction-tutorial-symbol">3</span></div>
             <span id="auction-tutorial-step" class="auction-tutorial-step">1 ИЗ 3</span>
-            <h2 id="auction-tutorial-title">Делай ставки</h2>
-            <p id="auction-tutorial-copy">Скажи, сколько слов по теме ты сможешь назвать.</p>
+            <h2 id="auction-tutorial-title">Ставь</h2>
+            <p id="auction-tutorial-copy">Назови число слов.</p>
             <div class="auction-tutorial-dots" aria-hidden="true"><i class="is-active"></i><i></i><i></i></div>
             <button id="auction-tutorial-next" class="primary-button" type="button">Дальше</button>
           </section>
         </div>
 
         <aside id="game-invite-push" class="game-invite-push" aria-live="polite" hidden>
-          <span class="game-invite-push-avatar"><img id="game-invite-push-avatar" src="./icons/avatars-pack/avatar-blond-green.png?v=2" alt="" /></span>
+          <span class="game-invite-push-avatar"><img id="game-invite-push-avatar" src="./icons/avatars-pack/avatar-01-dark-hair.png?v=1" alt="" /></span>
           <span class="game-invite-push-copy">
             <small id="game-invite-push-kicker">ПРИГЛАШЕНИЕ В ИГРУ</small>
             <strong id="game-invite-push-title">Друг зовёт играть</strong>
@@ -544,7 +544,7 @@
               <button id="word-chain-close" type="button" aria-label="Закрыть игру"><img src="./icons/close.svg" alt="" aria-hidden="true" /></button>
             </header>
             <div class="word-chain-opponent">
-              <span class="word-chain-avatar"><img id="word-chain-opponent-avatar" src="./icons/avatars-pack/avatar-blond-green.png?v=2" alt="" /></span>
+              <span class="word-chain-avatar"><img id="word-chain-opponent-avatar" src="./icons/avatars-pack/avatar-01-dark-hair.png?v=1" alt="" /></span>
               <span><small>Ваш соперник</small><strong id="word-chain-opponent-name">Друг</strong></span>
             </div>
             <div class="word-chain-turn-card">
@@ -570,19 +570,19 @@
             <header class="auction-header">
               <div>
                 <span>ИГРА С ДРУГОМ</span>
-                <h2 id="auction-title">Словарный аукцион</h2>
+                <h2 id="auction-title">Аукцион</h2>
               </div>
               <button id="auction-close" type="button" aria-label="Закрыть игру"><img src="./icons/close.svg" alt="" aria-hidden="true" /></button>
             </header>
 
             <div class="auction-players">
               <article id="auction-player-one" class="auction-player">
-                <img id="auction-player-one-avatar" src="./icons/avatars-pack/avatar-blond-green.png?v=2" alt="" />
+                <img id="auction-player-one-avatar" src="./icons/avatars-pack/avatar-01-dark-hair.png?v=1" alt="" />
                 <span><strong id="auction-player-one-name">Игрок 1</strong><small id="auction-player-one-status">готов</small></span>
                 <span id="auction-player-one-lives" class="auction-lives" aria-label="3 жизни">❤️❤️❤️</span>
               </article>
               <article id="auction-player-two" class="auction-player">
-                <img id="auction-player-two-avatar" src="./icons/avatars-pack/avatar-bob-blue.png?v=2" alt="" />
+                <img id="auction-player-two-avatar" src="./icons/avatars-pack/avatar-02-curly-hair.png?v=1" alt="" />
                 <span><strong id="auction-player-two-name">Игрок 2</strong><small id="auction-player-two-status">готов</small></span>
                 <span id="auction-player-two-lives" class="auction-lives" aria-label="3 жизни">❤️❤️❤️</span>
               </article>
@@ -597,7 +597,6 @@
 
               <div class="auction-topic">
                 <span id="auction-topic-emoji" aria-hidden="true">✈️</span>
-                <small>ТЕМА РАУНДА</small>
                 <strong id="auction-topic-name">Путешествия</strong>
               </div>
 
@@ -608,20 +607,20 @@
               </div>
 
               <div id="auction-bid-controls" class="auction-bid-controls" hidden>
-                <span>Сколько слов ты сможешь назвать?</span>
+                <span>Твоя ставка</span>
                 <div class="auction-bid-stepper">
                   <button id="auction-bid-minus" type="button" aria-label="Уменьшить ставку">−</button>
                   <strong id="auction-bid-value">3</strong>
                   <button id="auction-bid-plus" type="button" aria-label="Увеличить ставку">+</button>
                 </div>
-                <button id="auction-bid-submit" class="primary-button" type="button">Назову 3</button>
-                <button id="auction-challenge" class="auction-challenge-button" type="button" hidden>Проверим!</button>
+                <button id="auction-bid-submit" class="primary-button" type="button">Ставка 3</button>
+                <button id="auction-challenge" class="auction-challenge-button" type="button" hidden>Проверить</button>
               </div>
 
               <div id="auction-challenge-panel" class="auction-challenge-panel" hidden>
-                <span>Тебе бросили вызов</span>
+                <span>Проверка</span>
                 <strong><b id="auction-challenge-bid">8</b> слов</strong>
-                <button id="auction-start-naming" class="primary-button" type="button">Начать</button>
+                <button id="auction-start-naming" class="primary-button" type="button">Готов</button>
               </div>
 
               <div id="auction-countdown" class="auction-countdown" aria-live="assertive" hidden>3</div>
@@ -630,8 +629,8 @@
                 <div class="auction-word-progress"><strong id="auction-word-count">0 / 8</strong><span>правильных слов</span></div>
                 <form id="auction-word-form" autocomplete="off">
                   <label class="visually-hidden" for="auction-word-input">Введите английское слово</label>
-                  <input id="auction-word-input" type="text" lang="en" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="Введите слово…" maxlength="60" />
-                  <button id="auction-word-submit" type="submit">Добавить</button>
+                  <input id="auction-word-input" type="text" lang="en" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="Слово" maxlength="60" />
+                  <button id="auction-word-submit" type="submit">ОК</button>
                 </form>
                 <div id="auction-accepted-words" class="auction-accepted-words" aria-label="Засчитанные слова"></div>
               </div>
@@ -727,7 +726,7 @@
     <script src="./audio-manifest.js?v=common-audio-39" defer></script>
     <script src="./collections.js?v=common-dictionary-32" defer></script>
     <script src="./quick-pick-words.js?v=common-dictionary-32" defer></script>
-    <script src="./app.js?v=auction-56" defer></script>
+    <script src="./app.js?v=avatars-59" defer></script>
     <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
   </body>
 </html>

@@ -7,16 +7,20 @@ const MAX_VOCABULARY_SIZE = 100_000;
 const MAX_SCORE_PER_WORD = 6;
 const TELEGRAM_AUTH_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
 const AVATAR_IDS = Object.freeze([
-  'avatar-blond-green',
-  'avatar-bob-blue',
-  'avatar-bun-pink',
-  'avatar-cat',
-  'avatar-curly-yellow',
-  'avatar-dog',
-  'avatar-frog',
-  'avatar-panda',
-  'avatar-rabbit',
-  'avatar-short-hair-cyan',
+  'avatar-01-dark-hair',
+  'avatar-02-curly-hair',
+  'avatar-03-silver-bun',
+  'avatar-04-cap-and-beard',
+  'avatar-05-red-hair',
+  'avatar-06-afro',
+  'avatar-07-silver-moustache',
+  'avatar-08-ponytail',
+  'avatar-09-glasses',
+  'avatar-10-bear',
+  'avatar-11-cat',
+  'avatar-12-dog',
+  'avatar-13-lion',
+  'avatar-14-owl',
 ]);
 const avatarIds = new Set(AVATAR_IDS);
 const encoder = new TextEncoder();
