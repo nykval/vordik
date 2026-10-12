@@ -37,6 +37,10 @@
     { id: 'avatar-14-owl', label: 'Сова', src: './icons/avatars-pack/avatar-14-owl.png?v=1' },
   ]);
   const avatarById = new Map(AVATAR_OPTIONS.map((avatar) => [avatar.id, avatar]));
+  const legacyAvatarSources = new Map([
+    'avatar-blond-green', 'avatar-bob-blue', 'avatar-bun-pink', 'avatar-cat', 'avatar-curly-yellow',
+    'avatar-dog', 'avatar-frog', 'avatar-panda', 'avatar-rabbit', 'avatar-short-hair-cyan',
+  ].map((id) => [id, `./icons/${id}.png`]));
   const CEFR_DIFFICULTY = Object.freeze({ A1: 1, A2: 2, B1: 3, B2: 4, C1: 5, C2: 6 });
   const WORD_LEVEL_DISTRIBUTION = Object.freeze({
     1: Object.freeze([40, 21, 15, 12, 9, 3]),
@@ -121,6 +125,7 @@
   const $ = (id) => document.getElementById(id);
   const words = loadWords();
   const studyDays = loadStudyDays();
+  let profileStorageKey = PROFILE_KEY;
   const userProfile = loadProfile();
   const profileStats = loadProfileStats();
   const ratingGuestId = loadRatingGuestId();
@@ -449,17 +454,17 @@
     } catch { return []; }
   }
 
-  function loadProfile() {
-    const fallback = { name: 'Пользователь Вордик', joinedAt: new Date().toISOString(), avatarId: randomAvatarId() };
+  function loadProfile(storageKey = profileStorageKey, fallbackAvatarId = randomAvatarId()) {
+    const fallback = { name: 'Пользователь Вордик', joinedAt: new Date().toISOString(), avatarId: fallbackAvatarId };
     try {
-      const saved = JSON.parse(localStorage.getItem(PROFILE_KEY) ?? 'null');
+      const saved = JSON.parse(localStorage.getItem(storageKey) ?? 'null');
       const profile = {
         name: typeof saved?.name === 'string' && saved.name.trim() ? saved.name.trim().slice(0, 80) : fallback.name,
         joinedAt: typeof saved?.joinedAt === 'string' && !Number.isNaN(Date.parse(saved.joinedAt)) ? saved.joinedAt : fallback.joinedAt,
-        avatarId: avatarById.has(saved?.avatarId) ? saved.avatarId : fallback.avatarId,
+        avatarId: hasAvatarSource(saved?.avatarId) ? saved.avatarId : fallback.avatarId,
         avatarCustomized: saved?.avatarCustomized === true,
       };
-      localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+      localStorage.setItem(storageKey, JSON.stringify(profile));
       return profile;
     } catch { return fallback; }
   }
@@ -490,7 +495,7 @@
   }
 
   function saveProfile() {
-    try { localStorage.setItem(PROFILE_KEY, JSON.stringify(userProfile)); } catch { /* Profile remains available for this visit. */ }
+    try { localStorage.setItem(profileStorageKey, JSON.stringify(userProfile)); } catch { /* Profile remains available for this visit. */ }
   }
 
   function saveProfileStats() {
@@ -501,13 +506,19 @@
     return AVATAR_OPTIONS[Math.floor(Math.random() * AVATAR_OPTIONS.length)].id;
   }
 
-  function avatarSource(avatarId) {
-    return avatarById.get(avatarId)?.src ?? AVATAR_OPTIONS[0].src;
+  function hasAvatarSource(avatarId) {
+    return avatarById.has(avatarId) || legacyAvatarSources.has(avatarId);
   }
 
-  function createAvatarImage(avatarId) {
+  function avatarSource(avatarId, fallbackSeed = '') {
+    return avatarById.get(avatarId)?.src
+      ?? legacyAvatarSources.get(avatarId)
+      ?? avatarById.get(fallbackSeed ? deterministicAvatarId(fallbackSeed) : AVATAR_OPTIONS[0].id).src;
+  }
+
+  function createAvatarImage(avatarId, fallbackSeed = '') {
     const image = document.createElement('img');
-    image.src = avatarSource(avatarId);
+    image.src = avatarSource(avatarId, fallbackSeed);
     image.alt = '';
     image.width = 1024;
     image.height = 1024;
@@ -525,8 +536,18 @@
 
   function ratingAvatarId(entry) {
     if (entry?.isMe) return userProfile.avatarId;
-    if (avatarById.has(entry?.avatarId)) return entry.avatarId;
+    if (hasAvatarSource(entry?.avatarId)) return entry.avatarId;
     return deterministicAvatarId(`${entry?.name ?? ''}:${entry?.rank ?? ''}`);
+  }
+
+  function adoptServerAvatar(player) {
+    if (userProfile.avatarCustomized || !hasAvatarSource(player?.avatarId)) return;
+    if (userProfile.avatarId === player.avatarId && userProfile.avatarCustomized === (player.avatarCustomized === true)) return;
+    userProfile.avatarId = player.avatarId;
+    userProfile.avatarCustomized = player.avatarCustomized === true;
+    saveProfile();
+    renderProfile();
+    if (!$('avatar-picker-overlay').hidden) renderAvatarPicker();
   }
 
   function renderAvatarPicker() {
@@ -581,9 +602,15 @@
   function syncTelegramProfile(webApp) {
     const telegramUser = webApp?.initDataUnsafe?.user;
     if (!telegramUser) return;
+    const telegramId = String(telegramUser.id ?? '');
+    if (!/^\d+$/.test(telegramId)) return;
+    const telegramStorageKey = `${PROFILE_KEY}.telegram.${telegramId}`;
+    if (profileStorageKey !== telegramStorageKey) {
+      profileStorageKey = telegramStorageKey;
+      Object.assign(userProfile, loadProfile(telegramStorageKey, deterministicAvatarId(`telegram:${telegramId}`)));
+    }
     const telegramName = [telegramUser.first_name, telegramUser.last_name].filter(Boolean).join(' ').trim();
-    if (!telegramName) return;
-    userProfile.name = telegramName.slice(0, 80);
+    if (telegramName) userProfile.name = telegramName.slice(0, 80);
     saveProfile();
     renderProfile();
   }
@@ -618,22 +645,6 @@
     return 'тренировок';
   }
 
-  function renderProfileTopics() {
-    const fragment = document.createDocumentFragment();
-    wordCollections.forEach((collection) => {
-      const row = document.createElement('div');
-      row.className = 'profile-topic-row';
-      row.setAttribute('role', 'listitem');
-      const name = document.createElement('span');
-      name.textContent = collection.title;
-      const count = document.createElement('strong');
-      count.textContent = `${collection.words.length} ${wordNoun(collection.words.length)}`;
-      row.append(name, count);
-      fragment.append(row);
-    });
-    $('profile-topics-card').replaceChildren(fragment);
-  }
-
   function renderProfile() {
     if (!$('profile-view')) return;
     const sessions = profileStats.sessionsCompleted;
@@ -651,7 +662,6 @@
     $('profile-total-time').textContent = durationLabel(currentAppUsageMs());
     $('profile-vocabulary-level').textContent = `${vocabularyLevel} ${pointNoun(vocabularyLevel)}`;
     $('profile-average-difficulty').textContent = `${averageDifficulty} из 6`;
-    renderProfileTopics();
     $('profile-streak-message').textContent = streak
       ? 'Продолжайте заниматься каждый день, чтобы сохранить серию.'
       : 'Начните занятие сегодня — первый день серии уже близко.';
@@ -1458,9 +1468,10 @@
       item.className = `rating-podium-player ${classes[index]}`;
       if (entry?.isMe) item.classList.add('is-me');
 
-      const medal = document.createElement('span');
+      const medal = document.createElement('img');
       medal.className = 'rating-podium-medal';
-      medal.textContent = String(place);
+      medal.src = `./icons/rating-medal-${place}.png`;
+      medal.alt = `${place} место`;
 
       const avatar = document.createElement('span');
       avatar.className = 'rating-podium-avatar';
@@ -1501,9 +1512,16 @@
       if (entry.isMe) item.classList.add('is-me');
       if (index === 10) item.classList.add('is-separated');
 
-      const rank = document.createElement('span');
-      rank.className = 'rating-player-rank';
-      rank.textContent = String(entry.rank);
+      const place = Number(entry.rank);
+      const rank = document.createElement(place >= 1 && place <= 3 ? 'img' : 'span');
+      if (place >= 1 && place <= 3) {
+        rank.className = 'rating-player-medal';
+        rank.src = `./icons/rating-medal-${place}.png`;
+        rank.alt = `${place} место`;
+      } else {
+        rank.className = 'rating-player-rank';
+        rank.textContent = String(entry.rank);
+      }
 
       const avatar = document.createElement('span');
       avatar.className = 'rating-player-avatar';
@@ -1551,12 +1569,7 @@
       };
       const result = await postProfileApi('/api/ratings/sync', payload, 'Сервер рейтинга недоступен');
       if (requestVersion !== ratingRequestVersion) return;
-      if (!userProfile.avatarCustomized && avatarById.has(result?.player?.avatarId) && result.player.avatarId !== userProfile.avatarId) {
-        userProfile.avatarId = result.player.avatarId;
-        saveProfile();
-        renderProfile();
-        if (!$('avatar-picker-overlay').hidden) renderAvatarPicker();
-      }
+      adoptServerAvatar(result?.player);
       renderRatingLeaderboard(result);
       status.textContent = 'Рейтинг обновлён';
     } catch (error) {
@@ -1626,7 +1639,7 @@
 
     const avatar = document.createElement('span');
     avatar.className = 'friend-row-avatar';
-    avatar.append(createAvatarImage(player.avatarId));
+    avatar.append(createAvatarImage(player.avatarId, player.id ?? player.name));
 
     const copy = document.createElement('span');
     copy.className = 'friend-row-copy';
@@ -1644,6 +1657,7 @@
         const button = document.createElement('button');
         button.type = 'button';
         button.textContent = action.label;
+        if (action.ariaLabel) button.setAttribute('aria-label', action.ariaLabel);
         button.dataset.friendAction = action.type;
         Object.entries(action.data ?? {}).forEach(([key, value]) => { button.dataset[key] = value; });
         if (action.primary) button.classList.add(action.primary);
@@ -1738,7 +1752,7 @@
     push.dataset.gameId = gameId;
     push.dataset.gameType = gameType;
     push.dataset.opponentId = player.id;
-    $('game-invite-push-avatar').src = avatarSource(player.avatarId);
+    $('game-invite-push-avatar').src = avatarSource(player.avatarId, player.id ?? player.name);
     $('game-invite-push-kicker').textContent = mode === 'invite' ? 'ПРИГЛАШЕНИЕ В ИГРУ' : 'ДРУГ ГОТОВ ИГРАТЬ';
     $('game-invite-push-title').textContent = mode === 'invite'
       ? `${player.name} зовёт играть`
@@ -1767,27 +1781,62 @@
     if ($('game-invite-push').dataset.mode === 'invite') hideGameInvitePush();
   }
 
+  function friendGameAction(state, player, gameType) {
+    const title = gameType === 'auction' ? 'Аукцион' : 'Цепочка';
+    const active = (state.games ?? []).find((game) => game.status !== 'finished'
+      && game.gameType === gameType && game.opponent.id === player.id);
+    return active
+      ? {
+          label: `${title} ↗`,
+          ariaLabel: `Продолжить игру «${title}» с ${player.name}`,
+          type: 'open-friend-game',
+          data: { gameId: active.id, opponentId: player.id, gameType },
+          primary: 'is-primary',
+        }
+      : {
+          label: title,
+          ariaLabel: `Пригласить ${player.name} в игру «${title}»`,
+          type: 'invite-friend-game',
+          data: { userId: player.id, gameType },
+          primary: gameType === 'word_chain' ? 'is-primary' : '',
+        };
+  }
+
   function renderFriends(state) {
     if (!state?.me) return;
     socialState = state;
+    adoptServerAvatar(state.me);
     $('friend-code').textContent = state.me.friendCode;
     $('friends-count').textContent = String(state.friends.length);
+    $('copy-friend-code').disabled = !state.me.friendCode;
+    $('share-friend-link').disabled = !state.me.inviteUrl;
     $('friends-card').setAttribute('aria-busy', 'false');
-    $('friends-status').textContent = 'Список обновлён';
+    $('friends-connection').hidden = true;
+    $('friends-retry').hidden = true;
 
     const requests = document.createDocumentFragment();
     state.incomingRequests.forEach((player) => requests.append(friendRow(player, 'Хочет добавить вас в друзья', [
       { label: 'Принять', type: 'accept-friend', data: { userId: player.id }, primary: 'is-accept' },
       { label: 'Отклонить', type: 'reject-friend', data: { userId: player.id } },
     ])));
-    state.outgoingRequests.forEach((player) => requests.append(friendRow(player, 'Заявка отправлена')));
     $('friend-request-list').replaceChildren(requests);
-    $('friend-requests-block').hidden = !(state.incomingRequests.length || state.outgoingRequests.length);
+    $('friend-requests-count').textContent = String(state.incomingRequests.length);
+    $('friend-requests-block').hidden = state.incomingRequests.length === 0;
+
+    const outgoing = document.createDocumentFragment();
+    state.outgoingRequests.forEach((player) => outgoing.append(friendRow(player, 'Заявка отправлена · ждём ответа')));
+    $('friend-outgoing-list').replaceChildren(outgoing);
+    $('friend-outgoing-count').textContent = String(state.outgoingRequests.length);
+    $('friend-outgoing-block').hidden = state.outgoingRequests.length === 0;
 
     const friends = document.createDocumentFragment();
-    state.friends.forEach((player) => friends.append(friendRow(player, 'В друзьях')));
+    state.friends.forEach((player) => friends.append(friendRow(player, 'Играйте вместе', [
+      friendGameAction(state, player, 'word_chain'),
+      friendGameAction(state, player, 'auction'),
+    ])));
     $('friend-list').replaceChildren(friends);
     $('friends-empty').hidden = state.friends.length > 0;
+    $('friends-play-hint').hidden = state.friends.length === 0;
     renderGameLobby(state);
   }
 
@@ -1813,8 +1862,12 @@
 
   async function loadSocialState({ quiet = false } = {}) {
     const version = ++socialRequestVersion;
-    $('friends-card').setAttribute('aria-busy', 'true');
-    if (!quiet) $('friends-status').textContent = 'Загружаем друзей…';
+    if (!quiet) {
+      $('friends-card').setAttribute('aria-busy', 'true');
+      $('friends-connection').hidden = false;
+      $('friends-retry').hidden = true;
+      $('friends-status').textContent = 'Загружаем друзей…';
+    }
     try {
       const result = await socialPost('/api/social/state');
       if (version !== socialRequestVersion) return;
@@ -1823,6 +1876,8 @@
     } catch (error) {
       if (version !== socialRequestVersion) return;
       $('friends-card').setAttribute('aria-busy', 'false');
+      $('friends-connection').hidden = false;
+      $('friends-retry').hidden = false;
       $('friends-status').textContent = error instanceof TypeError
         ? 'Не удалось подключиться к серверу друзей.'
         : (error.message || 'Не удалось загрузить друзей.');
@@ -1966,7 +2021,7 @@
       $('word-chain-submit').disabled = true;
       if (opponent) {
         $('word-chain-opponent-name').textContent = opponent.name;
-        $('word-chain-opponent-avatar').src = avatarSource(opponent.avatarId);
+        $('word-chain-opponent-avatar').src = avatarSource(opponent.avatarId, opponent.id ?? opponent.name);
       }
       $('word-chain-screen').hidden = false;
       document.body.classList.add('is-word-chain-open');
@@ -2102,7 +2157,7 @@
       const card = $(`auction-player-${suffix}`);
       const profile = auctionPlayerProfile(player);
       $(`auction-player-${suffix}-name`).textContent = player.id === meId ? `${player.name} · вы` : player.name;
-      $(`auction-player-${suffix}-avatar`).src = avatarSource(profile?.avatarId);
+      $(`auction-player-${suffix}-avatar`).src = avatarSource(profile?.avatarId, profile?.id ?? profile?.name);
       $(`auction-player-${suffix}-lives`).textContent = auctionHearts(player.lives);
       $(`auction-player-${suffix}-lives`).setAttribute('aria-label', `${player.lives} жизни`);
       card.classList.toggle('is-turn', state.turnUserId === player.id);
@@ -2217,7 +2272,7 @@
       $('auction-word-input').value = '';
       if (opponent) {
         $('auction-player-two-name').textContent = opponent.name;
-        $('auction-player-two-avatar').src = avatarSource(opponent.avatarId);
+        $('auction-player-two-avatar').src = avatarSource(opponent.avatarId, opponent.id ?? opponent.name);
       }
       $('auction-screen').hidden = false;
       document.body.classList.add('is-auction-open');
@@ -3713,14 +3768,33 @@
     }
   });
   $('friend-code-input').addEventListener('input', (event) => {
-    const cleaned = event.currentTarget.value.toUpperCase().replace(/[^A-Z0-9#]/g, '').slice(0, 6);
-    event.currentTarget.value = cleaned.startsWith('#') ? cleaned : (cleaned ? `#${cleaned.replaceAll('#', '')}` : '');
+    const cleaned = event.currentTarget.value.toUpperCase().replace(/^#/, '').replace(/[^A-Z2-9]/g, '').slice(0, 5);
+    event.currentTarget.value = cleaned ? `#${cleaned}` : '';
+    $('friend-code-submit').disabled = !/^[A-Z2-9]{5}$/.test(cleaned);
+    $('friend-code-feedback').textContent = '';
   });
+  $('friends-retry').addEventListener('click', () => void loadSocialState());
   $('friend-code-form').addEventListener('submit', async (event) => {
     event.preventDefault();
     const friendCode = $('friend-code-input').value;
-    const result = await updateFriendship('/api/friends/request', { friendCode }, 'Заявка отправлена');
-    if (result) $('friend-code-input').value = '';
+    if (!/^#[A-Z2-9]{5}$/.test(friendCode)) {
+      $('friend-code-feedback').textContent = 'Введите полный код из пяти символов.';
+      return;
+    }
+    $('friend-code-input').disabled = true;
+    $('friend-code-submit').disabled = true;
+    try {
+      const result = await updateFriendship('/api/friends/request', { friendCode }, 'Заявка отправлена');
+      if (result) {
+        $('friend-code-input').value = '';
+        $('friend-code-feedback').textContent = 'Заявка отправлена. Ответ появится здесь.';
+      } else {
+        $('friend-code-feedback').textContent = 'Не удалось отправить заявку. Проверьте код и попробуйте снова.';
+      }
+    } finally {
+      $('friend-code-input').disabled = false;
+      $('friend-code-submit').disabled = !/^#[A-Z2-9]{5}$/.test($('friend-code-input').value);
+    }
   });
   $('friends-card').addEventListener('click', async (event) => {
     const button = event.target.closest('[data-friend-action]');
@@ -3733,6 +3807,19 @@
           requesterId: button.dataset.userId,
           action: action === 'accept-friend' ? 'accept' : 'reject',
         }, action === 'accept-friend' ? 'Пользователь добавлен в друзья' : 'Заявка отклонена');
+      } else if (action === 'invite-friend-game') {
+        const gameType = button.dataset.gameType || 'word_chain';
+        const result = await updateFriendship('/api/games/invite', {
+          friendId: button.dataset.userId,
+          gameType,
+        }, 'Приглашение в игру отправлено');
+        if (result) savePendingGameFriendId(button.dataset.userId, gameType);
+      } else if (action === 'open-friend-game') {
+        await openSocialGame(
+          button.dataset.gameId,
+          socialPlayerById(button.dataset.opponentId),
+          button.dataset.gameType || 'word_chain',
+        );
       }
     } finally {
       if (button.isConnected) button.disabled = false;

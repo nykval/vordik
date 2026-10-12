@@ -11,7 +11,7 @@
     <link rel="apple-touch-icon" href="./favicon.png" />
     <link rel="manifest" href="./site.webmanifest" />
     <link rel="stylesheet" href="./design-system/colors.css?v=auction-57" />
-    <link rel="stylesheet" href="./styles.css?v=rounded-topic-cards-2026-10-12" />
+    <link rel="stylesheet" href="./styles.css?v=friends-profile-2026-10-13" />
   </head>
   <body class="is-home">
     <div class="app-shell">
@@ -325,19 +325,19 @@
 
               <div id="rating-podium" class="rating-podium" aria-label="Три лидера рейтинга">
                 <article class="rating-podium-player is-second">
-                  <span class="rating-podium-medal">2</span>
+                  <img class="rating-podium-medal" src="./icons/rating-medal-2.png" alt="2 место" />
                   <span class="rating-podium-avatar">?</span>
                   <strong>Свободное место</strong>
                   <small>0 баллов</small>
                 </article>
                 <article class="rating-podium-player is-first">
-                  <span class="rating-podium-medal">1</span>
+                  <img class="rating-podium-medal" src="./icons/rating-medal-1.png" alt="1 место" />
                   <span class="rating-podium-avatar">?</span>
                   <strong>Свободное место</strong>
                   <small>0 баллов</small>
                 </article>
                 <article class="rating-podium-player is-third">
-                  <span class="rating-podium-medal">3</span>
+                  <img class="rating-podium-medal" src="./icons/rating-medal-3.png" alt="3 место" />
                   <span class="rating-podium-avatar">?</span>
                   <strong>Свободное место</strong>
                   <small>0 баллов</small>
@@ -411,46 +411,55 @@
                 </div>
               </section>
 
-              <section class="profile-section" aria-labelledby="profile-topics-title">
-                <div class="profile-section-heading">
-                  <h2 id="profile-topics-title">Темы</h2>
-                </div>
-                <p class="profile-topics-caption">Слов в готовых подборках</p>
-                <div id="profile-topics-card" class="profile-topics-card" role="list"></div>
-              </section>
-
               <section class="profile-section" aria-labelledby="profile-friends-title">
                 <div class="profile-section-heading profile-friends-heading">
                   <h2 id="profile-friends-title">Друзья</h2>
                   <span id="friends-count" class="friends-count">0</span>
                 </div>
+                <p class="friends-intro">Учите слова и играйте вместе. Добавьте друга по коду или отправьте ему ссылку.</p>
                 <div id="friends-card" class="friends-card" aria-busy="false">
-                  <div class="friend-code-panel">
-                    <div>
-                      <small>Ваш код</small>
-                      <strong id="friend-code">#-----</strong>
+                  <div class="friends-invite-panel">
+                    <span class="friends-step">ПРИГЛАСИТЬ</span>
+                    <h3>Поделитесь своим кодом</h3>
+                    <p>Друг введёт его у себя в профиле и отправит вам заявку.</p>
+                    <div class="friend-code-panel">
+                      <div>
+                        <small>Ваш код</small>
+                        <strong id="friend-code">#-----</strong>
+                      </div>
+                      <button id="copy-friend-code" class="friend-secondary-button" type="button" disabled>Копировать</button>
                     </div>
-                    <button id="copy-friend-code" class="friend-secondary-button" type="button">Копировать</button>
+                    <button id="share-friend-link" class="friend-invite-link" type="button" disabled>Поделиться ссылкой</button>
                   </div>
-                  <button id="share-friend-link" class="friend-invite-link" type="button">Пригласить друга по ссылке</button>
 
                   <form id="friend-code-form" class="friend-code-form">
-                    <label for="friend-code-input">Добавить по коду</label>
+                    <span class="friends-step">ДОБАВИТЬ</span>
+                    <label for="friend-code-input">Введите код друга</label>
+                    <p class="friend-code-help">Пять букв или цифр после #. Друг получит заявку и сможет её принять.</p>
                     <div>
                       <input id="friend-code-input" type="text" inputmode="text" maxlength="6" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="#H7G65" />
-                      <button type="submit">Отправить</button>
+                      <button id="friend-code-submit" type="submit" disabled>Отправить</button>
                     </div>
+                    <p id="friend-code-feedback" class="friend-code-feedback" role="status" aria-live="polite"></p>
                   </form>
 
-                  <p id="friends-status" class="friends-status" role="status" aria-live="polite">Загружаем список друзей…</p>
+                  <div id="friends-connection" class="friends-connection">
+                    <p id="friends-status" class="friends-status" role="status" aria-live="polite">Загружаем список друзей…</p>
+                    <button id="friends-retry" type="button" hidden>Повторить</button>
+                  </div>
                   <div id="friend-requests-block" class="friends-group" hidden>
-                    <h3>Заявки в друзья</h3>
+                    <h3>Входящие заявки <span id="friend-requests-count" class="friends-group-count">0</span></h3>
                     <div id="friend-request-list" class="friends-list"></div>
                   </div>
+                  <div id="friend-outgoing-block" class="friends-group" hidden>
+                    <h3>Ожидают ответа <span id="friend-outgoing-count" class="friends-group-count">0</span></h3>
+                    <div id="friend-outgoing-list" class="friends-list"></div>
+                  </div>
                   <div class="friends-group">
-                    <h3>Все друзья</h3>
+                    <h3>Ваши друзья</h3>
+                    <p id="friends-play-hint" class="friends-group-hint" hidden>Выберите игру рядом с именем друга, чтобы отправить приглашение.</p>
                     <div id="friend-list" class="friends-list"></div>
-                    <p id="friends-empty" class="friends-empty">Здесь появятся друзья, которых вы добавите по коду или ссылке.</p>
+                    <p id="friends-empty" class="friends-empty">Пока здесь никого нет. Поделитесь ссылкой или попросите у друга код.</p>
                   </div>
                 </div>
               </section>
@@ -730,7 +739,7 @@
     <script src="./audio-manifest.js?v=common-audio-39" defer></script>
     <script src="./collections.js?v=topics-2026-10-12" defer></script>
     <script src="./quick-pick-words.js?v=common-dictionary-32" defer></script>
-    <script src="./app.js?v=rating-avatar-collections-2026-10-12" defer></script>
+    <script src="./app.js?v=friends-profile-2026-10-13" defer></script>
     <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
   </body>
 </html>

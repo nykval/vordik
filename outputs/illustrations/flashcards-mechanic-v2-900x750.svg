@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="750" viewBox="0 0 900 750">
+  <rect width="900" height="750" fill="#EEF2FF"/>
+
+  <!-- Separate paper cards fan out like the supplied book illustration. -->
+  <path d="M303 180 L579 133 L652 485 L369 529 Z" fill="#DCD0FF"/>
+  <path d="M337 189 L627 158 L676 511 L381 542 Z" fill="#FFFFFF"/>
+  <path d="M381 542 L676 511 L692 530 L397 560 Z" fill="#BFCFFF"/>
+
+  <!-- Bold blue reverse with a dark right-hand plane. -->
+  <path d="M190 257 L511 207 L571 557 L242 613 Z" fill="#355CFF"/>
+  <path d="M242 613 L571 557 L595 573 L263 630 Z" fill="#2039B4"/>
+  <circle cx="294" cy="330" r="31" fill="#FFD43B"/>
+  <path d="M361 398 C375 425 393 437 423 432 C397 445 385 467 389 494 C374 470 353 460 328 464 C352 450 364 428 361 398 Z" fill="#7190FF"/>
+
+  <!-- The white side swings forward; its straight edges remain fully visible. -->
+  <path d="M502 232 L749 262 L700 568 L450 530 Z" fill="#FFFFFF"/>
+  <path d="M749 262 L769 279 L720 588 L700 568 Z" fill="#2039B4"/>
+  <path d="M450 530 L700 568 L720 588 L471 549 Z" fill="#BFCFFF"/>
+  <path d="M540 348 L679 364" stroke="#2039B4" stroke-width="14" stroke-linecap="round"/>
+  <path d="M534 389 L654 403" stroke="#2039B4" stroke-width="14" stroke-linecap="round"/>
+  <path d="M528 430 L610 440" stroke="#2039B4" stroke-width="14" stroke-linecap="round"/>
+
+  <!-- One turning arrow, away from the face of either card. -->
+  <path d="M609 124 C703 134 775 196 796 275" fill="none" stroke="#A27AF5" stroke-width="24" stroke-linecap="round"/>
+  <path d="M766 263 L801 310 L820 252 Z" fill="#A27AF5"/>
+</svg>

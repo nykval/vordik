@@ -1,0 +1,37 @@
+"""A simpler, more brand-aligned knowledge badge for review."""
+
+from pathlib import Path
+import subprocess
+
+from generate import number_svg
+
+
+HERE = Path(__file__).resolve().parent
+ROOT = HERE.parents[1]
+
+svg = f'''<svg xmlns="http://www.w3.org/2000/svg" width="700" height="525" viewBox="0 0 700 525">
+  <rect width="700" height="525" fill="#EEF2FF"/>
+  <!-- Stem and deep lower plane sit behind the broad brain silhouette. -->
+  <path fill="#6240A7" d="M305 341 C299 374 307 400 327 419 C342 435 369 435 381 420 C391 407 391 385 385 351 Z"/>
+  <path fill="#A27AF5" d="M149 255 C134 235 136 207 158 192 C154 161 177 139 208 139 C223 109 257 101 282 115 C306 96 340 101 359 122 C392 115 420 135 422 165 C455 168 476 197 464 226 C485 252 474 283 447 297 C452 330 421 355 390 351 C376 381 339 391 312 371 C287 387 255 376 242 352 C213 363 184 347 181 319 C151 311 137 283 149 255 Z"/>
+  <!-- Two lighter cut-paper lobes, without a continuous outline. -->
+  <path fill="#DCD0FF" d="M180 194 C174 175 187 157 207 160 C221 138 247 132 267 143 C281 131 299 133 311 146 C296 165 297 181 315 193 C299 200 284 213 278 231 C255 213 235 213 217 227 C206 209 193 203 180 194 Z"/>
+  <path fill="#DCD0FF" d="M339 145 C359 129 380 137 389 152 C411 150 429 167 424 187 C445 195 451 215 439 233 C455 254 445 273 424 282 C430 306 412 327 389 325 C374 344 352 344 334 331 C348 309 348 293 330 276 C345 253 350 234 339 216 C353 194 350 169 339 145 Z"/>
+  <!-- Only three large fold marks are kept. -->
+  <g fill="none" stroke="#6240A7" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M259 156 C244 174 251 190 269 199 C288 209 288 226 273 242"/>
+    <path d="M378 170 C361 185 365 205 383 216 C398 226 399 243 385 253"/>
+    <path d="M215 282 C236 269 257 278 262 300"/>
+  </g>
+  <!-- Large adjacent numeral, not laid over the brain. -->
+  <g transform="translate(550 267) scale(1.95) translate(-350 -326)">
+    {number_svg(2).replace('fill="#FFFFFF"', 'fill="#192D86"')}
+  </g>
+</svg>'''
+
+svg_path = HERE / "knowledge-02-revised.svg"
+png_path = HERE / "knowledge-02-revised.png"
+svg_path.write_text(svg, encoding="utf-8")
+script = "const fs=require('fs');const sharp=require('sharp');sharp(fs.readFileSync(process.argv[1])).png().toFile(process.argv[2]).catch(e=>{console.error(e);process.exit(1)})"
+subprocess.run(["node", "-e", script, str(svg_path), str(png_path)], cwd=ROOT, check=True)
+print(png_path)

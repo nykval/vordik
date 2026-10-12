@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="230" height="301" viewBox="15 1 230 301">
+<!-- Blue ribbon tails sit behind the medal, with both ends fully visible. -->
+<path d="M74 151L132 184L79 287L58 255L22 258Z" fill="#355CFF"/>
+<path d="M105 166L148 190L88 294L67 257Z" fill="#2039B4"/>
+<path d="M186 151L128 184L181 287L202 255L238 258Z" fill="#2039B4"/>
+<path d="M155 166L112 190L172 294L193 257Z" fill="#355CFF"/>
+<circle cx="130" cy="106" r="98" fill="#FFD43B"/>
+<circle cx="130" cy="106" r="74" fill="#D9940B"/>
+<path d="M241 0Q221 0 206.0 15.0Q191 30 191 51V661L118 630Q101 623 86 623Q64 623 49.5 637.0Q35 651 35 673Q35 689 43.0 702.0Q51 715 68 721L224 777Q229 779 234.0 780.0Q239 781 243 781Q266 781 279.5 766.5Q293 752 293 729V51Q293 30 278.0 15.0Q263 0 241 0Z" fill="#FFF0AD" transform="translate(130 112) scale(0.11651729 -0.11651729) translate(-164.00000000 -390.50000000)"/>
+</svg>

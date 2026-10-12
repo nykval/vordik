@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="750" viewBox="0 0 900 750">
+  <rect width="900" height="750" fill="#EEF2FF"/>
+
+  <!-- A loose stack of bright, round-cornered cards like the app's mechanic art. -->
+  <g transform="rotate(13 517 366)">
+    <rect x="369" y="168" width="296" height="396" rx="39" fill="#FFD43B"/>
+  </g>
+  <g transform="rotate(24 518 381)">
+    <rect x="367" y="193" width="302" height="396" rx="39" fill="#F66FB1"/>
+  </g>
+  <g transform="rotate(-10 438 390)">
+    <rect x="273" y="185" width="330" height="410" rx="42" fill="#355CFF"/>
+    <path d="M350 364 Q366 383 383 364" fill="none" stroke="#192D86" stroke-width="12" stroke-linecap="round"/>
+    <path d="M445 364 Q462 383 479 364" fill="none" stroke="#192D86" stroke-width="12" stroke-linecap="round"/>
+    <path d="M375 419 Q415 458 456 419" fill="none" stroke="#192D86" stroke-width="12" stroke-linecap="round"/>
+  </g>
+
+  <!-- A single sweep shows the card-turning action. -->
+  <path d="M431 628 C526 677 651 644 678 563" fill="none" stroke="#A27AF5" stroke-width="21" stroke-linecap="round"/>
+  <path d="M644 574 L683 531 L700 590 Z" fill="#A27AF5"/>
+
+  <!-- Small familiar four-point accents from the mechanic cover series. -->
+  <path d="M228 232 C236 254 248 266 268 271 C248 276 236 290 230 312 C225 289 214 276 194 270 C214 264 225 253 228 232 Z" fill="#FFD43B"/>
+  <path d="M694 327 C700 342 710 351 725 355 C709 359 700 370 696 386 C691 369 681 359 666 355 C681 351 691 342 694 327 Z" fill="#FFFFFF"/>
+</svg>

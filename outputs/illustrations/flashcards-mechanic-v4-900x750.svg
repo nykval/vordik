@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="750" viewBox="0 0 900 750">
+  <rect width="900" height="750" fill="#EEF2FF"/>
+
+  <!-- A small deck: each sheet has its own rounded corners and a distinct angle. -->
+  <g transform="rotate(7 438 363)">
+    <rect x="260" y="179" width="357" height="367" rx="31" fill="#DCD0FF"/>
+  </g>
+  <g transform="rotate(15 503 356)">
+    <rect x="333" y="171" width="340" height="370" rx="31" fill="#FFFFFF"/>
+  </g>
+
+  <!-- Blue-violet reverse, layered like the supplied book reference. -->
+  <g transform="rotate(-12 366 402)">
+    <rect x="197" y="247" width="360" height="350" rx="34" fill="#192D86"/>
+    <rect x="180" y="229" width="360" height="350" rx="34" fill="#A27AF5"/>
+    <path d="M355 361 C367 392 389 408 418 403 C390 421 376 444 382 471 C362 446 338 434 313 439 C338 418 355 392 355 361 Z" fill="#355CFF"/>
+  </g>
+
+  <!-- The visible face swings forward; its simple mark differs from the reverse. -->
+  <g transform="rotate(13 615 384)">
+    <rect x="469" y="218" width="302" height="343" rx="33" fill="#2039B4"/>
+    <rect x="453" y="200" width="302" height="343" rx="33" fill="#FFFFFF"/>
+    <path d="M595 286 C611 281 618 291 633 287 C650 288 653 302 647 314 C657 326 653 340 639 345 C638 361 622 368 609 360 C596 370 582 361 578 349 C562 347 557 330 568 320 C563 304 575 287 595 286 Z" fill="#FFD43B"/>
+    <path d="M536 415 H683" stroke="#BFCFFF" stroke-width="15" stroke-linecap="round"/>
+    <path d="M554 449 H666" stroke="#BFCFFF" stroke-width="15" stroke-linecap="round"/>
+  </g>
+
+  <!-- Compact turn indicator. -->
+  <path d="M698 146 C764 162 805 222 787 278" fill="none" stroke="#355CFF" stroke-width="19" stroke-linecap="round"/>
+  <path d="M758 261 L780 311 L809 266 Z" fill="#355CFF"/>
+</svg>

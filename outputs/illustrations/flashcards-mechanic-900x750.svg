@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="750" viewBox="0 0 900 750">
+  <rect width="900" height="750" fill="#EEF2FF"/>
+  <!-- One broad motion arc makes the flip readable at small sizes. -->
+  <path d="M230 244 C286 131 411 94 536 111 C622 123 688 175 712 230" fill="none" stroke="#A27AF5" stroke-width="25" stroke-linecap="round"/>
+
+  <!-- Word side of the card, with a single deep-blue thickness plane. -->
+  <g transform="rotate(-14 336 377)">
+    <rect x="183" y="211" width="318" height="348" fill="#2039B4"/>
+    <rect x="167" y="193" width="318" height="348" fill="#355CFF"/>
+    <g fill="#FFFFFF" transform="translate(210.386,384.308) scale(0.095538,-0.095538)"><path d="M450 -10Q369 -10 298.5 20.5Q228 51 175.5 105.5Q123 160 93.5 233.0Q64 306 64 391Q64 475 93.5 547.5Q123 620 175.5 674.5Q228 729 298.0 760.0Q368 791 450 791Q527 791 582.5 771.0Q638 751 694 705Q702 699 706.5 692.5Q711 686 712.5 679.5Q714 673 714 664Q714 645 700.5 632.5Q687 620 668.0 618.5Q649 617 631 631Q594 663 554.5 680.0Q515 697 450 697Q391 697 339.0 673.0Q287 649 247.5 607.0Q208 565 186.0 509.5Q164 454 164 391Q164 327 186.0 271.5Q208 216 247.5 174.0Q287 132 339.0 108.5Q391 85 450 85Q501 85 546.5 102.5Q592 120 634 151Q652 164 669.5 162.5Q687 161 699.0 148.5Q711 136 711 114Q711 104 707.0 94.5Q703 85 695 77Q641 34 579.5 12.0Q518 -10 450 -10Z" transform="translate(0,0)"/><path d="M69 0Q41 0 26.0 24.0Q11 48 23 75L304 746Q319 781 353 781Q389 781 402 746L684 73Q695 45 680.5 22.5Q666 0 637 0Q622 0 608.5 8.5Q595 17 589 32L341 648H369L117 32Q110 16 96.5 8.0Q83 0 69 0ZM122 172 162 258H554L594 172Z" transform="translate(777,0)"/><path d="M330.5272727272727 0Q309 0 294.0 15.0Q279 30 279 52V781H383V52Q383 30 368.2 15.0Q353.4 0 330.5272727272727 0ZM63 685Q41.666666666666664 685 28.333333333333332 698.7142857142858Q15 712.4285714285714 15 733Q15 754.3333333333334 28.333333333333332 767.6666666666667Q41.666666666666664 781 63 781H598Q619.3333333333334 781 632.6666666666667 767.6666666666667Q646 754.3333333333334 646 733Q646 712.4285714285714 632.6666666666667 698.7142857142858Q619.3333333333334 685 598 685Z" transform="translate(1480,0)"/></g>
+    <path d="M230 410 H375" stroke="#BFCFFF" stroke-width="13" stroke-linecap="round"/>
+    <path d="M230 447 H343" stroke="#BFCFFF" stroke-width="13" stroke-linecap="round"/>
+  </g>
+
+  <!-- Picture side: clean white paper and one friendly animal silhouette. -->
+  <g transform="rotate(10 565 382)">
+    <rect x="411" y="208" width="321" height="354" fill="#2039B4"/>
+    <rect x="394" y="190" width="321" height="354" fill="#FFFFFF"/>
+    <path fill="#FFD43B" d="M465 329 L476 250 Q479 237 491 246 L514 271 Q558 255 600 272 L627 247 Q639 237 643 251 L655 328 Q666 381 634 411 Q605 438 560 438 Q515 438 486 411 Q454 381 465 329 Z"/>
+    <path fill="#FF943D" d="M483 272 L488 255 L510 278 Z"/>
+    <path fill="#FF943D" d="M613 278 L635 255 L640 273 Z"/>
+    <ellipse cx="524" cy="348" rx="8" ry="11" fill="#192D86"/>
+    <ellipse cx="598" cy="348" rx="8" ry="11" fill="#192D86"/>
+    <path d="M553 376 Q561 385 569 376 Z" fill="#D9940B"/>
+    <path d="M561 383 V391 M561 391 Q550 402 541 394 M561 391 Q572 402 581 394" fill="none" stroke="#D9940B" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M506 470 H620" stroke="#BFCFFF" stroke-width="13" stroke-linecap="round"/>
+  </g>
+  <path d="M678 211 L720 260 L739 198 Z" fill="#A27AF5"/>
+</svg>
