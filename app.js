@@ -88,6 +88,16 @@
       .sort((left, right) => left.difficulty - right.difficulty || left.word.localeCompare(right.word, 'en'))
       .map((word) => [word.word, word.translations[0], word.id, word.cefr]),
   }));
+  const featuredCollectionIds = ['travel', 'body-health', 'animals', 'personality'];
+  const otherCollections = wordCollections.filter((collection) => !featuredCollectionIds.includes(collection.id));
+  for (let index = otherCollections.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1));
+    [otherCollections[index], otherCollections[randomIndex]] = [otherCollections[randomIndex], otherCollections[index]];
+  }
+  const displayedCollections = [
+    ...featuredCollectionIds.map((id) => wordCollections.find((collection) => collection.id === id)).filter(Boolean),
+    ...otherCollections,
+  ];
   const rawQuickPickWords = Array.isArray(window.VORDIK_QUICK_PICK_WORDS) ? window.VORDIK_QUICK_PICK_WORDS : [];
   const legacyQuickPickCommonByPair = new Map();
   const quickPickCommonIds = new Set();
@@ -983,7 +993,7 @@
 
   function renderReadyCollections() {
     const fragment = document.createDocumentFragment();
-    wordCollections.forEach((collection) => {
+    displayedCollections.forEach((collection) => {
       const button = document.createElement('button');
       button.className = 'ready-collection-card';
       button.type = 'button';
@@ -1353,6 +1363,24 @@
     return configuredRatingApiBase ? `${configuredRatingApiBase}${path}` : path;
   }
 
+  async function postProfileApi(path, payload, fallbackError) {
+    const send = (body) => fetch(ratingApiUrl(path), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    let response = await send(payload);
+    let result = await response.json().catch(() => ({}));
+    if (response.status === 400 && result.error === 'Некорректный аватар') {
+      // An older API can reject newer avatars. Keep the user's choice locally.
+      const { avatarId, ...compatiblePayload } = payload;
+      response = await send({ ...compatiblePayload, avatarCustomized: false });
+      result = await response.json().catch(() => ({}));
+    }
+    if (!response.ok) throw new Error(result.error || fallbackError);
+    return result;
+  }
+
   function finishGeneratedAudio(word, result) {
     if (!word || !result?.audioUrl) return false;
     const audio = normalizeStoredAudio(result.audioUrl);
@@ -1511,22 +1539,17 @@
     card?.setAttribute('aria-busy', 'true');
     if (!silent) status.textContent = 'Обновляем рейтинг…';
     try {
-      const response = await fetch(ratingApiUrl('/api/ratings/sync'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          telegramInitData: window.Telegram?.WebApp?.initData ?? '',
-          guestId: ratingGuestId,
-          name: userProfile.name,
-          avatarId: userProfile.avatarId,
-          avatarCustomized: userProfile.avatarCustomized,
-          score,
-          vocabularySize: words.length,
-          averageDifficulty,
-        }),
-      });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error || 'Сервер рейтинга недоступен');
+      const payload = {
+        telegramInitData: window.Telegram?.WebApp?.initData ?? '',
+        guestId: ratingGuestId,
+        name: userProfile.name,
+        avatarId: userProfile.avatarId,
+        avatarCustomized: userProfile.avatarCustomized,
+        score,
+        vocabularySize: words.length,
+        averageDifficulty,
+      };
+      const result = await postProfileApi('/api/ratings/sync', payload, 'Сервер рейтинга недоступен');
       if (requestVersion !== ratingRequestVersion) return;
       if (!userProfile.avatarCustomized && avatarById.has(result?.player?.avatarId) && result.player.avatarId !== userProfile.avatarId) {
         userProfile.avatarId = result.player.avatarId;
@@ -1558,14 +1581,7 @@
   }
 
   async function socialPost(path, extra = {}) {
-    const response = await fetch(ratingApiUrl(path), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(socialAuthPayload(extra)),
-    });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result.error || 'Не удалось связаться с сервером');
-    return result;
+    return postProfileApi(path, socialAuthPayload(extra), 'Не удалось связаться с сервером');
   }
 
   function loadPendingGameFriendId() {
