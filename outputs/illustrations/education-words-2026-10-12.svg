@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="700" height="525" viewBox="0 0 700 525">
+  <rect width="700" height="525" fill="#B2F4E5"/>
+
+  <!-- Purple cover and spine. -->
+  <path d="M82 177c87-22 176-19 267 19 91-38 180-41 269-19 14 3 21 12 19 27l-16 213c-1 15-9 21-24 18-96-17-175-10-248 33-73-43-152-50-248-33-15 3-23-3-24-18L61 204c-2-15 5-24 21-27z" fill="#6240A7"/>
+  <path d="M82 168c98-26 188-15 267 22v243c-80-38-164-44-266-23z" fill="#A27AF5"/>
+  <path d="M616 168c-98-26-188-15-267 22v243c80-38 164-44 266-23z" fill="#A27AF5"/>
+
+  <!-- Open pages form one clear silhouette. -->
+  <path d="M108 148c91-19 174-7 241 30v224c-77-33-154-40-240-21z" fill="#FFFFFF"/>
+  <path d="M590 148c-91-19-174-7-241 30v224c77-33 154-40 240-21z" fill="#FFFFFF"/>
+  <path d="M349 178v224" fill="none" stroke="#DCD0FF" stroke-width="8" stroke-linecap="round"/>
+
+  <!-- Bookmark and a few short page marks, never real text. -->
+  <path d="M201 147c21 0 41 3 61 8v104l-30-21-31 18z" fill="#FFD43B"/>
+  <path d="M149 312h121M149 339h92" fill="none" stroke="#DCD0FF" stroke-width="8" stroke-linecap="round"/>
+
+  <!-- Pencil crossing the right page, using only separate solid planes. -->
+  <path d="M387 347c-9 9-9 22 0 30 9 9 22 9 31 0l137-137-31-31z" fill="#FF943D"/>
+  <path d="M405 365l13 12 137-137-13-13z" fill="#D65A1C"/>
+  <path d="M524 209l31 31 29-49-10-10z" fill="#FFD4AC"/>
+  <path d="M574 181l10 10 9-23z" fill="#192D86"/>
+</svg>

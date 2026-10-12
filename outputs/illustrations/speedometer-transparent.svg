@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="700" height="525" viewBox="0 0 700 525">
+  <title>Спидометр в стиле Вордика</title>
+  <path d="M115 366 A235 235 0 0 1 585 366
+           Q583 389 559 385
+           C489 370 425 361 388 374
+           Q350 393 312 374
+           C275 361 211 370 141 385
+           Q117 389 115 366 Z"
+        fill="#BFCFFF"/>
+  <path d="M92 367 A258 258 0 0 1 608 367"
+        fill="none" stroke="#355CFF" stroke-width="56" stroke-linecap="round"/>
+  <path d="M92 367 C129 374 167 358 202 357
+           C251 353 298 365 321 389
+           Q350 419 379 389
+           C402 365 449 353 498 357
+           C533 358 571 374 608 367"
+        fill="none" stroke="#355CFF" stroke-width="56" stroke-linecap="round"/>
+  <g fill="none" stroke="#2039B4" stroke-width="17" stroke-linecap="round">
+    <path d="M163 348 L195 348"/>
+    <path d="M219 249 L242 272"/>
+    <path d="M350 180 L350 211"/>
+    <path d="M481 249 L458 272"/>
+    <path d="M537 348 L505 348"/>
+  </g>
+  <path d="M339 366 Q341 350 355 343 L482 214 Q490 206 496 212 Q502 218 496 227 L373 376 Z"
+        fill="#FF943D"/>
+  <circle cx="350" cy="372" r="48" fill="#355CFF"/>
+  <circle cx="350" cy="372" r="25" fill="#FFD43B"/>
+</svg>

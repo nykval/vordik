@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="700" height="525" viewBox="0 0 700 525">
+  <title>Ракета в стиле Вордика</title>
+  <rect width="700" height="525" fill="#B9EFFF"/>
+  <g transform="translate(378 248) rotate(45)">
+    <!-- A single, connected exhaust flame. -->
+    <path d="M-31 144 C-40 180 -29 212 0 237 C29 212 40 180 31 144 Z" fill="#FFD43B"/>
+    <path d="M-14 150 C-19 174 -12 194 0 208 C12 194 19 174 14 150 Z" fill="#FF943D"/>
+    <!-- Broad fins sit behind the fuselage. -->
+    <path d="M-69 54 C-114 56 -139 99 -151 157 C-119 150 -90 135 -69 116 Z" fill="#FF943D"/>
+    <path d="M69 54 C114 56 139 99 151 157 C119 150 90 135 69 116 Z" fill="#FF943D"/>
+    <path d="M-151 157 C-120 150 -91 135 -69 116 L-69 91 C-95 118 -122 140 -151 157 Z" fill="#D65A1C"/>
+    <path d="M151 157 C120 150 91 135 69 116 L69 91 C95 118 122 140 151 157 Z" fill="#D65A1C"/>
+    <!-- Engine and main body. -->
+    <path d="M-51 122 L51 122 L44 155 Q0 168 -44 155 Z" fill="#2039B4"/>
+    <path d="M0 -190 C-43 -167 -74 -112 -74 -50 L-74 115 Q-74 136 -52 144 L52 144 Q74 136 74 115 L74 -50 C74 -112 43 -167 0 -190 Z" fill="#355CFF"/>
+    <path d="M0 -190 C18 -180 33 -165 45 -145 L-45 -145 C-33 -165 -18 -180 0 -190 Z" fill="#2039B4"/>
+    <path d="M45 -145 C64 -116 74 -84 74 -50 L74 115 Q74 136 52 144 L21 144 L21 -145 Z" fill="#BFCFFF"/>
+    <path d="M-74 95 L74 95 L74 115 Q74 136 52 144 L-52 144 Q-74 136 -74 115 Z" fill="#2039B4"/>
+    <!-- One bold round window; no unnecessary surface detail. -->
+    <circle cx="0" cy="-54" r="42" fill="#FFFFFF"/>
+    <circle cx="0" cy="-54" r="29" fill="#BFCFFF"/>
+    <path d="M-18 -61 Q-13 -77 5 -80 Q-4 -65 -18 -61 Z" fill="#FFFFFF"/>
+  </g>
+</svg>

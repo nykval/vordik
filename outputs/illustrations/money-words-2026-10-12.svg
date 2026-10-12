@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="700" height="525" viewBox="0 0 700 525">
+  <rect width="700" height="525" fill="#FFD0E8"/>
+
+  <g transform="rotate(-6 350 303)">
+    <!-- The open back of the wallet. -->
+    <path d="M151 230c0-27 18-42 45-42h331c33 0 53 18 53 50v88H151z" fill="#2039B4"/>
+
+    <!-- Three simple coins, each with a separate golden edge. -->
+    <circle cx="282" cy="227" r="65" fill="#D9940B"/>
+    <circle cx="293" cy="227" r="65" fill="#FFD43B"/>
+    <circle cx="420" cy="190" r="76" fill="#D9940B"/>
+    <circle cx="433" cy="190" r="76" fill="#FFD43B"/>
+    <circle cx="365" cy="255" r="46" fill="#D9940B"/>
+    <circle cx="375" cy="255" r="46" fill="#FFD43B"/>
+
+    <!-- The front keeps the stack readable at small sizes. -->
+    <rect x="145" y="257" width="426" height="211" rx="38" fill="#2039B4"/>
+    <rect x="171" y="257" width="430" height="211" rx="38" fill="#355CFF"/>
+    <path d="M218 330v18M218 409v18" fill="none" stroke="#2039B4" stroke-width="11" stroke-linecap="round"/>
+
+    <path d="M494 322h111c18 0 29 11 29 28v64c0 17-11 28-29 28H494c-21 0-34-15-34-34v-53c0-19 13-33 34-33z" fill="#BFCFFF"/>
+    <circle cx="529" cy="382" r="17" fill="#2039B4"/>
+  </g>
+</svg>

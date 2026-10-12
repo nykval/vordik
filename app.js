@@ -66,6 +66,7 @@
       translations,
       partOfSpeech: normalizeDictionaryText(entry.partOfSpeech, 'ru-RU') || null,
       cefr,
+      topics: Array.isArray(entry.topics) ? entry.topics.map((topic) => String(topic).trim()).filter(Boolean) : [],
       difficulty: CEFR_DIFFICULTY[cefr],
       audio: commonAudioSource(word),
     };
@@ -80,7 +81,13 @@
     });
   });
   const sampleWords = [];
-  const wordCollections = Array.isArray(window.VORDIK_COLLECTIONS) ? window.VORDIK_COLLECTIONS : [];
+  const wordCollections = (Array.isArray(window.VORDIK_COLLECTIONS) ? window.VORDIK_COLLECTIONS : []).map((collection) => ({
+    ...collection,
+    words: commonWords
+      .filter((word) => word.topics.includes(collection.title))
+      .sort((left, right) => left.difficulty - right.difficulty || left.word.localeCompare(right.word, 'en'))
+      .map((word) => [word.word, word.translations[0], word.id, word.cefr]),
+  }));
   const rawQuickPickWords = Array.isArray(window.VORDIK_QUICK_PICK_WORDS) ? window.VORDIK_QUICK_PICK_WORDS : [];
   const legacyQuickPickCommonByPair = new Map();
   const quickPickCommonIds = new Set();
@@ -119,11 +126,13 @@
   let activeAudio = null;
   let sortMode = 'recent';
   let dictionarySearchQuery = '';
+  let selectedCatalogWordId = null;
   let sortCloseTimer;
   let sortOpenFrame;
   let collectionCloseTimer;
   let collectionOpenFrame;
   let activeCollectionId = null;
+  let activeCollectionLevel = 'all';
   let deleteCloseTimer;
   let deleteOpenFrame;
   let pendingDeleteId = null;
@@ -234,14 +243,15 @@
       .filter(Boolean))];
   }
 
-  function hasUserWordPair(list, english, russian) {
-    const normalizedEnglish = normalizeDictionaryText(english, 'en-US');
-    const normalizedRussian = normalizeDictionaryText(russian, 'ru-RU');
-    const commonWord = commonWordForPair(normalizedEnglish, normalizedRussian);
-    return list.some((word) => {
-      if (commonWord && word.common_word_id === commonWord.id) return true;
-      return word.english === normalizedEnglish && wordTranslations(word).includes(normalizedRussian);
-    });
+  function translationSummary(word) {
+    const translations = wordTranslations(word);
+    return translations.length > 1
+      ? `${translations[0]} + ${translations.length - 1}`
+      : (translations[0] ?? '');
+  }
+
+  function hasUserCommonWord(list, commonWordId) {
+    return list.some((word) => word.common_word_id === commonWordId);
   }
 
   function randomTranslation(word, excluded = null) {
@@ -310,9 +320,9 @@
       const legacyCommonWord = legacyCommonId ? commonWordById.get(legacyCommonId) : null;
       if (legacyCommonWord) return legacyCommonWord;
     }
-    if (word.source) return null;
     const legacyTranslations = russian.split(',').map((translation) => normalizeDictionaryText(translation, 'ru-RU'));
-    return legacyTranslations.map((translation) => commonWordForPair(english, translation)).find(Boolean) ?? null;
+    return legacyTranslations.map((translation) => commonWordForPair(english, translation)).find(Boolean)
+      ?? resolveQuickPickCommonWord({ english, russian });
   }
 
   function normalizeWordRecord(word, initialKnowledge = 1, allowLegacyQuickPickMigration = false) {
@@ -348,8 +358,9 @@
     };
   }
 
-  function createWordRecord(id, english, russian, initialKnowledge = 1) {
-    return normalizeWordRecord({ id, english, russian, knowledge: initialKnowledge, knowledge_scale: KNOWLEDGE_SCALE_VERSION }, initialKnowledge);
+  function createWordRecord(id, english, russian, initialKnowledge = 1, commonWordId = null) {
+    const word = normalizeWordRecord({ id, english, russian, common_word_id: commonWordId, knowledge: initialKnowledge, knowledge_scale: KNOWLEDGE_SCALE_VERSION }, initialKnowledge);
+    return word.common_word_id ? word : null;
   }
 
   function currentKnowledge(word, now = Date.now()) {
@@ -597,6 +608,22 @@
     return 'тренировок';
   }
 
+  function renderProfileTopics() {
+    const fragment = document.createDocumentFragment();
+    wordCollections.forEach((collection) => {
+      const row = document.createElement('div');
+      row.className = 'profile-topic-row';
+      row.setAttribute('role', 'listitem');
+      const name = document.createElement('span');
+      name.textContent = collection.title;
+      const count = document.createElement('strong');
+      count.textContent = `${collection.words.length} ${wordNoun(collection.words.length)}`;
+      row.append(name, count);
+      fragment.append(row);
+    });
+    $('profile-topics-card').replaceChildren(fragment);
+  }
+
   function renderProfile() {
     if (!$('profile-view')) return;
     const sessions = profileStats.sessionsCompleted;
@@ -614,6 +641,7 @@
     $('profile-total-time').textContent = durationLabel(currentAppUsageMs());
     $('profile-vocabulary-level').textContent = `${vocabularyLevel} ${pointNoun(vocabularyLevel)}`;
     $('profile-average-difficulty').textContent = `${averageDifficulty} из 6`;
+    renderProfileTopics();
     $('profile-streak-message').textContent = streak
       ? 'Продолжайте заниматься каждый день, чтобы сохранить серию.'
       : 'Начните занятие сегодня — первый день серии уже близко.';
@@ -714,17 +742,24 @@
   }
 
   function loadWords() {
+    if (!commonWords.length) return [];
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved === null) return sampleWords.map((word) => normalizeWordRecord(word));
       const parsed = JSON.parse(saved);
       if (!Array.isArray(parsed)) throw new Error('Invalid word list');
+      const seenCommonIds = new Set();
       const normalized = parsed
         .filter((word) => word && typeof word.id === 'string' && typeof word.english === 'string' && typeof word.russian === 'string')
         .map((word) => normalizeWordRecord(word, 1, true))
-        .filter((word) => word.english && word.russian);
+        .filter((word) => {
+          if (!word.common_word_id || seenCommonIds.has(word.common_word_id)) return false;
+          seenCommonIds.add(word.common_word_id);
+          return true;
+        });
       if (JSON.stringify(normalized) !== JSON.stringify(parsed)) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized)); }
+        catch { /* Keep the valid words in memory if storage is temporarily unavailable. */ }
       }
       return normalized;
     } catch {
@@ -741,6 +776,13 @@
   }
 
   function saveWords() {
+    if (!commonWords.length || words.some((word) => {
+      const commonWord = commonWordById.get(word.common_word_id);
+      if (!commonWord || word.english !== commonWord.word || word.russian !== commonWord.translations.join(', ')) return true;
+      const translations = wordTranslations(word);
+      return translations.length !== commonWord.translations.length
+        || translations.some((translation, index) => translation !== commonWord.translations[index]);
+    })) return false;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(words));
       return true;
@@ -795,11 +837,74 @@
     }
   }
 
+  function searchCommonWords(value, limit = 20) {
+    const query = normalizeDictionaryText(value, 'en-US');
+    if (!query) return { results: [], total: 0 };
+    const prefix = [];
+    const partial = [];
+    commonWords.forEach((word) => {
+      const translationStartsWith = word.translations.some((translation) => translation.startsWith(query));
+      const translationIncludes = word.translations.some((translation) => translation.includes(query));
+      if (word.word.startsWith(query) || translationStartsWith) prefix.push(word);
+      else if (word.word.includes(query) || translationIncludes) partial.push(word);
+    });
+    return { results: [...prefix, ...partial].slice(0, limit), total: prefix.length + partial.length };
+  }
+
+  function renderCatalogSearch() {
+    const query = $('english-input').value;
+    const { results, total } = searchCommonWords(query);
+    const hint = $('catalog-search-hint');
+    hint.textContent = !query.trim()
+      ? 'Введите слово на английском или перевод на русском.'
+      : (!total ? 'В общем справочнике ничего не найдено.'
+        : (total > results.length ? `Найдено ${total}. Показаны первые ${results.length} — уточните запрос.` : 'Выберите слово из списка.'));
+    const fragment = document.createDocumentFragment();
+    results.forEach((word) => {
+      const item = document.createElement('div');
+      item.setAttribute('role', 'listitem');
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'catalog-result';
+      button.dataset.catalogWordId = word.id;
+      const alreadyAdded = hasUserCommonWord(words, word.id);
+      button.disabled = alreadyAdded;
+      button.setAttribute('aria-pressed', String(selectedCatalogWordId === word.id));
+      const english = document.createElement('strong');
+      english.lang = 'en';
+      english.textContent = word.word;
+      const translation = document.createElement('span');
+      translation.textContent = word.translations.join(', ');
+      const detail = document.createElement('small');
+      detail.textContent = alreadyAdded ? 'Уже в словаре' : [word.partOfSpeech, word.cefr].filter(Boolean).join(' · ');
+      button.append(english, translation, detail);
+      button.addEventListener('click', () => {
+        selectedCatalogWordId = word.id;
+        $('catalog-results').querySelectorAll('button').forEach((option) => {
+          const selected = option.dataset.catalogWordId === word.id;
+          option.classList.toggle('is-selected', selected);
+          option.setAttribute('aria-pressed', String(selected));
+        });
+        $('add-form').querySelector('[type="submit"]').disabled = false;
+      });
+      if (selectedCatalogWordId === word.id) button.classList.add('is-selected');
+      item.append(button);
+      fragment.append(item);
+    });
+    $('catalog-results').replaceChildren(fragment);
+    $('add-form').querySelector('[type="submit"]').disabled = !selectedCatalogWordId;
+  }
+
   function setAddPanel(open, restoreFocus = true) {
     $('add-overlay').hidden = !open;
     document.body.classList.toggle('is-add-open', open);
     $('add-word-toggle').setAttribute('aria-expanded', String(open));
-    if (open) $('english-input').focus();
+    if (open) {
+      $('add-form').reset();
+      selectedCatalogWordId = null;
+      renderCatalogSearch();
+      $('english-input').focus();
+    }
     else if (restoreFocus && activeTab === 'dictionary') $('add-word-toggle').focus();
   }
 
@@ -876,52 +981,25 @@
     return wordCollections.find((collection) => collection.id === activeCollectionId) ?? null;
   }
 
-  const collectionCardThemes = [
-    ['#b9efff', '#355cff', '#ffd43b'],
-    ['#fff0ad', '#ff943d', '#355cff'],
-    ['#b2f4e5', '#45d875', '#a27af5'],
-    ['#6240a7', '#a27af5', '#b9efff'],
-    ['#ffd0e8', '#ff7866', '#355cff'],
-    ['#bfcfff', '#355cff', '#2039b4'],
-    ['#b2f4e5', '#26d6b0', '#07856d'],
-    ['#e8f7ae', '#c4e747', '#ffd43b'],
-    ['#ffc6bd', '#ff7866', '#ff943d'],
-    ['#dcd0ff', '#a27af5', '#f66fb1'],
-  ];
-
   function renderReadyCollections() {
     const fragment = document.createDocumentFragment();
-    wordCollections.forEach((collection, index) => {
+    wordCollections.forEach((collection) => {
       const button = document.createElement('button');
       button.className = 'ready-collection-card';
       button.type = 'button';
       button.dataset.collectionId = collection.id;
       button.setAttribute('aria-label', `Открыть подборку «${collection.title}»`);
-      const [cover, accent, detail] = collectionCardThemes[index % collectionCardThemes.length];
-      button.style.setProperty('--collection-cover', cover);
-      button.style.setProperty('--collection-accent', accent);
-      button.style.setProperty('--collection-detail', detail);
-
       const visual = document.createElement('span');
       visual.className = 'ready-collection-visual';
       visual.setAttribute('aria-hidden', 'true');
-      if (collection.image) {
-        const image = document.createElement('img');
-        image.className = 'ready-collection-image';
-        image.src = collection.image;
-        image.alt = '';
-        image.width = 700;
-        image.height = 450;
-        visual.append(image);
-      } else {
-        const visualCircle = document.createElement('span');
-        visualCircle.className = 'ready-collection-visual-circle';
-        const visualPill = document.createElement('span');
-        visualPill.className = 'ready-collection-visual-pill';
-        const visualDot = document.createElement('span');
-        visualDot.className = 'ready-collection-visual-dot';
-        visual.append(visualCircle, visualPill, visualDot);
-      }
+      const image = document.createElement('img');
+      image.className = 'ready-collection-image';
+      image.src = `${collection.image}?v=2`;
+      image.alt = '';
+      image.width = 700;
+      image.height = 525;
+      image.loading = 'lazy';
+      visual.append(image);
 
       const copy = document.createElement('span');
       copy.className = 'ready-collection-copy';
@@ -933,7 +1011,7 @@
       const meta = document.createElement('span');
       meta.className = 'ready-collection-meta';
       const wordCount = document.createElement('span');
-      wordCount.textContent = `${collection.words.length} слов`;
+      wordCount.textContent = `${collection.words.length} ${wordNoun(collection.words.length)}`;
       meta.append(wordCount);
       copy.append(title, description, meta);
       button.append(visual, copy);
@@ -943,19 +1021,51 @@
     $('ready-collection-list').replaceChildren(fragment);
   }
 
+  function visibleCollectionWords(collection) {
+    return activeCollectionLevel === 'all'
+      ? collection.words
+      : collection.words.filter(([, , , cefr]) => cefr === activeCollectionLevel);
+  }
+
   function updateCollectionAction() {
     const collection = activeCollection();
     if (!collection) return;
-    const hasMissingWords = collection.words.some(([english, russian]) => !hasUserWordPair(words, english, russian));
+    const hasMissingWords = visibleCollectionWords(collection).some(([, , commonWordId]) => !hasUserCommonWord(words, commonWordId));
     $('collection-add-button').disabled = !hasMissingWords;
-    $('collection-add-button').textContent = hasMissingWords ? 'Добавить в словарь' : 'Добавлено';
+    $('collection-add-button').textContent = hasMissingWords
+      ? (activeCollectionLevel === 'all' ? 'Добавить все слова' : `Добавить слова ${activeCollectionLevel}`)
+      : 'Добавлено';
   }
 
   function renderCollectionDetails(collection) {
     $('collection-title').textContent = collection.title;
     $('collection-description').textContent = collection.description;
+    const levelChips = $('collection-level-chips');
+    const previousScroll = levelChips.scrollLeft;
+    const hadChipFocus = document.activeElement?.classList.contains('collection-level-chip');
+    const chips = document.createDocumentFragment();
+    ['all', 'A1', 'A2', 'B1', 'B2', 'C1', 'C2'].forEach((level) => {
+      const count = level === 'all'
+        ? collection.words.length
+        : collection.words.filter(([, , , cefr]) => cefr === level).length;
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'collection-level-chip';
+      chip.dataset.level = level;
+      chip.textContent = `${level === 'all' ? 'Все' : level} · ${count}`;
+      chip.setAttribute('aria-pressed', String(activeCollectionLevel === level));
+      chip.disabled = count === 0;
+      chip.addEventListener('click', () => {
+        activeCollectionLevel = level;
+        renderCollectionDetails(collection);
+      });
+      chips.append(chip);
+    });
+    levelChips.replaceChildren(chips);
+    levelChips.scrollLeft = previousScroll;
+    if (hadChipFocus) levelChips.querySelector(`[data-level="${activeCollectionLevel}"]`)?.focus({ preventScroll: true });
     const fragment = document.createDocumentFragment();
-    collection.words.forEach(([englishValue, russianValue]) => {
+    visibleCollectionWords(collection).forEach(([englishValue, , commonWordId]) => {
       const row = document.createElement('div');
       row.className = 'collection-word-row';
       row.setAttribute('role', 'listitem');
@@ -963,7 +1073,7 @@
       english.lang = 'en';
       english.textContent = normalizeDictionaryText(englishValue, 'en-US');
       const russian = document.createElement('span');
-      russian.textContent = normalizeDictionaryText(russianValue, 'ru-RU');
+      russian.textContent = translationSummary(commonWordById.get(commonWordId));
       row.append(english, russian);
       fragment.append(row);
     });
@@ -983,6 +1093,7 @@
       const collection = wordCollections.find((item) => item.id === collectionId);
       if (!collection) return;
       activeCollectionId = collection.id;
+      activeCollectionLevel = 'all';
       renderCollectionDetails(collection);
       overlay.hidden = false;
       document.body.classList.add('is-collection-open');
@@ -1008,19 +1119,22 @@
     const collection = activeCollection();
     if (!collection) return;
     const additions = [];
-    collection.words.forEach(([englishValue, russianValue], index) => {
+    visibleCollectionWords(collection).forEach(([englishValue, russianValue, commonWordId], index) => {
       const english = normalizeDictionaryText(englishValue, 'en-US');
       const russian = normalizeDictionaryText(russianValue, 'ru-RU');
-      if (hasUserWordPair([...words, ...additions], english, russian)) return;
-      additions.push(createWordRecord(
+      if (hasUserCommonWord([...words, ...additions], commonWordId)) return;
+      const word = createWordRecord(
         globalThis.crypto?.randomUUID?.() ?? `collection-${collection.id}-${Date.now()}-${index}`,
         english,
         russian,
-      ));
+        1,
+        commonWordId,
+      );
+      if (word) additions.push(word);
     });
     if (additions.length === 0) {
       updateCollectionAction();
-      showToast('Все слова из подборки уже добавлены');
+      showToast('Все слова выбранного уровня уже добавлены');
       return;
     }
     words.unshift(...additions);
@@ -1130,7 +1244,7 @@
       english.textContent = word.english;
       const russian = document.createElement('span');
       russian.className = 'dictionary-word-russian';
-      russian.textContent = word.russian;
+      russian.textContent = translationSummary(word);
       const knowledge = currentKnowledge(word, now);
       const metrics = document.createElement('span');
       metrics.className = 'dictionary-word-metrics';
@@ -2153,14 +2267,18 @@
     }
   }
 
-  function addWord(englishValue, russianValue) {
-    const english = normalizeDictionaryText(englishValue, 'en-US');
-    const russian = normalizeDictionaryText(russianValue, 'ru-RU');
-    if (!english || !russian || english.length > 80 || russian.length > 120) throw new Error('Заполните оба поля: слово и перевод.');
-    if (hasUserWordPair(words, english, russian)) {
-      throw new Error('Это слово с таким переводом уже есть в словаре.');
-    }
-    const word = createWordRecord(globalThis.crypto?.randomUUID?.() ?? `word-${Date.now()}-${Math.random()}`, english, russian);
+  function addCatalogWord(commonWordId) {
+    const commonWord = commonWordById.get(commonWordId);
+    if (!commonWord) throw new Error('Выберите слово из справочника.');
+    if (hasUserCommonWord(words, commonWord.id)) throw new Error('Это слово уже есть в вашем словаре.');
+    const word = createWordRecord(
+      globalThis.crypto?.randomUUID?.() ?? `word-${Date.now()}-${Math.random()}`,
+      commonWord.word,
+      commonWord.translations[0],
+      1,
+      commonWord.id,
+    );
+    if (!word) throw new Error('Не удалось найти слово в справочнике.');
     words.unshift(word);
     if (!saveWords()) {
       words.shift();
@@ -2169,6 +2287,14 @@
     renderDictionary();
     if (!word.audio) void requestGeneratedAudio(word);
     return word;
+  }
+
+  function addWord(englishValue, russianValue) {
+    const english = normalizeDictionaryText(englishValue, 'en-US');
+    const russian = normalizeDictionaryText(russianValue, 'ru-RU');
+    const commonWord = commonWordForPair(english, russian);
+    if (!commonWord) throw new Error('Такого слова с этим переводом нет в общем справочнике.');
+    return addCatalogWord(commonWord.id);
   }
 
   function setWordCardOpen(open, wordId = activeWordCardId, restoreFocus = true, preserveDrag = false) {
@@ -2187,7 +2313,7 @@
       if (!word) return;
       activeWordCardId = word.id;
       $('word-card-english').textContent = word.english;
-      $('word-card-russian').textContent = word.russian;
+      $('word-card-russian').textContent = translationSummary(word);
       $('word-card-listen').disabled = !word.audio;
       $('word-card-listen').setAttribute('aria-label', word.audio ? `Произнести ${word.english}` : `Озвучка слова ${word.english} пока не добавлена`);
       $('word-card-delete').setAttribute('aria-label', `Удалить ${word.english}`);
@@ -2702,15 +2828,17 @@
       if (!source) return;
       const english = normalizeDictionaryText(source.english, 'en-US');
       const russian = normalizeDictionaryText(source.russian, 'ru-RU');
-      if (!english || hasUserWordPair([...words, ...additions], english, russian)) return;
+      if (!english || hasUserCommonWord([...words, ...additions], source.commonWordId)) return;
       const choice = choices.get(id)
         ?? (quickPickSession.unknown.includes(id) ? 'unknown' : (quickPickKnown.has(id) ? 'known' : 'unknown'));
-      additions.push(createWordRecord(
+      const word = createWordRecord(
         globalThis.crypto?.randomUUID?.() ?? `quick-word-${Date.now()}-${index}`,
         english,
         russian,
         choice === 'known' ? 5 : 1,
-      ));
+        source.commonWordId,
+      );
+      if (word) additions.push(word);
     });
     if (additions.length) {
       words.unshift(...additions);
@@ -2737,8 +2865,9 @@
       if (!source) return;
       const english = normalizeDictionaryText(source.english, 'en-US');
       const russian = normalizeDictionaryText(source.russian, 'ru-RU');
-      if (hasUserWordPair([...words, ...additions], english, russian)) return;
-      additions.push(createWordRecord(globalThis.crypto?.randomUUID?.() ?? `quick-word-${Date.now()}-${index}`, english, russian));
+      if (hasUserCommonWord([...words, ...additions], source.commonWordId)) return;
+      const word = createWordRecord(globalThis.crypto?.randomUUID?.() ?? `quick-word-${Date.now()}-${index}`, english, russian, 1, source.commonWordId);
+      if (word) additions.push(word);
     });
     if (additions.length) {
       words.unshift(...additions);
@@ -2807,8 +2936,8 @@
     });
   }
 
-  function mechanicStudyWordIds() {
-    return weightedMechanicWords(words, STUDY_SERIES_SIZE, { prioritizeKnowledge: true })
+  function mechanicStudyWordIds(count = STUDY_SERIES_SIZE) {
+    return weightedMechanicWords(words, count, { prioritizeKnowledge: true })
       .map((word) => word.id);
   }
 
@@ -2864,7 +2993,7 @@
     if (mechanic === 'puzzle' && puzzleCandidates.length < PUZZLE_WORD_COUNT) return;
     stopTimedRound();
     session.mechanic = mechanic;
-    if (mechanic === 'timed') session.ids = mechanicStudyWordIds();
+    if (mechanic === 'timed') session.ids = mechanicStudyWordIds(words.length);
     else if (mechanic === 'five-letter') {
       const selectedWord = weightedMechanicWords(fiveLetterCandidates, 1, { prioritizeKnowledge: true })[0];
       session.ids = [selectedWord.id];
@@ -3774,11 +3903,14 @@
   $('add-form').addEventListener('submit', (event) => {
     event.preventDefault();
     try {
-      addWord($('english-input').value, $('russian-input').value);
-      $('add-form').reset();
+      addCatalogWord(selectedCatalogWordId);
       setAddPanel(false);
       showToast('Слово добавлено');
     } catch (error) { showToast(error.message); }
+  });
+  $('english-input').addEventListener('input', () => {
+    selectedCatalogWordId = null;
+    renderCatalogSearch();
   });
   $('add-word-toggle').addEventListener('click', () => setAddPanel($('add-overlay').hidden));
   document.querySelectorAll('[data-add-close]').forEach((button) => button.addEventListener('click', () => setAddPanel(false)));
@@ -3966,7 +4098,16 @@
         }),
       })).catch(() => {});
       Promise.resolve(context.registerTool({
-        name: 'add_word', title: 'Добавить слово', description: 'Сохранить английское слово и его русский перевод в личном словаре Вордика.',
+        name: 'search_catalog', title: 'Найти слово в справочнике', description: 'Найти английское слово или русский перевод в общем справочнике Вордика.',
+        inputSchema: { type: 'object', properties: { query: { type: 'string', maxLength: 80 } }, required: ['query'], additionalProperties: false },
+        annotations: { readOnlyHint: true, untrustedContentHint: true },
+        execute: (input) => {
+          const { results, total } = searchCommonWords(input?.query);
+          return { total, words: results.map((word) => ({ english: word.word, russian: word.translations[0], translations: word.translations, partOfSpeech: word.partOfSpeech, cefr: word.cefr })) };
+        },
+      })).catch(() => {});
+      Promise.resolve(context.registerTool({
+        name: 'add_word', title: 'Добавить слово', description: 'Добавить в личный словарь только слово и перевод из общего справочника Вордика.',
         inputSchema: { type: 'object', properties: { english: { type: 'string', maxLength: 80 }, russian: { type: 'string', maxLength: 120 } }, required: ['english', 'russian'], additionalProperties: false },
         annotations: { readOnlyHint: false, untrustedContentHint: true },
         execute: (input) => {

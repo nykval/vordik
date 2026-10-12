@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="700" height="525" viewBox="0 0 700 525">
+  <defs>
+    <mask id="palette-hole">
+      <rect width="700" height="525" fill="#fff"/>
+      <ellipse cx="343" cy="403" rx="39" ry="32" transform="rotate(29 343 403)" fill="#000"/>
+    </mask>
+  </defs>
+  <rect width="700" height="525" fill="#EEF2FF"/>
+
+  <!-- A single connected film clapperboard. -->
+  <g transform="rotate(8 477 297)">
+    <rect x="332" y="194" width="303" height="231" rx="18" fill="#192D86"/>
+    <path d="M523 278v78l61-39z" fill="#DCD0FF"/>
+    <rect x="332" y="154" width="303" height="72" rx="12" fill="#A27AF5"/>
+    <path d="M371 154h38l-45 72h-38zm79 0h38l-45 72h-38zm79 0h38l-45 72h-38zm79 0h27v17l-35 55h-38z" fill="#DCD0FF"/>
+    <circle cx="356" cy="248" r="8" fill="#DCD0FF"/>
+    <circle cx="385" cy="248" r="8" fill="#DCD0FF"/>
+  </g>
+
+  <!-- The artist's palette overlaps the clapperboard. -->
+  <path d="M83 298c-2-82 70-147 159-149 83-2 162 42 200 113 19 36 28 75 16 103-9 20-28 23-46 39-16 14-17 29-10 43 12 25-6 46-37 52-64 11-161-14-225-58C100 414 84 367 83 298z" fill="#FF943D" mask="url(#palette-hole)"/>
+  <ellipse cx="195" cy="260" rx="43" ry="40" fill="#A27AF5"/>
+  <ellipse cx="307" cy="250" rx="39" ry="37" fill="#355CFF"/>
+  <ellipse cx="163" cy="362" rx="38" ry="35" fill="#F66FB1"/>
+
+  <!-- One broad brush, with a small blue paint tip. -->
+  <path d="M115 461c-9 6-21 3-27-6-6-9-3-21 7-27l244-152 23 37z" fill="#FFD4AC"/>
+  <path d="M334 278l40-25 23 38-40 24z" fill="#192D86"/>
+  <path d="M374 253c32-23 58-43 68-67 13 25 9 55-15 78-9 9-20 15-30 27z" fill="#192D86"/>
+  <path d="M427 215c6-9 11-19 15-29 11 21 11 44-1 64-14-6-22-17-14-35z" fill="#355CFF"/>
+</svg>

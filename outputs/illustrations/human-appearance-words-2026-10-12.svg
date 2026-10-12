@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="700" height="525" viewBox="0 0 700 525">
+  <rect width="700" height="525" fill="#DCD0FF"/>
+
+  <!-- The second portrait sits behind the first. -->
+  <path d="M358 525v-46c0-40 43-63 114-73l112-2c71 8 116 37 116 76v45z" fill="#355CFF"/>
+  <path d="M479 384h103v53c-9 22-29 36-51 36s-42-14-52-36z" fill="#B7805A"/>
+  <path d="M435 231c-28-18-37-48-24-71-6-27 9-49 33-54 4-29 31-44 55-37 18-24 53-24 72-9 29-18 62-3 69 22 28-5 50 14 48 41 21 16 19 43-2 60 10 29-8 54-34 58l-19 64-189 2z" fill="#192D86"/>
+  <ellipse cx="439" cy="289" rx="24" ry="29" fill="#B7805A"/>
+  <ellipse cx="638" cy="288" rx="23" ry="29" fill="#B7805A"/>
+  <path d="M442 222c7-49 37-76 92-77 57-1 92 28 99 77l-1 91c-4 65-43 107-98 108-57 0-96-43-96-108z" fill="#B7805A"/>
+  <path d="M440 231c-6-34 7-60 35-73 23-11 44-4 60 13 18-25 45-30 65-12 22-7 43 12 42 42l-4 35c-14-8-22-22-26-39-8 20-22 27-40 25-17-2-29-10-38-24-13 18-31 27-53 24-17-2-29 3-41 9z" fill="#192D86"/>
+  <path d="M468 263c14-8 30-7 42-2M561 260c14-7 30-6 42 1" fill="none" stroke="#192D86" stroke-width="8" stroke-linecap="round"/>
+  <ellipse cx="486" cy="290" rx="6" ry="9" fill="#192D86"/>
+  <ellipse cx="584" cy="289" rx="6" ry="9" fill="#192D86"/>
+  <path d="M537 287l-7 26 12 4" fill="none" stroke="#995F44" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M508 350c15 13 39 14 56-2" fill="none" stroke="#995F44" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="487" cy="289" r="39" fill="none" stroke="#A27AF5" stroke-width="10"/>
+  <circle cx="584" cy="289" r="39" fill="none" stroke="#A27AF5" stroke-width="10"/>
+  <path d="M526 283c5-4 12-4 18 0m-96-7-20-6m195 7 21-7" fill="none" stroke="#A27AF5" stroke-width="10" stroke-linecap="round"/>
+
+  <!-- Large foreground portrait with flowing hair and an orange top. -->
+  <path d="M76 187c14-67 76-110 169-110 91 0 152 48 157 121 9 39-4 74-9 107-10 57 1 91 26 128 21 33 17 67-2 92H17c-19-46-12-95 18-134 27-35 29-83 24-127-4-31-4-55 17-77z" fill="#192D86"/>
+  <path d="M208 372h112v63c-13 24-34 36-57 36-25 0-44-14-55-37z" fill="#FFD4AC"/>
+  <path d="M0 525v-37c0-48 45-76 117-89l83-7c9 44 32 64 63 64 32 0 56-20 67-64l53 7c72 14 119 45 119 90v36z" fill="#FF943D"/>
+  <path d="M90 403c17-3 36-6 55-7l-5 129H0v-37c0-43 34-72 90-85z" fill="#FFAE6B"/>
+  <path d="M146 208c5-57 47-97 119-97 75 0 116 42 117 111l-5 72c-5 71-54 117-117 117-68 0-112-49-117-117z" fill="#FFD4AC"/>
+  <ellipse cx="149" cy="279" rx="20" ry="27" fill="#FFD4AC"/>
+  <ellipse cx="379" cy="278" rx="19" ry="27" fill="#FFD4AC"/>
+  <path d="M141 250c-15-41-8-78 16-106 26-31 63-44 109-44 56 0 100 23 118 66 13 30 13 61 5 85-16-11-25-28-29-49-21 23-54 31-84 25-23-4-36-17-49-31-17 30-47 47-86 54z" fill="#192D86"/>
+  <path d="M155 240c-23 55-7 97 8 126-23-10-38-37-44-70-6-33 4-63 36-84z" fill="#192D86"/>
+  <path d="M365 232c24 46 20 91 8 127 26-18 37-56 31-93-5-27-20-44-39-55z" fill="#192D86"/>
+  <path d="M192 271c12-5 25-5 35 1m74 0c12-6 25-6 35-1" fill="none" stroke="#192D86" stroke-width="7" stroke-linecap="round"/>
+  <ellipse cx="209" cy="290" rx="5" ry="8" fill="#192D86"/>
+  <ellipse cx="319" cy="290" rx="5" ry="8" fill="#192D86"/>
+  <path d="M264 288l-8 27 11 4" fill="none" stroke="#FF943D" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M236 348c16 15 40 17 57 2" fill="none" stroke="#FF7866" stroke-width="7" stroke-linecap="round"/>
+  <circle cx="148" cy="315" r="10" fill="#F66FB1"/>
+</svg>

@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="700" height="525" viewBox="0 0 700 525">
+  <rect width="700" height="525" fill="#FFF0AD"/>
+
+  <!-- Open laptop: large screen and a simple flat base. -->
+  <rect x="129" y="126" width="420" height="264" rx="25" fill="#355CFF"/>
+  <rect x="158" y="156" width="362" height="205" rx="12" fill="#192D86"/>
+  <circle cx="271" cy="257" r="52" fill="#BFCFFF"/>
+  <circle cx="382" cy="257" r="14" fill="#BFCFFF"/>
+  <circle cx="427" cy="257" r="14" fill="#45D875"/>
+  <circle cx="472" cy="257" r="14" fill="#BFCFFF"/>
+
+  <path d="M129 382h420l53 58c7 8 1 18-12 18H88c-13 0-19-10-12-18z" fill="#355CFF"/>
+  <path d="M159 395h360l29 34H130z" fill="#BFCFFF"/>
+  <path d="M286 430h122l12 15H274z" fill="#97B0FF"/>
+
+  <!-- A smaller phone sits in front, using the violet family. -->
+  <g transform="rotate(9 563 325)">
+    <rect x="510" y="207" width="118" height="238" rx="21" fill="#A27AF5"/>
+    <rect x="523" y="241" width="92" height="160" rx="9" fill="#6240A7"/>
+    <path d="M548 224h42" fill="none" stroke="#6240A7" stroke-width="7" stroke-linecap="round"/>
+    <circle cx="563" cy="322" r="10" fill="#DCD0FF"/>
+    <circle cx="591" cy="322" r="10" fill="#45D875"/>
+    <circle cx="569" cy="423" r="8" fill="#6240A7"/>
+  </g>
+</svg>

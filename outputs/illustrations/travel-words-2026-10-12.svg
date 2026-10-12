@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="700" height="525" viewBox="0 0 700 525">
+  <rect width="700" height="525" fill="#B9EFFF"/>
+
+  <!-- The plane is a single bold silhouette, like the supplied travel reference. -->
+  <g transform="translate(30 -22) rotate(-27 556 132)">
+    <path d="M486 122h51l30-27c5-5 12-6 17-2l-12 29h31c9 0 16 6 16 13s-7 13-16 13h-31l12 29c-5 4-12 3-17-2l-30-27h-51l-19 15h-10l8-28-8-28h10z" fill="#192D86"/>
+  </g>
+  <path d="M493 169l-25 10M504 188l-18 8" fill="none" stroke="#355CFF" stroke-width="8" stroke-linecap="round"/>
+
+  <!-- A suitcase built from separate flat color planes. -->
+  <g transform="rotate(-5 353 327)">
+    <path d="M285 219v-86c0-13 10-23 23-23h87c13 0 23 10 23 23v86" fill="none" stroke="#355CFF" stroke-width="17"/>
+    <path d="M305 116h93" fill="none" stroke="#192D86" stroke-width="22" stroke-linecap="round"/>
+
+    <rect x="167" y="210" width="355" height="236" rx="42" fill="#D65A1C"/>
+    <rect x="202" y="210" width="344" height="236" rx="42" fill="#FF943D"/>
+    <path d="M277 266v128M364 266v128M451 266v128" fill="none" stroke="#D65A1C" stroke-width="18" stroke-linecap="round"/>
+
+    <path d="M485 214c14-12 29-8 39 5l13 18" fill="none" stroke="#192D86" stroke-width="10" stroke-linecap="round"/>
+    <path d="M525 227l45 17-20 63-49-19z" fill="#FFD43B"/>
+    <circle cx="529" cy="246" r="6" fill="#192D86"/>
+
+    <circle cx="243" cy="450" r="25" fill="#192D86"/>
+    <circle cx="475" cy="450" r="25" fill="#192D86"/>
+    <circle cx="243" cy="450" r="8" fill="#355CFF"/>
+    <circle cx="475" cy="450" r="8" fill="#355CFF"/>
+  </g>
+</svg>

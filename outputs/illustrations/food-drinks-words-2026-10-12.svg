@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="700" height="525" viewBox="0 0 700 525">
+  <rect width="700" height="525" fill="#B9EFFF"/>
+
+  <!-- Watermelon: one bold wedge, a separate rind, and five tiny seeds. -->
+  <path d="M75 361 252 131c8-11 18-11 26 0l144 230c10 15 8 26-5 38-41 37-110 58-172 58-62 0-129-21-170-58-13-12-15-23 0-38z" fill="#45D875"/>
+  <path d="M88 356 253 143c6-8 14-8 20 0l132 213c-37 32-99 51-160 51-59 0-119-19-157-51z" fill="#F66FB1"/>
+  <path d="M174 311c-8-8-6-15 2-21 7-5 14-3 16 4 2 6-7 20-12 21-2 0-4-1-6-4zM230 259c-7-8-5-15 2-20 8-5 15-2 17 5 1 6-7 19-12 20-2 0-5-2-7-5zM293 303c-8-8-6-15 2-21 7-5 14-3 16 4 2 6-7 20-12 21-2 0-4-1-6-4zM207 356c-8-8-6-15 2-21 7-5 14-3 16 4 2 6-7 20-12 21-2 0-4-1-6-4zM317 358c-8-8-6-15 2-21 7-5 14-3 16 4 2 6-7 20-12 21-2 0-4-1-6-4z" fill="#192D86"/>
+
+  <!-- Straw sits behind a solid white glass. -->
+  <path d="M540 269 558 150l66-26" fill="none" stroke="#A27AF5" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M451 206h176c11 0 18 8 17 20l-22 198c-2 19-15 31-34 31H490c-19 0-32-12-34-31l-22-198c-1-12 6-20 17-20z" fill="#FFFFFF"/>
+  <path d="M463 273c25-10 51-11 76-2 26 9 51 6 78-3l-17 150c-2 10-7 15-18 15h-88c-10 0-16-5-18-15z" fill="#FF943D"/>
+  <path d="M478 303v61" fill="none" stroke="#FFD4AC" stroke-width="13" stroke-linecap="round"/>
+  <path d="M451 206h176" fill="none" stroke="#FFFFFF" stroke-width="13" stroke-linecap="round"/>
+</svg>

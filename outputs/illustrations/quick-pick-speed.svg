@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="700" height="525" viewBox="0 0 700 525">
+  <rect width="700" height="525" fill="#B9EFFF"/>
+
+  <!-- Short, blunt motion marks keep the action readable at banner size. -->
+  <path d="M49 246h104M70 282h77M44 319h88" fill="none" stroke="#2039B4" stroke-width="14" stroke-linecap="round"/>
+  <path d="M101 210h41" fill="none" stroke="#FFD43B" stroke-width="13" stroke-linecap="round"/>
+
+  <!-- Cards fan out as the top one is swiped away. -->
+  <g transform="rotate(-15 281 277)">
+    <rect x="145" y="164" width="272" height="220" rx="19" fill="#2039B4"/>
+    <rect x="170" y="191" width="222" height="166" rx="9" fill="#FFFFFF"/>
+    <path d="M198 244h117M198 278h163M198 312h95" fill="none" stroke="#BFCFFF" stroke-width="15" stroke-linecap="round"/>
+  </g>
+  <g transform="rotate(-5 327 258)">
+    <rect x="190" y="145" width="274" height="226" rx="19" fill="#BFCFFF"/>
+    <rect x="215" y="169" width="224" height="178" rx="9" fill="#FFFFFF"/>
+    <path d="M241 219h125M241 252h153M241 285h105" fill="none" stroke="#2039B4" stroke-width="14" stroke-linecap="round"/>
+    <circle cx="390" cy="298" r="19" fill="#FFD43B"/>
+  </g>
+
+  <!-- The moving card carries the add action. -->
+  <path d="M462 147l57-20M475 176l80-27" fill="none" stroke="#FFFFFF" stroke-width="13" stroke-linecap="round"/>
+  <g transform="rotate(13 519 263)">
+    <rect x="393" y="157" width="252" height="212" rx="20" fill="#355CFF"/>
+    <rect x="418" y="182" width="202" height="162" rx="10" fill="#FFFFFF"/>
+    <path d="M454 219h98M454 244h64" fill="none" stroke="#BFCFFF" stroke-width="13" stroke-linecap="round"/>
+    <circle cx="545" cy="285" r="37" fill="#FFD43B"/>
+    <path d="M545 266v38M526 285h38" fill="none" stroke="#2039B4" stroke-width="11" stroke-linecap="round"/>
+  </g>
+
+  <path d="M613 123l23-18M633 148l31-5" fill="none" stroke="#FFD43B" stroke-width="13" stroke-linecap="round"/>
+</svg>

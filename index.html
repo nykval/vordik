@@ -11,7 +11,7 @@
     <link rel="apple-touch-icon" href="./favicon.png" />
     <link rel="manifest" href="./site.webmanifest" />
     <link rel="stylesheet" href="./design-system/colors.css?v=auction-57" />
-    <link rel="stylesheet" href="./styles.css?v=avatars-58" />
+    <link rel="stylesheet" href="./styles.css?v=rounded-topic-cards-2026-10-12" />
   </head>
   <body class="is-home">
     <div class="app-shell">
@@ -68,6 +68,7 @@
                 <button class="collection-close" type="button" data-collection-close aria-label="Закрыть подборку"><img src="./icons/close.svg" alt="" aria-hidden="true" /></button>
               </div>
               <p id="collection-description" class="collection-description"></p>
+              <div id="collection-level-chips" class="collection-level-chips" aria-label="Уровень слов"></div>
               <div id="collection-word-list" class="collection-word-list" role="list"></div>
               <button id="collection-add-button" class="primary-button collection-add-button" type="button">Добавить в словарь</button>
             </section>
@@ -107,22 +108,20 @@
             <button class="add-backdrop" type="button" data-add-close tabindex="-1" aria-label="Закрыть добавление слова"></button>
             <section id="add-panel" class="dictionary-add-panel" role="dialog" aria-modal="true" aria-labelledby="add-title">
               <div class="dictionary-add-heading">
-                <h3 id="add-title">Новое слово</h3>
+                <h3 id="add-title">Добавить из справочника</h3>
                 <button id="close-add-panel" class="dictionary-panel-close" type="button" data-add-close aria-label="Закрыть добавление слова"><img src="./icons/close.svg" alt="" aria-hidden="true" /></button>
               </div>
-              <p>Добавьте слово и его перевод — оно сразу появится в словаре.</p>
+              <p>Найдите слово в общем справочнике и выберите нужное значение.</p>
               <form id="add-form" autocomplete="off">
                 <div class="dictionary-form-fields">
                   <div>
-                    <label for="english-input">Слово на английском</label>
-                    <input id="english-input" name="english" type="text" maxlength="80" placeholder="Например, wonder" required spellcheck="false" autocapitalize="none" />
-                  </div>
-                  <div>
-                    <label for="russian-input">Перевод</label>
-                    <input id="russian-input" name="russian" type="text" maxlength="120" placeholder="Например, удивляться" required autocapitalize="none" />
+                    <label for="english-input">Поиск по слову или переводу</label>
+                    <input id="english-input" name="query" type="search" maxlength="80" placeholder="Например, wonder или удивление" aria-describedby="catalog-search-hint" spellcheck="false" autocapitalize="none" />
                   </div>
                 </div>
-                <button class="primary-button dictionary-submit" type="submit">Добавить слово</button>
+                <p id="catalog-search-hint" class="catalog-search-hint" role="status"></p>
+                <div id="catalog-results" class="catalog-results" role="list"></div>
+                <button class="primary-button dictionary-submit" type="submit" disabled>Добавить слово</button>
               </form>
             </section>
           </div>
@@ -410,6 +409,14 @@
                     <span class="profile-stat-copy"><strong id="profile-average-difficulty">0</strong><small>Средняя сложность словаря</small></span>
                   </div>
                 </div>
+              </section>
+
+              <section class="profile-section" aria-labelledby="profile-topics-title">
+                <div class="profile-section-heading">
+                  <h2 id="profile-topics-title">Темы</h2>
+                </div>
+                <p class="profile-topics-caption">Слов в готовых подборках</p>
+                <div id="profile-topics-card" class="profile-topics-card" role="list"></div>
               </section>
 
               <section class="profile-section" aria-labelledby="profile-friends-title">
@@ -719,14 +726,11 @@
       </nav>
       <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
     </div>
-    <script src="./travel-words.js" defer></script>
-    <script src="./money-words.js" defer></script>
-    <script src="./food-words.js" defer></script>
-    <script src="./word-catalog.js?v=common-dictionary-32" defer></script>
+    <script src="./word-catalog.js?v=reference-2026-10-12" defer></script>
     <script src="./audio-manifest.js?v=common-audio-39" defer></script>
-    <script src="./collections.js?v=common-dictionary-32" defer></script>
+    <script src="./collections.js?v=topics-2026-10-12" defer></script>
     <script src="./quick-pick-words.js?v=common-dictionary-32" defer></script>
-    <script src="./app.js?v=avatars-59" defer></script>
+    <script src="./app.js?v=topic-levels-2026-10-12" defer></script>
     <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
   </body>
 </html>

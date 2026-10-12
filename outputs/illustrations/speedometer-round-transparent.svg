@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="700" height="525" viewBox="0 0 700 525">
+  <title>Круглый спидометр в стиле Вордика</title>
+  <circle cx="350" cy="262" r="211" fill="#355CFF"/>
+  <circle cx="350" cy="262" r="165" fill="#BFCFFF"/>
+  <g fill="none" stroke="#2039B4" stroke-width="17" stroke-linecap="round">
+    <path d="M202 305 H229"/>
+    <path d="M246 199 L266 219"/>
+    <path d="M350 142 V170"/>
+    <path d="M454 199 L434 219"/>
+    <path d="M498 305 H471"/>
+  </g>
+  <path d="M340 310 L448 185 Q455 177 461 184 Q468 190 460 198 L370 325 Z" fill="#FF943D"/>
+  <circle cx="350" cy="311" r="43" fill="#355CFF"/>
+  <circle cx="350" cy="311" r="23" fill="#FFD43B"/>
+</svg>
