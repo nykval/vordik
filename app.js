@@ -1951,12 +1951,15 @@
   }
 
   function renderWordChainState(state) {
+    const wasMyTurn = wordChainSnapshot?.status === 'active'
+      && wordChainSnapshot.turnUserId === (socialState?.me?.id ?? '');
     wordChainSnapshot = state;
     wordChainClockOffset = Number(state.serverNow) - Date.now();
     const meId = socialState?.me?.id ?? '';
     const opponent = state.players.find((player) => player.id !== meId);
     if (opponent) $('word-chain-opponent-name').textContent = opponent.name;
-    const moves = document.createDocumentFragment();
+    const currentMove = document.createDocumentFragment();
+    const previousMoves = document.createDocumentFragment();
     [...state.moves].reverse().forEach((move, index) => {
       const latest = index === 0;
       const item = document.createElement('li');
@@ -1980,9 +1983,12 @@
       const marker = document.createElement('em');
       marker.textContent = move.userId === meId ? 'вы' : opponent?.name ?? 'друг';
       item.append(word, marker);
-      moves.append(item);
+      (latest ? currentMove : previousMoves).append(item);
     });
-    $('word-chain-list').replaceChildren(moves);
+    $('word-chain-current').replaceChildren(currentMove);
+    $('word-chain-list').replaceChildren(previousMoves);
+    $('word-chain-history-count').textContent = String(Math.max(0, state.moves.length - 1));
+    $('word-chain-history').hidden = state.moves.length < 2;
     $('word-chain-empty').hidden = state.moves.length > 0;
     $('word-chain-letter-label').textContent = state.requiredLetter
       ? `Нужно слово на «${state.requiredLetter.toUpperCase()}»`
@@ -2002,7 +2008,13 @@
     }
     $('word-chain-input').disabled = !myTurn;
     $('word-chain-submit').disabled = !myTurn;
-    if (myTurn) requestAnimationFrame(() => $('word-chain-input').focus());
+    if (myTurn && !wasMyTurn) {
+      $('word-chain-history').open = false;
+      requestAnimationFrame(() => {
+        $('word-chain-screen').scrollTop = 0;
+        $('word-chain-input').focus({ preventScroll: true });
+      });
+    }
     updateWordChainClock();
   }
 
@@ -2012,7 +2024,11 @@
       clearInterval(wordChainClockTimer);
       wordChainGameId = gameId;
       wordChainSnapshot = null;
+      $('word-chain-current').replaceChildren();
       $('word-chain-list').replaceChildren();
+      $('word-chain-history').open = false;
+      $('word-chain-history').hidden = true;
+      $('word-chain-screen').scrollTop = 0;
       $('word-chain-empty').hidden = false;
       $('word-chain-status').textContent = 'Подключаемся к игре…';
       $('word-chain-status').removeAttribute('data-result');

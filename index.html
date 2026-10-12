@@ -11,7 +11,7 @@
     <link rel="apple-touch-icon" href="./favicon.png" />
     <link rel="manifest" href="./site.webmanifest" />
     <link rel="stylesheet" href="./design-system/colors.css?v=auction-57" />
-    <link rel="stylesheet" href="./styles.css?v=friends-profile-2026-10-13" />
+    <link rel="stylesheet" href="./styles.css?v=chain-turn-2026-10-13" />
   </head>
   <body class="is-home">
     <div class="app-shell">
@@ -570,7 +570,7 @@
                 <strong id="word-chain-turn-label">Ждём второго игрока…</strong>
               </div>
             </div>
-            <ol id="word-chain-list" class="word-chain-list" aria-label="Цепочка сыгранных слов"></ol>
+            <ol id="word-chain-current" class="word-chain-list word-chain-current" aria-label="Последнее слово"></ol>
             <p id="word-chain-empty" class="word-chain-empty">Первое слово может начинаться с любой буквы.</p>
             <form id="word-chain-form" class="word-chain-form">
               <label class="visually-hidden" for="word-chain-input">Введите английское слово</label>
@@ -578,6 +578,10 @@
               <button id="word-chain-submit" type="submit" disabled>Ход</button>
             </form>
             <p id="word-chain-status" class="word-chain-status" role="status" aria-live="polite"></p>
+            <details id="word-chain-history" class="word-chain-history" hidden>
+              <summary>Предыдущие ходы <span id="word-chain-history-count">0</span></summary>
+              <ol id="word-chain-list" class="word-chain-list" aria-label="Предыдущие слова"></ol>
+            </details>
           </section>
         </div>
 
@@ -739,7 +743,7 @@
     <script src="./audio-manifest.js?v=common-audio-39" defer></script>
     <script src="./collections.js?v=topics-2026-10-12" defer></script>
     <script src="./quick-pick-words.js?v=common-dictionary-32" defer></script>
-    <script src="./app.js?v=friends-profile-2026-10-13" defer></script>
+    <script src="./app.js?v=chain-turn-2026-10-13" defer></script>
     <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
   </body>
 </html>
