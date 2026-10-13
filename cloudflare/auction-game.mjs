@@ -37,6 +37,7 @@ export class AuctionGame extends DurableObject {
     super(ctx, env);
     this.ctx = ctx;
     this.env = env;
+    this.startingRound = null;
     this.ctx.blockConcurrencyWhile(async () => {
       this.ctx.storage.sql.exec(`
         CREATE TABLE IF NOT EXISTS game_state (
@@ -179,8 +180,22 @@ export class AuctionGame extends DurableObject {
   }
 
   async beginRound() {
+    if (this.startingRound) return this.startingRound;
+    const task = this.startRound();
+    this.startingRound = task;
+    try { return await task; }
+    finally { if (this.startingRound === task) this.startingRound = null; }
+  }
+
+  async startRound() {
     const row = this.stateRow();
-    if (!row || row.status === 'finished') return;
+    if (!row || row.status === 'finished' || !['waiting', 'result'].includes(row.phase)) return;
+    if (row.status === 'waiting') {
+      await this.env.DB.prepare(`
+        UPDATE games SET status = 'active', started_at = COALESCE(started_at, CURRENT_TIMESTAMP)
+        WHERE id = ? AND status = 'waiting'
+      `).bind(row.game_id).run();
+    }
     const nextStarter = Number(row.round_number) === 0
       ? row.player_one_id
       : this.otherPlayerId(row, row.starter_user_id || row.player_one_id);
@@ -198,10 +213,6 @@ export class AuctionGame extends DurableObject {
       `, nextStarter, topic.id, JSON.stringify(used), deadline, TOPIC_REVEAL_MS);
     });
     await this.schedule(deadline);
-    await this.env.DB.prepare(`
-      UPDATE games SET status = 'active', started_at = COALESCE(started_at, CURRENT_TIMESTAMP)
-      WHERE id = ? AND status = 'waiting'
-    `).bind(row.game_id).run();
     this.broadcastState();
   }
 
@@ -223,16 +234,19 @@ export class AuctionGame extends DurableObject {
     const [client, server] = Object.values(pair);
     server.serializeAttachment({ userId, name: player.name });
     this.ctx.acceptWebSocket(server);
+    if (row.deadline && Number(row.deadline) <= Date.now()) await this.alarm();
     this.send(server, this.publicState());
     await this.startIfReady();
     return new Response(null, { status: 101, webSocket: client });
   }
 
   async setAuctionPhase(row) {
+    const current = this.stateRow();
+    if (!current || current.phase !== 'topic' || Number(current.deadline) > Date.now()) return;
     const deadline = Date.now() + AUCTION_TURN_MS;
     this.ctx.storage.sql.exec(`
       UPDATE game_state SET phase = 'auction', turn_user_id = ?, deadline = ?, phase_duration_ms = ? WHERE singleton = 1
-    `, row.starter_user_id, deadline, AUCTION_TURN_MS);
+    `, current.starter_user_id, deadline, AUCTION_TURN_MS);
     await this.schedule(deadline);
     this.broadcastState();
   }
@@ -258,6 +272,7 @@ export class AuctionGame extends DurableObject {
     if (row.phase !== 'auction' || row.turn_user_id !== userId || !row.leader_user_id || Number(row.bid) < 3) {
       return this.send(socket, { type: 'error', message: 'Сначала соперник должен сделать ставку.' });
     }
+    if (Number(row.deadline) <= Date.now()) return this.resolveRound(userId, 'auction_timeout');
     const deadline = Date.now() + CHALLENGE_START_MS;
     this.ctx.storage.sql.exec(`
       UPDATE game_state SET phase = 'challenge', challenger_user_id = ?, turn_user_id = ?, deadline = ?, phase_duration_ms = ?
@@ -271,6 +286,7 @@ export class AuctionGame extends DurableObject {
     if (row.phase !== 'challenge' || row.leader_user_id !== userId) {
       return this.send(socket, { type: 'error', message: 'Начать подтверждение должен игрок с максимальной ставкой.' });
     }
+    if (Number(row.deadline) <= Date.now()) return this.resolveRound(userId, 'start_timeout');
     const deadline = Date.now() + COUNTDOWN_MS;
     this.ctx.storage.sql.exec(`
       UPDATE game_state SET phase = 'countdown', turn_user_id = ?, deadline = ?, phase_duration_ms = ? WHERE singleton = 1
@@ -291,6 +307,9 @@ export class AuctionGame extends DurableObject {
   }
 
   async handleWord(socket, row, userId, rawWord) {
+    if (row.phase === 'naming' && Number(row.deadline) <= Date.now()) {
+      return this.resolveRound(row.leader_user_id, 'bid_failed');
+    }
     const word = normalizeWord(rawWord);
     const error = this.wordError(row, userId, word);
     if (error) {
@@ -309,7 +328,8 @@ export class AuctionGame extends DurableObject {
 
   async resolveRound(loserId, reason) {
     const row = this.stateRow();
-    if (!row || row.status === 'finished' || row.phase === 'result') return;
+    if (!row || row.status === 'finished' || !['auction', 'challenge', 'countdown', 'naming'].includes(row.phase)) return;
+    if (![row.player_one_id, row.player_two_id].includes(loserId)) return;
     const acceptedCount = Number(firstRow(this.ctx.storage.sql.exec('SELECT COUNT(*) AS total FROM accepted_words'))?.total ?? 0);
     const winnerId = this.otherPlayerId(row, loserId);
     const loserColumn = loserId === row.player_one_id ? 'player_one_lives' : 'player_two_lives';
@@ -353,7 +373,17 @@ export class AuctionGame extends DurableObject {
     try { message = JSON.parse(String(rawMessage)); } catch { return; }
     const attachment = socket.deserializeAttachment();
     const row = this.stateRow();
-    if (!row || !attachment?.userId || row.status === 'finished') return;
+    if (!row || !attachment?.userId) return;
+    if (row.status === 'finished') {
+      if (message?.type === 'sync') this.send(socket, this.publicState());
+      return;
+    }
+    if (row.deadline && Number(row.deadline) <= Date.now()) {
+      await this.alarm();
+      this.send(socket, this.publicState());
+      return;
+    }
+    if (message?.type === 'sync') return this.send(socket, this.publicState());
     if (message?.type === 'bid') return this.handleBid(socket, row, attachment.userId, message.amount);
     if (message?.type === 'challenge') return this.handleChallenge(socket, row, attachment.userId);
     if (message?.type === 'start') return this.handleStart(socket, row, attachment.userId);

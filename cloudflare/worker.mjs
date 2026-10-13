@@ -386,7 +386,7 @@ async function authenticateSocialRequest(request, env) {
 }
 
 async function socialState(database, identity, profile, request, env) {
-  const [friendsResult, incomingResult, outgoingResult, gameInvitesResult, gamesResult, auctionScoresResult] = await Promise.all([
+  const [friendsResult, incomingResult, outgoingResult, gameInvitesResult, outgoingGameInvitesResult, gamesResult, auctionScoresResult] = await Promise.all([
     database.prepare(`
       SELECT r.user_id, r.name, r.avatar_id, r.avatar_customized, f.created_at
       FROM friendships AS f
@@ -413,6 +413,13 @@ async function socialState(database, identity, profile, request, env) {
       FROM game_invites AS gi
       JOIN ratings AS r ON r.user_id = gi.inviter_id
       WHERE gi.invitee_id = ? AND gi.status = 'pending'
+      ORDER BY gi.created_at DESC
+    `).bind(identity.id).all(),
+    database.prepare(`
+      SELECT gi.id, gi.game_type, gi.created_at, r.user_id, r.name, r.avatar_id, r.avatar_customized
+      FROM game_invites AS gi
+      JOIN ratings AS r ON r.user_id = gi.invitee_id
+      WHERE gi.inviter_id = ? AND gi.status = 'pending'
       ORDER BY gi.created_at DESC
     `).bind(identity.id).all(),
     database.prepare(`
@@ -464,6 +471,12 @@ async function socialState(database, identity, profile, request, env) {
       id: row.id,
       gameType: row.game_type || 'word_chain',
       from: socialPlayer(row),
+      createdAt: row.created_at,
+    })),
+    outgoingGameInvites: outgoingGameInvitesResult.results.map((row) => ({
+      id: row.id,
+      gameType: row.game_type || 'word_chain',
+      to: socialPlayer(row),
       createdAt: row.created_at,
     })),
     games: gamesResult.results.map((row) => ({

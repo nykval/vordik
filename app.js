@@ -165,6 +165,7 @@
   let ratingRequestVersion = 0;
   let socialRequestVersion = 0;
   let socialState = null;
+  const pendingGameInvites = new Map();
   let socialPollTimer = 0;
   let socialUpdatesEnabled = false;
   let pendingGameFriendId = loadPendingGameFriendId();
@@ -178,8 +179,11 @@
   let auctionSocket = null;
   let auctionGameId = '';
   let auctionSnapshot = null;
-  let auctionClockOffset = 0;
+  let auctionClockOffset = -Infinity;
   let auctionClockTimer = 0;
+  let auctionLastSyncAt = 0;
+  let auctionReconnectTimer = 0;
+  let auctionReconnectAttempts = 0;
   let auctionBidValue = 3;
   let auctionTutorialStep = 0;
   let auctionLastLoserId = '';
@@ -1661,6 +1665,7 @@
         button.dataset.friendAction = action.type;
         Object.entries(action.data ?? {}).forEach(([key, value]) => { button.dataset[key] = value; });
         if (action.primary) button.classList.add(action.primary);
+        if (action.disabled) button.disabled = true;
         buttons.append(button);
       });
       row.append(buttons);
@@ -1696,19 +1701,17 @@
     const friends = document.createDocumentFragment();
     state.friends.forEach((player) => {
       const score = player.auctionScore;
-      const subtitle = gameLobbyType === 'auction' && score
-        ? `Счёт встреч ${score.myWins}:${score.opponentWins}`
+      const action = friendGameAction(state, player, gameLobbyType, { lobby: true });
+      const subtitle = action.type === 'pending-game-invite' ? 'Приглашение отправлено'
+        : action.type === 'accept-game-invite' ? 'Приглашает вас'
+        : action.type === 'lobby-open-game' ? 'Игра уже идёт'
+        : gameLobbyType === 'auction' && score ? `Счёт встреч ${score.myWins}:${score.opponentWins}`
         : 'В друзьях';
-      friends.append(friendRow(player, subtitle, [{
-      label: 'Пригласить',
-      type: 'lobby-invite-game',
-      data: { userId: player.id, gameType: gameLobbyType },
-      primary: 'is-primary',
-      }]));
+      friends.append(friendRow(player, subtitle, [action]));
     });
     $('word-chain-friend-list').replaceChildren(friends);
     $('word-chain-no-friends').hidden = state.friends.length > 0;
-    $('word-chain-lobby-status').textContent = '';
+    if ($('word-chain-lobby-status').textContent === 'Загружаем друзей…') $('word-chain-lobby-status').textContent = '';
   }
 
   function setGameLobbyOpen(open, gameType = gameLobbyType) {
@@ -1722,6 +1725,7 @@
       ? 'Выберите друга.'
       : 'Выберите друга — приглашение появится у него прямо в приложении.';
     $('word-chain-lobby-status').textContent = socialState ? '' : 'Загружаем друзей…';
+    $('word-chain-lobby-status').removeAttribute('data-result');
     if (socialState) renderGameLobby(socialState);
     void loadSocialState({ quiet: true });
   }
@@ -1781,30 +1785,50 @@
     if ($('game-invite-push').dataset.mode === 'invite') hideGameInvitePush();
   }
 
-  function friendGameAction(state, player, gameType) {
+  function friendGameAction(state, player, gameType, { lobby = false } = {}) {
     const title = gameType === 'auction' ? 'Аукцион' : 'Цепочка';
     const active = (state.games ?? []).find((game) => game.status !== 'finished'
       && game.gameType === gameType && game.opponent.id === player.id);
-    return active
-      ? {
-          label: `${title} ↗`,
-          ariaLabel: `Продолжить игру «${title}» с ${player.name}`,
-          type: 'open-friend-game',
-          data: { gameId: active.id, opponentId: player.id, gameType },
-          primary: 'is-primary',
-        }
-      : {
-          label: title,
-          ariaLabel: `Пригласить ${player.name} в игру «${title}»`,
-          type: 'invite-friend-game',
-          data: { userId: player.id, gameType },
-          primary: gameType === 'word_chain' ? 'is-primary' : '',
-        };
+    if (active) return {
+      label: lobby ? 'Вернуться' : `${title} ↗`,
+      ariaLabel: `Продолжить игру «${title}» с ${player.name}`,
+      type: lobby ? 'lobby-open-game' : 'open-friend-game',
+      data: { gameId: active.id, opponentId: player.id, gameType },
+      primary: 'is-primary',
+    };
+    const incoming = (state.gameInvites ?? []).find((invite) => invite.gameType === gameType && invite.from.id === player.id);
+    if (incoming) return {
+      label: 'Принять',
+      ariaLabel: `Принять приглашение ${player.name} в игру «${title}»`,
+      type: 'accept-game-invite',
+      data: { inviteId: incoming.id, opponentId: player.id, gameType },
+      primary: 'is-primary',
+    };
+    const outgoing = (state.outgoingGameInvites ?? []).find((invite) => invite.gameType === gameType && invite.to.id === player.id)
+      ?? pendingGameInvites.get(`${gameType}:${player.id}`);
+    if (outgoing) return {
+      label: lobby ? 'Ждём ответа' : `${title} · ждём`,
+      ariaLabel: `Приглашение ${player.name} в игру «${title}» отправлено, ожидаем ответа`,
+      type: 'pending-game-invite',
+      disabled: true,
+    };
+    return {
+      label: lobby ? 'Пригласить' : title,
+      ariaLabel: `Пригласить ${player.name} в игру «${title}»`,
+      type: lobby ? 'lobby-invite-game' : 'invite-friend-game',
+      data: { userId: player.id, gameType },
+      primary: lobby || gameType === 'word_chain' ? 'is-primary' : '',
+    };
   }
 
   function renderFriends(state) {
     if (!state?.me) return;
     socialState = state;
+    for (const [key, pending] of pendingGameInvites) {
+      const confirmed = (state.outgoingGameInvites ?? []).some((invite) => invite.gameType === pending.gameType && invite.to.id === pending.friendId);
+      const started = (state.games ?? []).some((game) => game.status !== 'finished' && game.gameType === pending.gameType && game.opponent.id === pending.friendId);
+      if (confirmed || started || Date.now() - pending.createdAt > 30_000) pendingGameInvites.delete(key);
+    }
     adoptServerAvatar(state.me);
     $('friend-code').textContent = state.me.friendCode;
     $('friends-count').textContent = String(state.friends.length);
@@ -1896,6 +1920,22 @@
       showToast(error.message || 'Не удалось выполнить действие');
       return null;
     }
+  }
+
+  async function inviteFriendToGame(friendId, gameType) {
+    const result = await socialPost('/api/games/invite', { friendId, gameType });
+    const key = `${gameType}:${friendId}`;
+    const pending = { friendId, gameType, createdAt: Date.now() };
+    pendingGameInvites.set(key, pending);
+    savePendingGameFriendId(friendId, gameType);
+    if (socialState) renderFriends(socialState);
+    window.setTimeout(() => {
+      if (pendingGameInvites.get(key) !== pending) return;
+      pendingGameInvites.delete(key);
+      if (socialState) renderFriends(socialState);
+    }, 30_000);
+    void loadSocialState({ quiet: true });
+    return result;
   }
 
   function socialPlayerById(userId) {
@@ -2124,9 +2164,34 @@
     return socialPlayerById(player.id) ?? player;
   }
 
+  function scheduleAuctionReconnect(gameId) {
+    if (document.hidden || $('auction-screen').hidden || auctionGameId !== gameId) return;
+    if (auctionReconnectAttempts >= 3) {
+      $('auction-status').textContent = 'Соединение прервано. Откройте матч снова.';
+      $('auction-status').dataset.result = 'error';
+      return;
+    }
+    const delay = 1000 * 2 ** auctionReconnectAttempts;
+    auctionReconnectAttempts += 1;
+    $('auction-status').textContent = 'Восстанавливаем соединение…';
+    $('auction-status').removeAttribute('data-result');
+    clearTimeout(auctionReconnectTimer);
+    auctionReconnectTimer = window.setTimeout(() => {
+      auctionReconnectTimer = 0;
+      if (auctionGameId === gameId && !auctionSocket && !document.hidden && !$('auction-screen').hidden) {
+        void openAuction(gameId, null, { reconnecting: true });
+      }
+    }, delay);
+  }
+
   function closeAuction({ forfeit = true } = {}) {
     clearInterval(auctionClockTimer);
     auctionClockTimer = 0;
+    clearTimeout(auctionReconnectTimer);
+    auctionReconnectTimer = 0;
+    auctionReconnectAttempts = 0;
+    auctionLastSyncAt = 0;
+    auctionClockOffset = -Infinity;
     if (auctionSocket) {
       if (forfeit && ['auction', 'challenge', 'countdown', 'naming'].includes(auctionSnapshot?.phase) && auctionSocket.readyState === WebSocket.OPEN) {
         auctionSocket.send(JSON.stringify({ type: 'leave' }));
@@ -2152,18 +2217,41 @@
   }
 
   function updateAuctionClock() {
+    const phase = auctionSnapshot?.phase ?? 'waiting';
     const deadline = Number(auctionSnapshot?.deadline) || 0;
     const duration = Number(auctionSnapshot?.phaseDurationMs) || 0;
-    const now = Date.now() + auctionClockOffset;
+    const now = Number.isFinite(auctionClockOffset) ? performance.now() + auctionClockOffset : Date.now();
     const remainingMs = deadline ? Math.max(0, deadline - now) : 0;
     const seconds = deadline ? Math.max(0, Math.ceil(remainingMs / 1000)) : 0;
     const ratio = duration ? Math.max(0, Math.min(1, remainingMs / duration)) : 0;
     $('auction-timer-fill').style.width = `${ratio * 100}%`;
-    $('auction-timer-fill').classList.toggle('is-low', seconds <= 3 && ['auction', 'challenge'].includes(auctionSnapshot?.phase));
-    if (auctionSnapshot?.phase === 'countdown') $('auction-countdown').textContent = String(Math.max(1, seconds));
-    if (['auction', 'challenge', 'naming'].includes(auctionSnapshot?.phase)) $('auction-timer-copy').textContent = `${seconds} сек`;
-    else if (auctionSnapshot?.phase === 'topic') $('auction-timer-copy').textContent = 'Тема';
-    else $('auction-timer-copy').textContent = '';
+    $('auction-timer-fill').classList.toggle('is-low', seconds <= 3 && ['auction', 'challenge', 'naming'].includes(phase));
+    if (phase === 'countdown') $('auction-countdown').textContent = String(seconds);
+    const labels = {
+      topic: 'Ставки через',
+      auction: auctionSnapshot?.turnUserId === socialState?.me?.id ? 'Ваш ход' : 'Ход соперника',
+      challenge: 'Проверка',
+      countdown: 'Старт через',
+      naming: 'На слова',
+      result: 'Далее через',
+    };
+    $('auction-timer-copy').textContent = deadline
+      ? `${labels[phase] ?? 'Время'} · ${seconds} сек`
+      : phase === 'finished' ? 'Матч завершён' : 'Ждём соперника';
+    if (seconds === 0 && phase === 'auction') {
+      $('auction-bid-submit').disabled = true;
+      $('auction-challenge').disabled = true;
+    }
+    if (seconds === 0 && phase === 'challenge') $('auction-start-naming').disabled = true;
+    if (seconds === 0 && phase === 'naming') {
+      $('auction-word-input').disabled = true;
+      $('auction-word-submit').disabled = true;
+    }
+    if (deadline && seconds === 0 && auctionSocket?.readyState === WebSocket.OPEN
+      && performance.now() - auctionLastSyncAt >= 1500) {
+      auctionLastSyncAt = performance.now();
+      auctionSocket.send(JSON.stringify({ type: 'sync' }));
+    }
   }
 
   function renderAuctionPlayers(state) {
@@ -2189,8 +2277,18 @@
   function renderAuctionState(state) {
     const previousBid = Number(auctionSnapshot?.bid) || 0;
     const previousPhase = auctionSnapshot?.phase ?? '';
+    const previousRound = auctionSnapshot?.roundNumber;
     auctionSnapshot = state;
-    auctionClockOffset = Number(state.serverNow) - Date.now();
+    auctionReconnectAttempts = 0;
+    const serverNow = Number(state.serverNow);
+    if (Number.isFinite(serverNow)) {
+      auctionClockOffset = Math.max(auctionClockOffset, serverNow - performance.now());
+    }
+    if (previousPhase !== state.phase || previousRound !== state.roundNumber) auctionLastSyncAt = 0;
+    if (previousRound !== state.roundNumber) {
+      auctionBidValue = 3;
+      $('auction-word-input').value = '';
+    }
     const meId = socialState?.me?.id ?? '';
     const opponent = state.players.find((player) => player.id !== meId);
     const leader = state.players.find((player) => player.id === state.leaderUserId);
@@ -2219,20 +2317,26 @@
       $('auction-message-copy').textContent = '';
     } else if (state.phase === 'auction') {
       const minimum = Math.max(3, Number(state.bid) + 1);
-      auctionBidValue = Math.max(minimum, auctionBidValue);
+      auctionBidValue = Math.min(30, Math.max(minimum, auctionBidValue));
       $('auction-bid-value').textContent = String(auctionBidValue);
       $('auction-bid-submit').textContent = `Ставка ${auctionBidValue}`;
+      $('auction-bid-submit').disabled = !myTurn || minimum > 30;
+      $('auction-bid-minus').disabled = !myTurn || auctionBidValue <= minimum;
+      $('auction-bid-plus').disabled = !myTurn || auctionBidValue >= 30;
       $('auction-challenge').hidden = !state.leaderUserId;
+      $('auction-challenge').disabled = !myTurn;
       $('auction-bid-controls').hidden = !myTurn;
       $('auction-message').hidden = false;
       $('auction-message-kicker').textContent = myTurn ? 'ВАШ ХОД' : 'СОПЕРНИК';
       $('auction-message-title').textContent = state.bid
         ? `Ставка: ${state.bid}`
         : (myTurn ? 'Сделай ставку' : 'Ждём ставку');
-      $('auction-message-copy').textContent = '';
+      $('auction-message-copy').textContent = minimum > 30 && myTurn
+        ? 'Ставка уже максимальная — проверьте соперника.' : '';
     } else if (state.phase === 'challenge') {
       $('auction-challenge-bid').textContent = String(state.bid);
       $('auction-start-naming').hidden = !iAmLeader;
+      $('auction-start-naming').disabled = !iAmLeader;
       $('auction-challenge-panel').querySelector('span').textContent = iAmLeader
         ? `${challenger?.name ?? 'Соперник'} проверяет`
         : `${leader?.name ?? 'Соперник'} отвечает`;
@@ -2252,14 +2356,15 @@
         $('auction-status').textContent = 'Поехали!';
         $('auction-status').dataset.result = 'success';
       }
-      if (iAmLeader) requestAnimationFrame(() => $('auction-word-input').focus());
+      if (iAmLeader && previousPhase !== 'naming') requestAnimationFrame(() => $('auction-word-input').focus());
     } else if (state.phase === 'result') {
       const result = state.lastResult ?? {};
       const roundWinner = state.players.find((player) => player.id === result.winnerId);
       $('auction-result-symbol').textContent = result.successfulBid ? '✓' : '×';
       $('auction-result-title').textContent = result.successfulBid
         ? 'Ставка принята'
-        : (result.reason === 'bid_failed' ? 'Ставка не сыграла' : 'Время вышло');
+        : result.reason === 'bid_failed' ? 'Ставка не сыграла'
+        : result.reason === 'left_round' ? 'Игрок вышел из раунда' : 'Время вышло';
       $('auction-result-copy').textContent = result.target
         ? `${result.acceptedCount ?? 0} / ${result.target} слов`
         : `${roundWinner?.name ?? 'Соперник'} выигрывает раунд`;
@@ -2275,17 +2380,29 @@
     updateAuctionClock();
   }
 
-  async function openAuction(gameId, opponent = null) {
+  async function openAuction(gameId, opponent = null, { reconnecting = false } = {}) {
     try {
-      if (auctionSocket) auctionSocket.close(1000, 'Opening another game');
+      clearTimeout(auctionReconnectTimer);
+      auctionReconnectTimer = 0;
+      if (!reconnecting) auctionReconnectAttempts = 0;
+      const previousSocket = auctionSocket;
+      auctionSocket = null;
+      if (previousSocket) previousSocket.close(1000, 'Opening another game');
       clearInterval(auctionClockTimer);
       auctionGameId = gameId;
-      auctionSnapshot = null;
-      auctionBidValue = 3;
-      auctionLastLoserId = '';
-      $('auction-status').textContent = 'Подключение…';
+      if (!reconnecting) {
+        auctionSnapshot = null;
+        auctionClockOffset = -Infinity;
+        auctionLastSyncAt = 0;
+        auctionBidValue = 3;
+        auctionLastLoserId = '';
+        $('auction-word-input').value = '';
+      } else if (auctionSnapshot) {
+        auctionClockTimer = window.setInterval(updateAuctionClock, 200);
+        updateAuctionClock();
+      }
+      $('auction-status').textContent = reconnecting ? 'Восстанавливаем соединение…' : 'Подключение…';
       $('auction-status').removeAttribute('data-result');
-      $('auction-word-input').value = '';
       if (opponent) {
         $('auction-player-two-name').textContent = opponent.name;
         $('auction-player-two-avatar').src = avatarSource(opponent.avatarId, opponent.id ?? opponent.name);
@@ -2297,10 +2414,13 @@
       const socket = new WebSocket(connection.websocketUrl);
       auctionSocket = socket;
       socket.addEventListener('open', () => {
+        if (auctionSocket !== socket || auctionGameId !== gameId) return;
         $('auction-status').textContent = '';
+        clearInterval(auctionClockTimer);
         auctionClockTimer = window.setInterval(updateAuctionClock, 200);
       });
       socket.addEventListener('message', (event) => {
+        if (auctionSocket !== socket || auctionGameId !== gameId) return;
         let message;
         try { message = JSON.parse(event.data); } catch { return; }
         if (message.type === 'state') renderAuctionState(message);
@@ -2310,20 +2430,25 @@
         }
       });
       socket.addEventListener('close', () => {
-        clearInterval(auctionClockTimer);
-        if (auctionSocket === socket) auctionSocket = null;
+        if (auctionSocket !== socket || auctionGameId !== gameId) return;
+        auctionSocket = null;
         if (auctionSnapshot?.status !== 'finished' && auctionGameId === gameId) {
-          $('auction-status').textContent = 'Соединение прервано. Откройте матч снова.';
-          $('auction-status').dataset.result = 'error';
+          scheduleAuctionReconnect(gameId);
+        } else {
+          clearInterval(auctionClockTimer);
+          auctionClockTimer = 0;
         }
       });
       socket.addEventListener('error', () => {
+        if (auctionSocket !== socket || auctionGameId !== gameId) return;
         $('auction-status').textContent = 'Не удалось подключиться к аукциону.';
         $('auction-status').dataset.result = 'error';
       });
     } catch (error) {
+      if (auctionGameId !== gameId) return;
       $('auction-status').textContent = error.message || 'Не удалось открыть аукцион.';
       $('auction-status').dataset.result = 'error';
+      scheduleAuctionReconnect(gameId);
     }
   }
 
@@ -3825,17 +3950,28 @@
         }, action === 'accept-friend' ? 'Пользователь добавлен в друзья' : 'Заявка отклонена');
       } else if (action === 'invite-friend-game') {
         const gameType = button.dataset.gameType || 'word_chain';
-        const result = await updateFriendship('/api/games/invite', {
-          friendId: button.dataset.userId,
-          gameType,
-        }, 'Приглашение в игру отправлено');
-        if (result) savePendingGameFriendId(button.dataset.userId, gameType);
+        try {
+          await inviteFriendToGame(button.dataset.userId, gameType);
+          showToast('Приглашение в игру отправлено');
+        } catch (error) {
+          showToast(error.message || 'Не удалось отправить приглашение');
+        }
       } else if (action === 'open-friend-game') {
         await openSocialGame(
           button.dataset.gameId,
           socialPlayerById(button.dataset.opponentId),
           button.dataset.gameType || 'word_chain',
         );
+      } else if (action === 'accept-game-invite') {
+        const opponent = socialPlayerById(button.dataset.opponentId);
+        const result = await updateFriendship('/api/games/respond', {
+          inviteId: button.dataset.inviteId,
+          action: 'accept',
+        }, 'Игра создана');
+        if (result?.gameId) {
+          hideGameInvitePush();
+          await openSocialGame(result.gameId, opponent, result.gameType || button.dataset.gameType || 'word_chain');
+        }
       }
     } finally {
       if (button.isConnected) button.disabled = false;
@@ -3870,19 +4006,33 @@
     try {
       if (button.dataset.friendAction === 'lobby-invite-game') {
         const gameType = button.dataset.gameType || gameLobbyType;
-        const result = await updateFriendship(
-          '/api/games/invite',
-          { friendId: button.dataset.userId, gameType },
-          'Приглашение в игру отправлено',
-        );
-        if (result) {
-          savePendingGameFriendId(button.dataset.userId, gameType);
-          setGameLobbyOpen(false);
+        const friendName = button.closest('.friend-row')?.querySelector('.friend-row-copy strong')?.textContent || 'другу';
+        const originalLabel = button.textContent;
+        button.textContent = 'Отправляем…';
+        try {
+          await inviteFriendToGame(button.dataset.userId, gameType);
+          $('word-chain-lobby-status').textContent = `Приглашение для ${friendName} отправлено. Ждём ответа.`;
+          $('word-chain-lobby-status').dataset.result = 'success';
+        } catch (error) {
+          button.textContent = originalLabel;
+          $('word-chain-lobby-status').textContent = error.message || 'Не удалось отправить приглашение.';
+          $('word-chain-lobby-status').dataset.result = 'error';
         }
       } else if (button.dataset.friendAction === 'lobby-open-game') {
         const opponent = socialPlayerById(button.dataset.opponentId);
         setGameLobbyOpen(false);
         await openSocialGame(button.dataset.gameId, opponent, button.dataset.gameType || gameLobbyType);
+      } else if (button.dataset.friendAction === 'accept-game-invite') {
+        const opponent = socialPlayerById(button.dataset.opponentId);
+        const result = await updateFriendship('/api/games/respond', {
+          inviteId: button.dataset.inviteId,
+          action: 'accept',
+        }, 'Игра создана');
+        if (result?.gameId) {
+          hideGameInvitePush();
+          setGameLobbyOpen(false);
+          await openSocialGame(result.gameId, opponent, result.gameType || button.dataset.gameType || gameLobbyType);
+        }
       }
     } finally {
       if (button.isConnected) button.disabled = false;
@@ -3996,15 +4146,21 @@
       stopActiveAudio();
       commitAppUsage();
       markSocialOffline();
-      if (auctionSocket?.readyState === WebSocket.OPEN && ['auction', 'challenge', 'countdown', 'naming'].includes(auctionSnapshot?.phase)) {
-        auctionSocket.send(JSON.stringify({ type: 'leave' }));
-      }
       return;
     }
     appVisibleStartedAt = Date.now();
     renderStreak();
     renderProfile();
     updateTimedClock();
+    if (!$('auction-screen').hidden && auctionGameId && auctionSnapshot?.status !== 'finished') {
+      if (auctionSocket?.readyState === WebSocket.OPEN) {
+        auctionLastSyncAt = performance.now();
+        auctionSocket.send(JSON.stringify({ type: 'sync' }));
+        updateAuctionClock();
+      } else if (!auctionSocket && auctionSnapshot) {
+        void openAuction(auctionGameId, null, { reconnecting: true });
+      }
+    }
     if (socialUpdatesEnabled) void loadSocialState({ quiet: true });
     if (!$('quick-pick-screen').hidden && quickPickSession && quickPickSession.index < quickPickSession.deck.length) {
       const word = quickPickWordById(quickPickSession.deck[quickPickSession.index]);
@@ -4014,9 +4170,6 @@
   window.addEventListener('pagehide', () => {
     commitAppUsage();
     markSocialOffline();
-    if (auctionSocket?.readyState === WebSocket.OPEN && ['auction', 'challenge', 'countdown', 'naming'].includes(auctionSnapshot?.phase)) {
-      auctionSocket.send(JSON.stringify({ type: 'leave' }));
-    }
   });
 
   $('add-form').addEventListener('submit', (event) => {
