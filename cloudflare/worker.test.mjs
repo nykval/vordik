@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
 import test from 'node:test';
-import { verifyTelegramInitData } from './worker.mjs';
+import { verifyTelegramInitData } from './telegram-auth.mjs';
 
 test('Cloudflare Worker verifies Telegram Mini App identity', async () => {
   const botToken = '123456:cloudflare-test-token';

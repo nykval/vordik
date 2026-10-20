@@ -1,11 +1,16 @@
 export { WordChainGame } from './word-chain-game.mjs';
 export { AuctionGame } from './auction-game.mjs';
+import {
+  getNotificationSettings, updateNotificationSettings, recordActivity, ingestStudyEvents,
+  dispatchInvite, runNotificationSchedule,
+} from './notifications.mjs';
+import { verifyTelegramInitData } from './telegram-auth.mjs';
+export { verifyTelegramInitData } from './telegram-auth.mjs';
 
 const MAX_BODY_BYTES = 16 * 1024;
 const MAX_RATING_SCORE = 10_000_000;
 const MAX_VOCABULARY_SIZE = 100_000;
 const MAX_SCORE_PER_WORD = 6;
-const TELEGRAM_AUTH_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
 const AVATAR_IDS = Object.freeze([
   'avatar-01-dark-hair',
   'avatar-02-curly-hair',
@@ -106,48 +111,6 @@ function telegramChatId(userId) {
   return match?.[1] ?? '';
 }
 
-function activityTimestamp(value) {
-  const source = String(value ?? '').trim();
-  if (!source) return 0;
-  const timestamp = Date.parse(source.includes('T') ? source : `${source.replace(' ', 'T')}Z`);
-  return Number.isFinite(timestamp) ? timestamp : 0;
-}
-
-function isRecentlyActive(updatedAt, now = Date.now()) {
-  const timestamp = activityTimestamp(updatedAt);
-  return timestamp > 0 && now - timestamp >= 0 && now - timestamp <= 10_000;
-}
-
-function gameTitle(gameType) {
-  return gameType === 'auction' ? 'Словарный аукцион' : 'Цепочка слов';
-}
-
-async function sendGameInviteMessage(env, invitee, inviterName, inviteId, gameType = 'word_chain') {
-  const chatId = telegramChatId(invitee?.user_id);
-  const botToken = String(env.BOT_TOKEN ?? '').trim();
-  const botUsername = String(env.TELEGRAM_BOT_USERNAME ?? '').trim().replace(/^@/, '');
-  if (!chatId || !botToken || !botUsername || isRecentlyActive(invitee?.updated_at)) return false;
-  const gameUrl = `https://t.me/${encodeURIComponent(botUsername)}?startapp=${encodeURIComponent(`game_${inviteId}`)}`;
-  try {
-    const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: gameType === 'auction'
-          ? `🎮 ${cleanName(inviterName)} приглашает вас сыграть в «Словарный аукцион».\n\nДелайте ставки, проверяйте соперника и берегите три жизни.`
-          : `🎮 ${cleanName(inviterName)} приглашает вас сыграть в «Цепочку слов».\n\nНа каждый ход даётся 15 секунд.`,
-        reply_markup: {
-          inline_keyboard: [[{ text: 'Открыть приглашение', url: gameUrl }]],
-        },
-      }),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-}
-
 function friendshipPair(left, right) {
   return left < right ? [left, right] : [right, left];
 }
@@ -164,58 +127,6 @@ function socialPlayer(row) {
 async function sha256Hex(value) {
   const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', encoder.encode(value)));
   return [...digest].map((byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-
-function bytesFromHex(value) {
-  if (!/^[a-f\d]{64}$/i.test(value)) return null;
-  return Uint8Array.from(value.match(/.{2}/g), (byte) => Number.parseInt(byte, 16));
-}
-
-async function hmacSha256(keyBytes, data) {
-  const key = await crypto.subtle.importKey(
-    'raw',
-    keyBytes,
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign'],
-  );
-  return new Uint8Array(await crypto.subtle.sign('HMAC', key, encoder.encode(data)));
-}
-
-function safeEqual(left, right) {
-  if (!left || left.length !== right.length) return false;
-  let difference = 0;
-  for (let index = 0; index < left.length; index += 1) difference |= left[index] ^ right[index];
-  return difference === 0;
-}
-
-export async function verifyTelegramInitData(initData, botToken, nowSeconds = Math.floor(Date.now() / 1000)) {
-  if (!initData || !botToken) return null;
-  const params = new URLSearchParams(initData);
-  const receivedHash = bytesFromHex(params.get('hash') ?? '');
-  const authDate = Number(params.get('auth_date'));
-  if (!receivedHash || !Number.isFinite(authDate)) return null;
-  if (authDate > nowSeconds + 60 || nowSeconds - authDate > TELEGRAM_AUTH_MAX_AGE_SECONDS) return null;
-
-  const dataCheckString = [...params.entries()]
-    .filter(([key]) => key !== 'hash')
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([key, value]) => `${key}=${value}`)
-    .join('\n');
-  const secretKey = await hmacSha256(encoder.encode('WebAppData'), botToken);
-  const calculatedHash = await hmacSha256(secretKey, dataCheckString);
-  if (!safeEqual(receivedHash, calculatedHash)) return null;
-
-  try {
-    const user = JSON.parse(params.get('user') ?? 'null');
-    if (!user || !Number.isSafeInteger(Number(user.id))) return null;
-    return {
-      id: `telegram:${user.id}`,
-      name: cleanName([user.first_name, user.last_name].filter(Boolean).join(' ')),
-    };
-  } catch {
-    return null;
-  }
 }
 
 async function resolveIdentity(payload, env) {
@@ -619,6 +530,30 @@ async function handleApi(request, env, context) {
     return json(await socialState(env.DB, identity, profile, request, env), 200, headers);
   }
 
+  if (url.pathname === '/api/notifications/settings' && request.method === 'POST') {
+    const { payload, identity } = await authenticateSocialRequest(request, env);
+    if (!telegramChatId(identity.id)) throw httpError('Сообщения доступны внутри Telegram', 403);
+    try {
+      const settings = ['mode', 'reminderTime', 'timezone', 'weeklyGoal', 'chatAccess'].some((field) => payload[field] !== undefined)
+        ? await updateNotificationSettings(env.DB, identity.id, payload)
+        : await getNotificationSettings(env.DB, identity.id);
+      return json(settings, 200, headers);
+    } catch (error) { throw httpError(error.message, 400); }
+  }
+
+  if (url.pathname === '/api/notifications/activity' && request.method === 'POST') {
+    const { payload, identity } = await authenticateSocialRequest(request, env);
+    if (typeof payload.active !== 'boolean') throw httpError('Некорректное состояние занятия', 400);
+    await recordActivity(env.DB, identity.id, payload.active);
+    return json({ ok: true }, 200, headers);
+  }
+
+  if (url.pathname === '/api/notifications/events' && request.method === 'POST') {
+    const { payload, identity } = await authenticateSocialRequest(request, env);
+    try { return json(await ingestStudyEvents(env.DB, identity.id, payload.events, payload.legacyDays), 200, headers); }
+    catch (error) { throw httpError(error.message, 400); }
+  }
+
   if (url.pathname === '/api/social/offline' && request.method === 'POST') {
     const { identity } = await authenticateSocialRequest(request, env);
     await env.DB.prepare(`
@@ -706,10 +641,7 @@ async function handleApi(request, env, context) {
     await env.DB.prepare(`
       INSERT INTO game_invites (id, inviter_id, invitee_id, game_type) VALUES (?, ?, ?, ?)
     `).bind(inviteId, identity.id, friendId, gameType).run();
-    const invitee = await env.DB.prepare(`
-      SELECT user_id, updated_at FROM ratings WHERE user_id = ?
-    `).bind(friendId).first();
-    const notification = sendGameInviteMessage(env, invitee, identity.name, inviteId, gameType);
+    const notification = dispatchInvite(env, friendId, inviteId, identity.name, gameType);
     if (context?.waitUntil) context.waitUntil(notification);
     else void notification;
     return json({ ok: true, inviteId, gameType }, 200, headers);
@@ -763,8 +695,7 @@ async function handleApi(request, env, context) {
     await env.DB.prepare(`
       INSERT INTO game_invites (id, inviter_id, invitee_id, game_type) VALUES (?, ?, ?, ?)
     `).bind(inviteId, identity.id, friendId, previous.game_type).run();
-    const invitee = await env.DB.prepare('SELECT user_id, updated_at FROM ratings WHERE user_id = ?').bind(friendId).first();
-    const notification = sendGameInviteMessage(env, invitee, identity.name, inviteId, previous.game_type);
+    const notification = dispatchInvite(env, friendId, inviteId, identity.name, previous.game_type);
     if (context?.waitUntil) context.waitUntil(notification);
     else void notification;
     return json({ ok: true, inviteId, gameType: previous.game_type }, 200, headers);
@@ -796,6 +727,9 @@ async function handleApi(request, env, context) {
 }
 
 export default {
+  async scheduled(controller, env, context) {
+    context.waitUntil(runNotificationSchedule(env, controller.scheduledTime || Date.now()));
+  },
   async fetch(request, env, context) {
     try {
       const url = new URL(request.url);

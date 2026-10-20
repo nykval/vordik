@@ -3,6 +3,8 @@
 
   const STORAGE_KEY = 'vordik.words.v1';
   const STUDY_DAYS_KEY = 'vordik.studyDays.v1';
+  const STUDY_EVENT_QUEUE_KEY = 'vordik.studyEvents.v1';
+  const LEGACY_DAYS_SYNCED_KEY = 'vordik.legacyDaysSynced.v1';
   const PROFILE_KEY = 'vordik.profile.v1';
   const PROFILE_STATS_KEY = 'vordik.profileStats.v1';
   const RATING_GUEST_ID_KEY = 'vordik.ratingGuestId.v1';
@@ -133,10 +135,16 @@
   let appVisibleStartedAt = document.hidden ? 0 : Date.now();
   const quickPickKnown = loadQuickPickKnown();
   let quickPickSession = loadQuickPickSession();
-  const session = { mechanic: 'cards', ids: [], translations: new Map(), index: 0, flipped: false, answered: false, correctCount: 0, attemptCount: 0, phase: 'feed', startedAt: 0, statsRecorded: false };
+  const session = { mechanic: 'cards', ids: [], translations: new Map(), index: 0, flipped: false, flippedIds: new Set(), answered: false, correctCount: 0, attemptCount: 0, phase: 'feed', startedAt: 0, statsRecorded: false };
+  let studyEventQueue = loadStudyEventQueue();
+  let studyEventStorageKey = STUDY_EVENT_QUEUE_KEY;
+  let legacyDaysSyncedKey = LEGACY_DAYS_SYNCED_KEY;
+  let studyEventSyncing = false;
+  let studyActivityTimer = 0;
   const fiveLetterGame = { answer: '', guesses: [], current: '', finished: false, won: false, message: '', result: '' };
   const puzzleGame = { roundKey: '', pieceOrder: [], solvedIds: new Set(), mistakeIds: new Set(), selectedId: null, pendingWrong: null, message: '', result: '' };
   let activeTab = 'home';
+  let pendingGameLaunchId = '';
   let toastTimer;
   let activeAudio = null;
   let sortMode = 'recent';
@@ -609,6 +617,16 @@
     const telegramId = String(telegramUser.id ?? '');
     if (!/^\d+$/.test(telegramId)) return;
     const telegramStorageKey = `${PROFILE_KEY}.telegram.${telegramId}`;
+    const accountEventKey = `${STUDY_EVENT_QUEUE_KEY}.telegram.${telegramId}`;
+    if (studyEventStorageKey !== accountEventKey) {
+      const oldQueue = studyEventQueue;
+      studyEventStorageKey = accountEventKey;
+      legacyDaysSyncedKey = `${LEGACY_DAYS_SYNCED_KEY}.telegram.${telegramId}`;
+      const merged = new Map([...loadStudyEventQueue(accountEventKey), ...oldQueue].map((event) => [event.id, event]));
+      studyEventQueue = [...merged.values()].slice(-100);
+      saveStudyEventQueue();
+      try { localStorage.removeItem(STUDY_EVENT_QUEUE_KEY); } catch { /* No data is lost if removal fails. */ }
+    }
     if (profileStorageKey !== telegramStorageKey) {
       profileStorageKey = telegramStorageKey;
       Object.assign(userProfile, loadProfile(telegramStorageKey, deterministicAvatarId(`telegram:${telegramId}`)));
@@ -677,6 +695,15 @@
     profileStats.totalSessionMs += Math.max(1000, Date.now() - session.startedAt);
     session.statsRecorded = true;
     saveProfileStats();
+    const attempts = session.mechanic === 'cards' ? session.flippedIds.size
+      : ['quiz', 'typing'].includes(session.mechanic) ? session.index + 1 : session.attemptCount;
+    const durationMs = Date.now() - session.startedAt;
+    const minimum = session.mechanic === 'five-letter' ? 10_000 : session.mechanic === 'timed' ? 8_000 : 20_000;
+    if (attempts >= (session.mechanic === 'five-letter' ? 1 : 3) && durationMs >= minimum) {
+      recordStudyDay();
+      queueStudyEvent({ mechanic: session.mechanic, attempts, correct: session.correctCount,
+        durationMs, wordIds: session.ids, startedAt: session.startedAt });
+    }
     renderProfile();
     void syncRating({ silent: activeTab !== 'rating' });
   }
@@ -701,7 +728,10 @@
       const unknown = saved.unknown.filter((id) => deck.includes(id));
       const history = saved.history.filter((item) => item && deck.includes(item.id) && (item.choice === 'known' || item.choice === 'unknown'));
       const selected = Array.isArray(saved.selected) ? saved.selected.filter((id) => unknown.includes(id)) : null;
-      return { deck, index, unknown, history, selected };
+      return { deck, index, unknown, history, selected,
+        eventId: /^[a-f\d-]{36}$/i.test(saved.eventId ?? '') ? saved.eventId : crypto.randomUUID(),
+        startedAt: Number.isInteger(saved.startedAt) ? saved.startedAt : Date.now(),
+        credited: saved.credited === true };
     } catch { return null; }
   }
 
@@ -763,6 +793,62 @@
       showToast('Не удалось сохранить серию занятий на устройстве');
     }
     renderStreak();
+  }
+
+  function loadStudyEventQueue(storageKey = STUDY_EVENT_QUEUE_KEY) {
+    try {
+      const value = JSON.parse(localStorage.getItem(storageKey) ?? '[]');
+      return Array.isArray(value) ? value.filter((item) => item && typeof item.id === 'string').slice(-100) : [];
+    } catch { return []; }
+  }
+
+  function saveStudyEventQueue() {
+    try { localStorage.setItem(studyEventStorageKey, JSON.stringify(studyEventQueue)); }
+    catch { /* Local study history still works without a server queue. */ }
+  }
+
+  function queueStudyEvent({ mechanic, attempts, correct, durationMs, wordIds = [], startedAt = 0, id = crypto.randomUUID() }) {
+    const selected = [...new Set(wordIds)].map((wordId) => words.find((word) => word.id === wordId))
+      .filter((word) => word?.last_review_at && Date.parse(word.last_review_at) >= startedAt).slice(0, 20);
+    studyEventQueue.push({ id, occurredAt: Date.now(), mechanic, attempts, correct, durationMs,
+      vocabularyScore: vocabularyScore(), wordUpdates: selected.map((word) => ({
+        id: word.common_word_id || word.id, knowledge: currentKnowledge(word),
+        correct: word.correct_answers, wrong: word.wrong_answers,
+        lastReviewAt: word.last_review_at, lastCorrectAt: word.last_correct_at,
+      })) });
+    studyEventQueue = studyEventQueue.slice(-100);
+    saveStudyEventQueue();
+    void flushStudyEvents();
+  }
+
+  async function flushStudyEvents() {
+    if (studyEventSyncing || !navigator.onLine || !window.Telegram?.WebApp?.initData) return;
+    studyEventSyncing = true;
+    try {
+      let legacyUploaded = Boolean(localStorage.getItem(legacyDaysSyncedKey));
+      while (studyEventQueue.length || !legacyUploaded) {
+        const batch = studyEventQueue.slice(0, 3);
+        await socialPost('/api/notifications/events', {
+          events: batch,
+          legacyDays: legacyUploaded ? [] : studyDays.slice(-365),
+        });
+        const sentIds = new Set(batch.map((event) => event.id));
+        studyEventQueue = studyEventQueue.filter((event) => !sentIds.has(event.id));
+        saveStudyEventQueue();
+        legacyUploaded = true;
+        try { localStorage.setItem(legacyDaysSyncedKey, '1'); }
+        catch { /* The current sync can still finish; the next one may re-import idempotently. */ }
+      }
+    } catch { /* Keep the same event IDs for the next attempt. */ }
+    finally { studyEventSyncing = false; }
+  }
+
+  function setStudyActivity(active) {
+    window.clearInterval(studyActivityTimer);
+    if (active) studyActivityTimer = window.setInterval(() => {
+      void socialPost('/api/notifications/activity', { active: true }).catch(() => {});
+    }, 120_000);
+    if (window.Telegram?.WebApp?.initData) void socialPost('/api/notifications/activity', { active }).catch(() => {});
   }
 
   function loadWords() {
@@ -1601,6 +1687,53 @@
     return postProfileApi(path, socialAuthPayload(extra), 'Не удалось связаться с сервером');
   }
 
+  function renderNotificationSettings(settings) {
+    if (!settings) return;
+    const connected = settings.chatAccess === 'granted';
+    $('notifications-connect').hidden = connected;
+    $('notifications-mode').disabled = !connected;
+    $('notifications-time').disabled = !connected;
+    $('notifications-goal').disabled = !connected;
+    $('notifications-mode').value = settings.mode;
+    $('notifications-time').value = settings.reminderTime;
+    $('notifications-goal').value = settings.weeklyGoal;
+    $('notifications-status').textContent = connected
+      ? (settings.mode === 'paused' ? 'Сообщения приостановлены.' : 'Сообщения подключены. Часовой пояс учитывается автоматически.')
+      : (settings.chatAccess === 'blocked' ? 'Бот не может написать вам. Откройте чат с ботом и разрешите сообщения.' : 'Разрешите сообщения в Telegram, чтобы получать напоминания.');
+  }
+
+  async function loadNotificationSettings() {
+    if (!window.Telegram?.WebApp?.initData) return;
+    try {
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Moscow';
+      const settings = await socialPost('/api/notifications/settings', { timezone });
+      renderNotificationSettings(settings);
+    } catch (error) { $('notifications-status').textContent = error.message || 'Не удалось загрузить настройки.'; }
+  }
+
+  async function saveNotificationSettings(change) {
+    try {
+      const result = await socialPost('/api/notifications/settings', change);
+      renderNotificationSettings(result);
+    } catch (error) {
+      $('notifications-status').textContent = error.message || 'Не удалось сохранить настройки.';
+      void loadNotificationSettings();
+    }
+  }
+
+  function connectNotifications() {
+    const webApp = window.Telegram?.WebApp;
+    if (!webApp?.initData || typeof webApp.requestWriteAccess !== 'function') {
+      $('notifications-status').textContent = 'Откройте приложение в Telegram и обновите Telegram до последней версии.';
+      return;
+    }
+    $('notifications-connect').disabled = true;
+    webApp.requestWriteAccess(async (allowed) => {
+      $('notifications-connect').disabled = false;
+      await saveNotificationSettings({ chatAccess: allowed ? 'granted' : 'denied', mode: allowed ? 'all' : 'paused' });
+    });
+  }
+
   function loadPendingGameFriendId() {
     try { return localStorage.getItem(PENDING_GAME_FRIEND_KEY) ?? ''; }
     catch { return ''; }
@@ -1770,8 +1903,14 @@
   }
 
   function syncGameInvitePush(state) {
-    const invitation = state.gameInvites[0];
+    const targeted = pendingGameLaunchId ? state.gameInvites.find((item) => item.id === pendingGameLaunchId) : null;
+    if (pendingGameLaunchId && !targeted) {
+      pendingGameLaunchId = '';
+      showToast('Приглашение уже обработано или недоступно.');
+    }
+    const invitation = targeted || state.gameInvites[0];
     if (invitation) {
+      if (invitation.id === pendingGameLaunchId) pendingGameLaunchId = '';
       showGameInvitePush({ mode: 'invite', player: invitation.from, inviteId: invitation.id, gameType: invitation.gameType });
       return;
     }
@@ -2461,8 +2600,8 @@
     const pageUrl = new URL(window.location.href);
     const telegramStartParam = String(
       window.Telegram?.WebApp?.initDataUnsafe?.start_param
-        ?? pageUrl.searchParams.get('tgWebAppStartParam')
-        ?? '',
+        || pageUrl.searchParams.get('tgWebAppStartParam')
+        || '',
     ).trim();
     const telegramInvite = telegramStartParam.match(/^friend_([a-f\d-]{36})$/i);
     const inviteToken = pageUrl.searchParams.get('friendInvite') || telegramInvite?.[1] || '';
@@ -2476,6 +2615,39 @@
       if (socialUpdatesEnabled || activeTab === 'profile') await loadSocialState({ quiet: true });
     } catch (error) {
       showToast(error.message || 'Не удалось принять приглашение');
+    }
+  }
+
+  function handleNotificationLaunch() {
+    const pageUrl = new URL(window.location.href);
+    const start = String(window.Telegram?.WebApp?.initDataUnsafe?.start_param
+      || pageUrl.searchParams.get('tgWebAppStartParam') || '').trim();
+    if (!start || start.startsWith('friend_')) return;
+    pageUrl.searchParams.delete('tgWebAppStartParam');
+    window.history.replaceState({}, '', `${pageUrl.pathname}${pageUrl.search}${pageUrl.hash}`);
+    const game = start.match(/^game_([a-f\d-]{36})$/i);
+    if (game) {
+      pendingGameLaunchId = game[1];
+      switchTab('profile');
+      void loadSocialState({ quiet: true });
+      return;
+    }
+    if (start === 'progress') { switchTab('profile'); return; }
+    if (start === 'study' || start === 'review') {
+      if (!words.length) {
+        switchTab('home');
+        showToast('На этом устройстве пока нет слов. Начните с быстрого подбора.');
+        requestQuickPick();
+        return;
+      }
+      switchTab('cards');
+      if (start === 'review') {
+        const due = words.filter((word) => word.last_result === 'wrong'
+          || (word.last_review_at && Date.now() - Date.parse(word.last_review_at) > 3 * DAY_MS));
+        const translations = new Set(words.flatMap((word) => wordTranslations(word)));
+        if (translations.size >= 2) startStudy('quiz', due.length >= 3 ? due.map((word) => word.id) : null);
+        else startStudy('cards');
+      } else startStudy('cards');
     }
   }
 
@@ -2747,6 +2919,7 @@
     if (tab === 'profile') {
       renderProfile();
       void loadSocialState();
+      void loadNotificationSettings();
     }
     if (tab === 'rating') void syncRating();
     window.scrollTo(0, 0);
@@ -2758,6 +2931,7 @@
     if (phase !== 'play' && session.mechanic === 'puzzle') clearTimeout(puzzleFeedbackTimer);
     session.phase = phase;
     if (phase === 'finish') recordCompletedSession();
+    if (phase !== 'play') setStudyActivity(false);
     document.body.classList.toggle('is-studying', phase === 'play');
     document.body.classList.toggle('is-quiz-studying', phase === 'play' && session.mechanic === 'quiz');
     document.body.classList.toggle('is-card-studying', phase === 'play' && session.mechanic === 'cards');
@@ -2864,7 +3038,8 @@
 
   function createQuickPickSession() {
     const deck = weightedMechanicWords(availableQuickPickWords(), QUICK_PICK_WORD_COUNT).map((word) => word.id);
-    quickPickSession = { deck, index: 0, unknown: [], history: [], selected: null };
+    quickPickSession = { deck, index: 0, unknown: [], history: [], selected: null,
+      eventId: crypto.randomUUID(), startedAt: Date.now(), credited: false };
     saveQuickPickSession();
   }
 
@@ -2881,7 +3056,7 @@
 
   function openQuickPick() {
     if (!quickPickSession) return;
-    recordStudyDay();
+    setStudyActivity(true);
     document.body.classList.add('is-picking');
     $('quick-pick-screen').hidden = false;
     if (quickPickSession.index >= quickPickSession.deck.length) addAllQuickPickWords();
@@ -2891,6 +3066,8 @@
 
   function closeQuickPick() {
     stopActiveAudio();
+    creditQuickPick();
+    setStudyActivity(false);
     saveQuickPickSession();
     document.body.classList.remove('is-picking');
     $('quick-pick-screen').hidden = true;
@@ -2946,6 +3123,7 @@
       quickPickSession.unknown.push(id);
     }
     quickPickSession.index += 1;
+    creditQuickPick();
     saveQuickPickSession();
     if (quickPickSession.index >= quickPickSession.deck.length) addAllQuickPickWords();
     else renderQuickPickCard();
@@ -3025,10 +3203,22 @@
   }
 
   function finishQuickPick(message) {
+    creditQuickPick();
     quickPickSession = null;
     saveQuickPickSession();
     closeQuickPick();
     if (message) showToast(message);
+  }
+
+  function creditQuickPick() {
+    if (!quickPickSession || quickPickSession.credited) return;
+    const durationMs = Date.now() - quickPickSession.startedAt;
+    if (quickPickSession.history.length < 5 || durationMs < 10_000) return;
+    quickPickSession.credited = true;
+    recordStudyDay();
+    queueStudyEvent({ id: quickPickSession.eventId, mechanic: 'quick-pick',
+      attempts: quickPickSession.history.length, correct: 0, durationMs });
+    saveQuickPickSession();
   }
 
   function addAllQuickPickWords() {
@@ -3194,7 +3384,7 @@
     fiveLetterGame.result = '';
   }
 
-  function startStudy(mechanic = session.mechanic) {
+  function startStudy(mechanic = session.mechanic, preferredIds = null) {
     if (!words.length) return;
     const availableTranslations = new Set(words.flatMap((word) => wordTranslations(word)));
     if (mechanic === 'quiz' && availableTranslations.size < 2) return;
@@ -3211,17 +3401,20 @@
       session.ids = [selectedWord.id];
       resetFiveLetterGame(selectedWord);
     } else if (mechanic === 'puzzle') session.ids = puzzleCandidates;
-    else session.ids = mechanicStudyWordIds();
+    else session.ids = Array.isArray(preferredIds) && preferredIds.length >= 3
+      ? weightedMechanicWords(words.filter((word) => preferredIds.includes(word.id)), STUDY_SERIES_SIZE, { prioritizeKnowledge: true }).map((word) => word.id)
+      : mechanicStudyWordIds();
     initializeSessionTranslations();
     session.index = 0;
     session.flipped = false;
+    session.flippedIds = new Set();
     session.answered = false;
     session.correctCount = 0;
     session.attemptCount = 0;
     session.startedAt = Date.now();
     session.statsRecorded = false;
     if (mechanic === 'puzzle') resetPuzzleRound();
-    recordStudyDay();
+    setStudyActivity(true);
     setPhase('play');
     renderExercise();
     if (mechanic === 'timed') startTimedRound();
@@ -3879,6 +4072,10 @@
   }
 
   $('profile-button').addEventListener('click', () => switchTab(activeTab === 'profile' ? 'home' : 'profile'));
+  $('notifications-connect').addEventListener('click', connectNotifications);
+  $('notifications-mode').addEventListener('change', (event) => void saveNotificationSettings({ mode: event.target.value }));
+  $('notifications-time').addEventListener('change', (event) => void saveNotificationSettings({ reminderTime: event.target.value }));
+  $('notifications-goal').addEventListener('change', (event) => void saveNotificationSettings({ weeklyGoal: Number(event.target.value) }));
   document.querySelectorAll('[data-profile-close]').forEach((button) => button.addEventListener('click', () => switchTab('home')));
   $('profile-avatar-button').addEventListener('click', () => setAvatarPickerOpen(true));
   document.querySelectorAll('[data-avatar-close]').forEach((button) => button.addEventListener('click', () => setAvatarPickerOpen(false)));
@@ -4251,7 +4448,11 @@
   $('quick-pick-select-none').addEventListener('click', () => setQuickPickSelection(false));
   $('quick-pick-add-selected').addEventListener('click', addQuickPickSelection);
   $('quick-pick-skip').addEventListener('click', () => finishQuickPick('Слова не добавлены'));
-  $('flashcard').addEventListener('click', () => { session.flipped = !session.flipped; renderExercise(); });
+  $('flashcard').addEventListener('click', () => {
+    session.flipped = !session.flipped;
+    if (session.flipped) session.flippedIds.add(session.ids[session.index]);
+    renderExercise();
+  });
   $('next-button').addEventListener('click', nextCard);
   $('quiz-next-button').addEventListener('click', nextCard);
   $('typing-next-button').addEventListener('click', nextCard);
@@ -4314,17 +4515,20 @@
   window.addEventListener('load', () => {
     const webApp = window.Telegram?.WebApp;
     if (!webApp) {
+      handleNotificationLaunch();
       void acceptPendingFriendInvite();
       return;
     }
     const telegramLaunchParams = `${window.location.search}${window.location.hash}`.includes('tgWebAppVersion');
     const isTelegramContext = Boolean(webApp.initData || telegramLaunchParams || (webApp.platform && webApp.platform !== 'unknown'));
     if (!isTelegramContext) {
+      handleNotificationLaunch();
       void acceptPendingFriendInvite();
       return;
     }
     document.documentElement.classList.add('telegram-app');
     if (webApp.initData) syncTelegramProfile(webApp);
+    handleNotificationLaunch();
     const syncTelegramSafeArea = () => {
       const safeTop = Math.max(0, Number(webApp.safeAreaInset?.top) || 0);
       const contentTop = Math.max(0, Number(webApp.contentSafeAreaInset?.top) || 0);
@@ -4344,8 +4548,15 @@
     requestAnimationFrame(syncTelegramSafeArea);
     setTimeout(syncTelegramSafeArea, 300);
     startSocialUpdates();
+    void flushStudyEvents();
+    void loadNotificationSettings();
     void acceptPendingFriendInvite();
   });
+  window.addEventListener('online', () => void flushStudyEvents());
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) void flushStudyEvents();
+  });
+  window.setInterval(() => void flushStudyEvents(), 60_000);
 
   // Supported browsers can expose the same dictionary actions to an assistant.
   const context = document.modelContext;

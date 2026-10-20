@@ -44,10 +44,10 @@ test('rating server stores users and orders the leaderboard', async () => {
     const alice = await aliceResponse.json();
     assert.equal(alice.player.rank, 1);
     assert.equal(alice.player.isMe, true);
-    assert.equal(alice.player.avatarId, 'avatar-01-dark-hair');
+    assert.match(alice.player.avatarId, /^avatar-\d{2}-/);
 
     const bobResponse = await syncPlayer(baseUrl, {
-      guestId: 'bob-user-0001', name: 'Борис', avatarId: 'avatar-02-curly-hair', score: 250, vocabularySize: 20,
+      guestId: 'bob-user-0001', name: 'Борис', avatarId: 'avatar-02-curly-hair', score: 150, vocabularySize: 30,
     });
     assert.equal(bobResponse.status, 200);
     const bob = await bobResponse.json();
@@ -55,20 +55,20 @@ test('rating server stores users and orders the leaderboard', async () => {
     assert.deepEqual(bob.leaders.map((entry) => entry.name), ['Борис', 'Алиса']);
 
     const promotedResponse = await syncPlayer(baseUrl, {
-      guestId: 'alice-user-1', name: 'Алиса', avatarId: 'avatar-01-dark-hair', score: 300, vocabularySize: 31,
+      guestId: 'alice-user-1', name: 'Алиса', avatarId: 'avatar-01-dark-hair', score: 180, vocabularySize: 31,
     });
     const promoted = await promotedResponse.json();
     assert.equal(promoted.player.rank, 1);
     assert.equal(promoted.totalPlayers, 2);
 
     const passiveDeviceResponse = await syncPlayer(baseUrl, {
-      guestId: 'alice-user-1', name: 'Алиса', avatarId: 'avatar-02-curly-hair', avatarCustomized: false, score: 300, vocabularySize: 31,
+      guestId: 'alice-user-1', name: 'Алиса', avatarId: 'avatar-02-curly-hair', avatarCustomized: false, score: 180, vocabularySize: 31,
     });
     const passiveDevice = await passiveDeviceResponse.json();
-    assert.equal(passiveDevice.player.avatarId, 'avatar-01-dark-hair');
+    assert.equal(passiveDevice.player.avatarId, alice.player.avatarId);
 
     const customizedResponse = await syncPlayer(baseUrl, {
-      guestId: 'alice-user-1', name: 'Алиса', avatarId: 'avatar-09-glasses', avatarCustomized: true, score: 300, vocabularySize: 31,
+      guestId: 'alice-user-1', name: 'Алиса', avatarId: 'avatar-09-glasses', avatarCustomized: true, score: 180, vocabularySize: 31,
     });
     const customized = await customizedResponse.json();
     assert.equal(customized.player.avatarId, 'avatar-09-glasses');

@@ -3,6 +3,7 @@
   "name": "vordik-ratings-api",
   "main": "./cloudflare/worker.mjs",
   "compatibility_date": "2026-09-30",
+  "triggers": { "crons": ["*/15 * * * *"] },
   "assets": {
     "directory": "./.cloudflare-public",
     "binding": "ASSETS",
@@ -44,6 +45,7 @@
     "ALLOW_GUEST_RATINGS": "false",
     "ALLOWED_ORIGINS": "https://nykval.github.io",
     "PUBLIC_APP_URL": "https://nykval.github.io/vordik",
-    "TELEGRAM_BOT_USERNAME": "vordikforyou_bot"
+    "TELEGRAM_BOT_USERNAME": "vordikforyou_bot",
+    "NOTIFICATIONS_PHASE": "1"
   }
 }

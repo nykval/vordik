@@ -11,7 +11,7 @@
     <link rel="apple-touch-icon" href="./favicon.png" />
     <link rel="manifest" href="./site.webmanifest" />
     <link rel="stylesheet" href="./design-system/colors.css?v=auction-57" />
-    <link rel="stylesheet" href="./styles.css?v=auction-clock-2026-10-13" />
+    <link rel="stylesheet" href="./styles.css?v=notifications-2026-10-20" />
   </head>
   <body class="is-home">
     <div class="app-shell">
@@ -477,6 +477,23 @@
                 </div>
               </section>
 
+              <section class="profile-section notification-settings" aria-labelledby="notification-settings-title">
+                <div class="profile-section-heading"><h2 id="notification-settings-title">Сообщения от бота</h2></div>
+                <p>Напоминания о занятиях и приглашения друзей приходят в Telegram в удобное время.</p>
+                <button id="notifications-connect" class="primary-button" type="button">Подключить сообщения</button>
+                <label for="notifications-mode">Что присылать</label>
+                <select id="notifications-mode" disabled>
+                  <option value="all">Все сообщения</option>
+                  <option value="essential">Только серия и друзья</option>
+                  <option value="paused">Пауза</option>
+                </select>
+                <label for="notifications-time">Время напоминания</label>
+                <input id="notifications-time" type="time" min="09:00" max="21:00" value="19:00" disabled />
+                <label for="notifications-goal">Недельная цель, баллы словаря</label>
+                <input id="notifications-goal" type="number" min="5" max="500" step="5" value="20" disabled />
+                <p id="notifications-status" role="status" aria-live="polite">Настройки доступны внутри Telegram.</p>
+              </section>
+
             </div>
           </div>
         </section>
@@ -745,7 +762,7 @@
     <script src="./audio-manifest.js?v=common-audio-39" defer></script>
     <script src="./collections.js?v=topics-2026-10-12" defer></script>
     <script src="./quick-pick-words.js?v=common-dictionary-32" defer></script>
-    <script src="./app.js?v=auction-clock-2026-10-13" defer></script>
+    <script src="./app.js?v=notifications-2026-10-20" defer></script>
     <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
   </body>
 </html>
