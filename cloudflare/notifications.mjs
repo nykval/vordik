@@ -96,7 +96,10 @@ export function notificationCopy(item, botUsername) {
 }
 
 async function ensurePreferences(db, userId, now) {
-  await db.prepare('INSERT OR IGNORE INTO notification_preferences (user_id, last_seen_at, updated_at) VALUES (?, ?, ?)').bind(userId, now, now).run();
+  await db.prepare(`INSERT OR IGNORE INTO notification_preferences
+    (user_id, mode, last_seen_at, updated_at) VALUES (?, 'all', ?, ?)`).bind(userId, now, now).run();
+  await db.prepare(`UPDATE notification_preferences SET mode = 'all', updated_at = ?
+    WHERE user_id = ? AND mode = 'paused' AND paused_at = 0 AND chat_access = 'unknown'`).bind(now, userId).run();
   return db.prepare('SELECT * FROM notification_preferences WHERE user_id = ?').bind(userId).first();
 }
 
@@ -139,7 +142,9 @@ export async function updateNotificationSettings(db, userId, input, now = Date.n
   }
   if (input.mode && input.mode !== 'paused') {
     const current = await getNotificationSettings(db, userId, now);
-    if (input.chatAccess !== 'granted' && current.chatAccess !== 'granted') throw new Error('Сначала разрешите сообщения от бота');
+    if (current.chatAccess === 'blocked' || current.chatAccess === 'denied') {
+      fields.push("chat_access = 'unknown'");
+    }
   }
   if (fields.length) await db.prepare(`UPDATE notification_preferences SET ${fields.join(', ')}, updated_at = ? WHERE user_id = ?`).bind(...values, now, userId).run();
   if (input.weeklyGoal !== undefined) {
@@ -282,9 +287,9 @@ export async function dispatchNotification(env, user, item, now = Date.now()) {
   const botToken = String(env.BOT_TOKEN ?? '').trim();
   const botUsername = String(env.TELEGRAM_BOT_USERNAME ?? '').trim().replace(/^@/, '');
   const chatId = String(user.user_id).match(/^telegram:(\d+)$/)?.[1];
-  if (!botToken || !botUsername || !chatId || user.chat_access !== 'granted' || user.mode === 'paused') return false;
+  if (!botToken || !botUsername || !chatId || !['unknown', 'granted'].includes(user.chat_access) || user.mode === 'paused') return false;
   const fresh = await env.DB.prepare('SELECT active_until, mode, chat_access FROM notification_preferences WHERE user_id = ?').bind(user.user_id).first();
-  if (!fresh || fresh.mode === 'paused' || fresh.chat_access !== 'granted') return false;
+  if (!fresh || fresh.mode === 'paused' || !['unknown', 'granted'].includes(fresh.chat_access)) return false;
   if (item.scenario !== 'invite' && fresh.mode !== 'all' && !['streak'].includes(item.scenario)) return false;
   if (item.scenario !== 'invite') {
     if (Number(fresh.active_until) > now) return false;
@@ -309,6 +314,10 @@ export async function dispatchNotification(env, user, item, now = Date.now()) {
     status = response.ok && result.ok ? 'sent' : 'failed';
     telegramMessageId = result.result?.message_id ?? null;
     telegramErrorCode = result.error_code ?? response.status;
+    if (status === 'sent' && fresh.chat_access !== 'granted') {
+      await env.DB.prepare("UPDATE notification_preferences SET chat_access = 'granted', updated_at = ? WHERE user_id = ?")
+        .bind(now, user.user_id).run();
+    }
     const refused = telegramErrorCode === 403 || (telegramErrorCode === 400
       && /chat not found|bot was blocked|user is deactivated/i.test(String(result.description ?? '')));
     if (refused) await env.DB.prepare(`UPDATE notification_preferences SET chat_access = 'blocked',
@@ -321,6 +330,8 @@ export async function dispatchNotification(env, user, item, now = Date.now()) {
 }
 
 export async function dispatchInvite(env, inviteeId, inviteId, inviterName, gameType, now = Date.now()) {
+  if (!/^telegram:\d+$/.test(inviteeId)) return false;
+  await ensurePreferences(env.DB, inviteeId, now);
   const user = await env.DB.prepare(`SELECT p.*, r.user_id, r.updated_at AS rating_updated_at FROM notification_preferences AS p
     JOIN ratings AS r ON r.user_id = p.user_id WHERE p.user_id = ?`).bind(inviteeId).first();
   if (!user || activityTime(user.rating_updated_at) > now - 10_000) return false;
@@ -334,7 +345,7 @@ export async function runNotificationSchedule(env, now = Date.now()) {
   for (;;) {
     const rows = await env.DB.prepare(`SELECT p.*, r.user_id, r.updated_at AS rating_updated_at FROM notification_preferences AS p
       JOIN ratings AS r ON r.user_id = p.user_id
-      WHERE p.mode <> 'paused' AND p.chat_access = 'granted' AND r.user_id LIKE 'telegram:%'
+      WHERE p.mode <> 'paused' AND p.chat_access IN ('unknown', 'granted') AND r.user_id LIKE 'telegram:%'
         AND p.user_id > ? ORDER BY p.user_id LIMIT 200`).bind(cursor).all();
     if (!rows.results.length) break;
     scanned += rows.results.length;

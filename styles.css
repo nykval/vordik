@@ -1077,12 +1077,11 @@ input::placeholder { color: var(--text-muted); }
   .avatar-option { border-radius: 15px; }
   .avatar-option img { border-radius: 10px; }
 }
-/* Telegram message preferences live with the rest of the profile controls. */
 .notification-settings { display: grid; gap: 12px; }
 .notification-settings > p { margin: 0; color: #53617a; line-height: 1.45; }
 .notification-settings label { display: block; font-weight: 700; color: #203067; }
-.notification-settings select,
-.notification-settings input { width: 100%; min-height: 48px; padding: 10px 14px; border: 1px solid #cbd5ef; border-radius: 12px; background: #fff; color: #203067; font: inherit; }
-.notification-settings select:disabled,
+.notification-settings input[type="number"] { width: 100%; min-height: 48px; padding: 10px 14px; border: 1px solid #cbd5ef; border-radius: 12px; background: #fff; color: #203067; font: inherit; }
 .notification-settings input:disabled { opacity: .55; }
+.notification-settings .notification-toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; padding: 8px 14px; border: 1px solid #cbd5ef; border-radius: 12px; background: #fff; }
+.notification-toggle input { width: 22px; height: 22px; margin: 0; accent-color: #315cf5; flex: none; }
 .notification-settings #notifications-status { min-height: 1.4em; font-size: .9rem; }

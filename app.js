@@ -1689,17 +1689,15 @@
 
   function renderNotificationSettings(settings) {
     if (!settings) return;
-    const connected = settings.chatAccess === 'granted';
-    $('notifications-connect').hidden = connected;
-    $('notifications-mode').disabled = !connected;
-    $('notifications-time').disabled = !connected;
-    $('notifications-goal').disabled = !connected;
-    $('notifications-mode').value = settings.mode;
-    $('notifications-time').value = settings.reminderTime;
+    $('notifications-enabled').disabled = false;
+    $('notifications-goal').disabled = false;
+    $('notifications-enabled').checked = settings.mode !== 'paused';
     $('notifications-goal').value = settings.weeklyGoal;
-    $('notifications-status').textContent = connected
-      ? (settings.mode === 'paused' ? 'Сообщения приостановлены.' : 'Сообщения подключены. Часовой пояс учитывается автоматически.')
-      : (settings.chatAccess === 'blocked' ? 'Бот не может написать вам. Откройте чат с ботом и разрешите сообщения.' : 'Разрешите сообщения в Telegram, чтобы получать напоминания.');
+    $('notifications-status').textContent = settings.chatAccess === 'blocked'
+      ? 'Telegram не принимает сообщения от бота. Откройте чат с ним и нажмите «Старт», затем включите напоминания здесь.'
+      : settings.mode === 'paused'
+        ? 'Напоминания выключены.'
+        : 'Напоминания включены автоматически. Отправим их по вашему местному времени, если чат с ботом доступен.';
   }
 
   async function loadNotificationSettings() {
@@ -1719,19 +1717,6 @@
       $('notifications-status').textContent = error.message || 'Не удалось сохранить настройки.';
       void loadNotificationSettings();
     }
-  }
-
-  function connectNotifications() {
-    const webApp = window.Telegram?.WebApp;
-    if (!webApp?.initData || typeof webApp.requestWriteAccess !== 'function') {
-      $('notifications-status').textContent = 'Откройте приложение в Telegram и обновите Telegram до последней версии.';
-      return;
-    }
-    $('notifications-connect').disabled = true;
-    webApp.requestWriteAccess(async (allowed) => {
-      $('notifications-connect').disabled = false;
-      await saveNotificationSettings({ chatAccess: allowed ? 'granted' : 'denied', mode: allowed ? 'all' : 'paused' });
-    });
   }
 
   function loadPendingGameFriendId() {
@@ -4072,9 +4057,7 @@
   }
 
   $('profile-button').addEventListener('click', () => switchTab(activeTab === 'profile' ? 'home' : 'profile'));
-  $('notifications-connect').addEventListener('click', connectNotifications);
-  $('notifications-mode').addEventListener('change', (event) => void saveNotificationSettings({ mode: event.target.value }));
-  $('notifications-time').addEventListener('change', (event) => void saveNotificationSettings({ reminderTime: event.target.value }));
+  $('notifications-enabled').addEventListener('change', (event) => void saveNotificationSettings({ mode: event.target.checked ? 'all' : 'paused' }));
   $('notifications-goal').addEventListener('change', (event) => void saveNotificationSettings({ weeklyGoal: Number(event.target.value) }));
   document.querySelectorAll('[data-profile-close]').forEach((button) => button.addEventListener('click', () => switchTab('home')));
   $('profile-avatar-button').addEventListener('click', () => setAvatarPickerOpen(true));

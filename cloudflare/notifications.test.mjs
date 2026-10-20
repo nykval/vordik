@@ -16,6 +16,7 @@ function database() {
   sqlite.exec(readFileSync(new URL('./migrations/0009_notifications.sql', import.meta.url), 'utf8'));
   sqlite.exec(readFileSync(new URL('./migrations/0010_relearned_words.sql', import.meta.url), 'utf8'));
   sqlite.exec(readFileSync(new URL('./migrations/0011_notification_opt_out.sql', import.meta.url), 'utf8'));
+  sqlite.exec(readFileSync(new URL('./migrations/0012_auto_notifications.sql', import.meta.url), 'utf8'));
   return {
     close: () => sqlite.close(),
     prepare(sql) {
@@ -60,6 +61,43 @@ test('meaningful sessions reject starting or quickly skipping', () => {
   assert.equal(meaningfulSession({ mechanic: 'cards', attempts: 2, durationMs: 60000 }), false);
   assert.equal(meaningfulSession({ mechanic: 'timed', attempts: 3, durationMs: 8000 }), true);
   assert.equal(meaningfulSession({ mechanic: 'quick-pick', attempts: 5, durationMs: 10000 }), true);
+});
+
+test('Telegram users get automatic reminders, while a manual pause is respected', async () => {
+  const db = database();
+  db.exec("INSERT INTO ratings VALUES ('telegram:123', 'Анна', '2020-01-01 00:00:00')");
+  db.exec("INSERT INTO study_days VALUES ('telegram:123', '2026-10-19', 0, 0)");
+  const previousFetch = globalThis.fetch;
+  let requests = 0;
+  globalThis.fetch = async () => {
+    requests += 1;
+    return Response.json({ ok: true, result: { message_id: requests } });
+  };
+  try {
+    const settings = await getNotificationSettings(db, 'telegram:123', now);
+    assert.equal(settings.mode, 'all');
+    assert.equal(settings.chatAccess, 'unknown');
+    const env = { DB: db, BOT_TOKEN: 'test-token', TELEGRAM_BOT_USERNAME: 'testbot', NOTIFICATIONS_PHASE: '1' };
+    assert.equal((await runNotificationSchedule(env, now)).sent, 1);
+    assert.equal((await getNotificationSettings(db, 'telegram:123', now)).chatAccess, 'granted');
+    await updateNotificationSettings(db, 'telegram:123', { mode: 'paused' }, now);
+    assert.equal((await getNotificationSettings(db, 'telegram:123', now + 1000)).mode, 'paused');
+    assert.equal((await runNotificationSchedule(env, now + 1000)).sent, 0);
+    assert.equal(requests, 1);
+  } finally { globalThis.fetch = previousFetch; db.close(); }
+});
+
+test('migration enables existing Telegram profiles without undoing a chosen pause', async () => {
+  const db = database();
+  try {
+    db.exec("INSERT INTO ratings VALUES ('telegram:123', 'Анна', '2020-01-01 00:00:00')");
+    db.exec("INSERT INTO ratings VALUES ('telegram:456', 'Борис', '2020-01-01 00:00:00')");
+    db.exec("INSERT INTO notification_preferences (user_id, mode, chat_access, paused_at) VALUES ('telegram:123', 'paused', 'unknown', 0)");
+    db.exec("INSERT INTO notification_preferences (user_id, mode, chat_access, paused_at) VALUES ('telegram:456', 'paused', 'unknown', 123)");
+    db.exec(readFileSync(new URL('./migrations/0012_auto_notifications.sql', import.meta.url), 'utf8'));
+    assert.equal((await getNotificationSettings(db, 'telegram:123', now)).mode, 'all');
+    assert.equal((await getNotificationSettings(db, 'telegram:456', now)).mode, 'paused');
+  } finally { db.close(); }
 });
 
 test('atomic slots cap all scenarios at three, with one study message', async () => {
@@ -155,5 +193,8 @@ test('an active study session suppresses a reminder and Telegram refusal stops l
     assert.equal((await db.prepare('SELECT paused_at FROM notification_preferences WHERE user_id = ?').bind('telegram:123').first()).paused_at, now);
     assert.equal(await dispatchNotification(env, user, { ...item, dedupeKey: 'second' }, now), false);
     assert.equal(requests, 1);
+    const resumed = await updateNotificationSettings(db, 'telegram:123', { mode: 'all' }, now + 1000);
+    assert.equal(resumed.chatAccess, 'unknown');
+    assert.equal(resumed.mode, 'all');
   } finally { globalThis.fetch = previousFetch; db.close(); }
 });
