@@ -1,0 +1,36 @@
+<svg width="700" height="525" viewBox="0 0 700 525" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="card" x1="84" y1="147" x2="564" y2="464" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#177DF8"/>
+      <stop offset="1" stop-color="#258DFF"/>
+    </linearGradient>
+    <linearGradient id="pencil" x1="584" y1="52" x2="506" y2="301" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1BCC77"/>
+      <stop offset="1" stop-color="#16C470"/>
+    </linearGradient>
+  </defs>
+
+  <!-- The wide, slightly tilted learning card. -->
+  <path d="M117 138 474 91c29-4 47 11 52 38l58 272c6 28-9 47-37 51l-397 54c-28 4-47-12-51-39L70 190c-4-27 12-47 47-52Z" fill="url(#card)"/>
+
+  <!-- Rounded, simple hand-drawn letterforms preserve the source's abc. -->
+  <g transform="rotate(-6 310 315)" fill="none" stroke="#FFFFFF" stroke-width="27" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M229 287c-15-15-47-10-55 13-9 25 4 47 29 49 24 2 41-16 39-38-1-10-5-18-13-24Z"/>
+    <path d="m241 291 5 54"/>
+    <path d="m275 232 10 111"/>
+    <path d="M283 296c12-18 30-22 47-13 20 11 24 41 8 56-15 14-37 12-54-3"/>
+    <path d="M449 293c-15-15-33-15-47-2-17 16-16 39 0 53 15 13 35 11 49-3"/>
+  </g>
+
+  <!-- Pencil: three flat planes, without a face. -->
+  <path d="M601 12c9-9 21-11 34-6l37 15c16 7 24 21 18 38l-12 31-98-38 8-23c3-7 7-13 13-17Z" fill="#00823A"/>
+  <path d="M581 52c7-15 20-20 36-14l49 19c16 6 22 19 16 35l-112 219-106-40L581 52Z" fill="url(#pencil)"/>
+  <path d="m464 271 106 40-21 37-69 41-16-118Z" fill="#FFDB15"/>
+  <path d="m478 352 2 37 33-20-35-17Z" fill="#1028B8"/>
+
+  <!-- Three simple sparkles and the source's green dot. -->
+  <path d="M77 125c8 27 24 42 51 48-27 7-43 24-51 51-8-27-24-44-51-51 27-6 43-21 51-48Z" fill="#FD8519"/>
+  <path d="M167 415c7 21 20 34 42 40-22 5-35 18-42 40-6-22-20-35-42-40 22-6 36-19 42-40Z" fill="#FFFFFF"/>
+  <path d="M641 370c7 23 21 37 44 43-23 6-37 20-44 43-6-23-20-37-43-43 23-6 37-20 43-43Z" fill="#FFFFFF"/>
+  <circle cx="73" cy="458" r="10" fill="#16C470"/>
+</svg>
