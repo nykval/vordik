@@ -31,7 +31,7 @@ export function meaningfulSession(event) {
   if (event.mechanic === 'five-letter') return attempts >= 1 && duration >= 10_000;
   if (event.mechanic === 'quick-pick') return attempts >= 5 && duration >= 10_000;
   if (event.mechanic === 'timed') return attempts >= 3 && duration >= 8_000;
-  return ['cards', 'quiz', 'typing', 'timed', 'puzzle'].includes(event.mechanic)
+  return ['cards', 'memory', 'quiz', 'typing', 'timed', 'puzzle'].includes(event.mechanic)
     && attempts >= 3 && duration >= 20_000;
 }
 

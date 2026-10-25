@@ -16,6 +16,7 @@
   const TELEGRAM_BOT_USERNAME = 'vordikforyou_bot';
   const QUICK_PICK_WORD_COUNT = 15;
   const STUDY_SERIES_SIZE = 15;
+  const CARD_PAIR_COUNT = 3;
   const FIVE_LETTER_ATTEMPTS = 7;
   const PUZZLE_WORD_COUNT = 3;
   const KNOWLEDGE_MAX = 10;
@@ -143,6 +144,7 @@
   let studyActivityTimer = 0;
   const fiveLetterGame = { answer: '', guesses: [], current: '', finished: false, won: false, message: '', result: '' };
   const puzzleGame = { roundKey: '', pieceOrder: [], solvedIds: new Set(), mistakeIds: new Set(), selectedId: null, pendingWrong: null, message: '', result: '' };
+  const cardGame = { roundKey: '', cards: [], openKeys: [], matchedIds: new Set(), mistakeIds: new Set(), pendingWrong: false, feedbackTimer: 0, message: '', result: '' };
   let activeTab = 'home';
   let pendingGameLaunchId = '';
   let toastTimer;
@@ -305,11 +307,12 @@
 
   function initializeSessionTranslations() {
     session.translations = new Map();
-    if (session.mechanic === 'puzzle') {
+    if (session.mechanic === 'puzzle' || session.mechanic === 'memory') {
       let allRoundsAssigned = true;
-      for (let index = 0; index < session.ids.length; index += PUZZLE_WORD_COUNT) {
+      const roundSize = session.mechanic === 'memory' ? CARD_PAIR_COUNT : PUZZLE_WORD_COUNT;
+      for (let index = 0; index < session.ids.length; index += roundSize) {
         const roundAssignments = new Map();
-        const roundIds = session.ids.slice(index, index + PUZZLE_WORD_COUNT);
+        const roundIds = session.ids.slice(index, index + roundSize);
         if (!assignDistinctPuzzleTranslations(roundIds, 0, roundAssignments, new Set())) {
           allRoundsAssigned = false;
           break;
@@ -1391,6 +1394,7 @@
     $('word-list').replaceChildren(fragment);
     $('typing-start').disabled = words.length === 0;
     document.querySelector('[data-study="cards"]').disabled = words.length === 0;
+    $('memory-start').disabled = words.length === 0;
     const availableTranslations = new Set(words.flatMap((word) => wordTranslations(word)));
     const hasQuizOptions = availableTranslations.size >= 2;
     $('quiz-start').disabled = !hasQuizOptions;
@@ -2912,6 +2916,7 @@
 
   function setPhase(phase) {
     if (phase !== 'play' || session.mechanic !== 'timed') stopTimedRound();
+    if (phase !== 'play' && session.mechanic === 'memory') clearTimeout(cardGame.feedbackTimer);
     if (phase !== 'play' && session.mechanic === 'five-letter') $('five-letter-input')?.blur();
     if (phase !== 'play' && session.mechanic === 'puzzle') clearTimeout(puzzleFeedbackTimer);
     session.phase = phase;
@@ -2920,6 +2925,7 @@
     document.body.classList.toggle('is-studying', phase === 'play');
     document.body.classList.toggle('is-quiz-studying', phase === 'play' && session.mechanic === 'quiz');
     document.body.classList.toggle('is-card-studying', phase === 'play' && session.mechanic === 'cards');
+    document.body.classList.toggle('is-memory-studying', phase === 'play' && session.mechanic === 'memory');
     document.body.classList.toggle('is-timed-studying', phase === 'play' && session.mechanic === 'timed');
     document.body.classList.toggle('is-five-letter-studying', phase === 'play' && session.mechanic === 'five-letter');
     document.body.classList.toggle('is-puzzle-studying', phase === 'play' && session.mechanic === 'puzzle');
@@ -2927,6 +2933,7 @@
     $('study-play').hidden = phase !== 'play';
     $('study-finish').hidden = phase !== 'finish';
     $('flashcard-activity').hidden = phase !== 'play' || session.mechanic !== 'cards';
+    $('memory-activity').hidden = phase !== 'play' || session.mechanic !== 'memory';
     $('quiz-activity').hidden = phase !== 'play' || session.mechanic !== 'quiz';
     $('typing-activity').hidden = phase !== 'play' || session.mechanic !== 'typing';
     $('timed-activity').hidden = phase !== 'play' || session.mechanic !== 'timed';
@@ -2936,7 +2943,7 @@
       $('finish-title').textContent = session.mechanic === 'timed'
         ? 'Время вышло!'
         : (session.mechanic === 'five-letter' ? (fiveLetterGame.won ? 'Слово угадано!' : 'Попытки закончились') : 'Готово!');
-      $('finish-copy').textContent = session.mechanic === 'cards'
+      $('finish-copy').textContent = ['cards', 'memory'].includes(session.mechanic)
         ? `Вы повторили ${session.ids.length} ${wordNoun(session.ids.length)}.`
         : (session.mechanic === 'timed'
             ? `Верных ответов: ${session.correctCount}. Всего ответов: ${session.attemptCount}.`
@@ -3328,6 +3335,24 @@
       .map((word) => word.id);
   }
 
+  function cardStudyWordIds(candidates = words) {
+    const selected = [];
+    const translations = new Set();
+    const englishWords = new Set();
+    weightedMechanicWords(candidates, candidates.length, { prioritizeKnowledge: true })
+      .some((word) => {
+        const english = normalizeDictionaryText(word.english, 'en-US').toLocaleLowerCase('en-US');
+        if (englishWords.has(english)) return false;
+        const translation = wordTranslations(word).find((value) => !translations.has(value));
+        if (!translation) return false;
+        englishWords.add(english);
+        translations.add(translation);
+        selected.push(word.id);
+        return selected.length >= STUDY_SERIES_SIZE;
+      });
+    return selected;
+  }
+
   function fiveLetterStudyWords() {
     return words.filter((word) => /^[a-z]{5}$/i.test(word.english.trim()));
   }
@@ -3379,8 +3404,14 @@
     if (mechanic === 'five-letter' && !fiveLetterCandidates.length) return;
     if (mechanic === 'puzzle' && puzzleCandidates.length < PUZZLE_WORD_COUNT) return;
     stopTimedRound();
+    clearTimeout(cardGame.feedbackTimer);
     session.mechanic = mechanic;
     if (mechanic === 'timed') session.ids = mechanicStudyWordIds(words.length);
+    else if (mechanic === 'memory') session.ids = cardStudyWordIds(
+      Array.isArray(preferredIds) && preferredIds.length
+        ? words.filter((word) => preferredIds.includes(word.id))
+        : words,
+    );
     else if (mechanic === 'five-letter') {
       const selectedWord = weightedMechanicWords(fiveLetterCandidates, 1, { prioritizeKnowledge: true })[0];
       session.ids = [selectedWord.id];
@@ -3389,6 +3420,7 @@
     else session.ids = Array.isArray(preferredIds) && preferredIds.length >= 3
       ? weightedMechanicWords(words.filter((word) => preferredIds.includes(word.id)), STUDY_SERIES_SIZE, { prioritizeKnowledge: true }).map((word) => word.id)
       : mechanicStudyWordIds();
+    if (!session.ids.length) return;
     initializeSessionTranslations();
     session.index = 0;
     session.flipped = false;
@@ -3399,6 +3431,7 @@
     session.startedAt = Date.now();
     session.statsRecorded = false;
     if (mechanic === 'puzzle') resetPuzzleRound();
+    if (mechanic === 'memory') resetCardRound();
     setStudyActivity(true);
     setPhase('play');
     renderExercise();
@@ -3412,11 +3445,13 @@
     if (session.mechanic === 'puzzle' && session.ids.length < PUZZLE_WORD_COUNT) { setPhase('feed'); return; }
     if (!session.ids.length) { setPhase('feed'); return; }
     session.index = Math.min(session.index, session.ids.length - 1);
+    if (session.mechanic === 'memory') session.index = Math.floor(session.index / CARD_PAIR_COUNT) * CARD_PAIR_COUNT;
     renderExercise();
   }
 
   function renderProgress() {
     if (session.mechanic === 'timed') $('progress-text').textContent = `${session.correctCount} верных`;
+    else if (session.mechanic === 'memory') $('progress-text').textContent = `${Math.floor(session.index / CARD_PAIR_COUNT) + 1}/${Math.ceil(session.ids.length / CARD_PAIR_COUNT)}`;
     else if (session.mechanic === 'five-letter') {
       const attempt = Math.min(FIVE_LETTER_ATTEMPTS, fiveLetterGame.guesses.length + (fiveLetterGame.finished ? 0 : 1));
       $('progress-text').textContent = `${attempt}/${FIVE_LETTER_ATTEMPTS}`;
@@ -3432,6 +3467,7 @@
     if (!word) return;
     renderProgress();
     if (session.mechanic === 'cards') renderCard(word);
+    if (session.mechanic === 'memory') renderCardRound();
     if (session.mechanic === 'quiz') renderQuiz(word);
     if (session.mechanic === 'typing') renderTyping(word);
     if (session.mechanic === 'timed') renderTimed(word);
@@ -3449,6 +3485,146 @@
     $('flashcard').setAttribute('aria-label', `${englishSide ? 'Английское слово' : 'Перевод'}: ${englishSide ? word.english : translation}. Перевернуть карточку`);
     $('next-button-label').textContent = session.index === session.ids.length - 1 ? 'Завершить' : 'Дальше';
     if (englishSide) speakWord(word, { silent: true });
+  }
+
+  function currentCardWords() {
+    return session.ids.slice(session.index, session.index + CARD_PAIR_COUNT)
+      .map((id) => words.find((word) => word.id === id))
+      .filter(Boolean);
+  }
+
+  function resetCardRound() {
+    clearTimeout(cardGame.feedbackTimer);
+    const roundWords = currentCardWords();
+    cardGame.roundKey = roundWords.map((word) => word.id).join('|');
+    cardGame.cards = shuffled(roundWords.flatMap((word) => [
+      { key: `${word.id}:en`, word, side: 'en' },
+      { key: `${word.id}:ru`, word, side: 'ru' },
+    ]));
+    cardGame.openKeys = [];
+    cardGame.matchedIds = new Set();
+    cardGame.mistakeIds = new Set();
+    cardGame.pendingWrong = false;
+    cardGame.message = 'Откройте слово и его перевод.';
+    cardGame.result = '';
+  }
+
+  function updateCardRound() {
+    $('memory-board').querySelectorAll('[data-card-key]').forEach((button, index) => {
+      const card = cardGame.cards[index];
+      const matched = cardGame.matchedIds.has(card.word.id);
+      const open = cardGame.openKeys.includes(card.key);
+      const revealed = matched || open;
+      const value = card.side === 'en' ? card.word.english : studyTranslation(card.word);
+      button.classList.toggle('is-open', open);
+      button.classList.toggle('is-matched', matched);
+      button.classList.toggle('is-wrong', cardGame.pendingWrong && open);
+      button.disabled = matched || cardGame.pendingWrong;
+      button.setAttribute('aria-label', revealed
+        ? `${matched ? 'Найдена пара. ' : ''}${card.side === 'en' ? 'Слово' : 'Перевод'}: ${value}`
+        : `Закрытая карточка ${index + 1}`);
+    });
+    $('card-pairs-count').textContent = `${cardGame.matchedIds.size} из ${currentCardWords().length}`;
+    $('memory-feedback').textContent = cardGame.message;
+    if (cardGame.result) $('memory-feedback').dataset.result = cardGame.result;
+    else $('memory-feedback').removeAttribute('data-result');
+    $('memory-next-button').hidden = !session.answered;
+    $('memory-next-label').textContent = session.index + CARD_PAIR_COUNT >= session.ids.length ? 'Завершить' : 'Дальше';
+  }
+
+  function renderCardRound() {
+    const roundWords = currentCardWords();
+    if (cardGame.roundKey !== roundWords.map((word) => word.id).join('|')) resetCardRound();
+    const board = document.createDocumentFragment();
+    cardGame.cards.forEach((card) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'memory-card';
+      button.dataset.cardKey = card.key;
+      const inner = document.createElement('span');
+      inner.className = 'memory-card-inner';
+      const front = document.createElement('span');
+      front.className = 'memory-card-face memory-card-front';
+      front.setAttribute('aria-hidden', 'true');
+      front.textContent = '?';
+      const back = document.createElement('span');
+      back.className = 'memory-card-face memory-card-back';
+      back.setAttribute('aria-hidden', 'true');
+      back.textContent = card.side === 'en' ? card.word.english : studyTranslation(card.word);
+      inner.append(front, back);
+      button.append(inner);
+      board.append(button);
+    });
+    $('memory-board').replaceChildren(board);
+    updateCardRound();
+  }
+
+  function completeCardRound() {
+    if (session.answered) return;
+    session.answered = true;
+    const roundWords = currentCardWords();
+    session.attemptCount += roundWords.length;
+    roundWords.forEach((word) => {
+      const correctOnFirstTry = !cardGame.mistakeIds.has(word.id);
+      if (correctOnFirstTry) session.correctCount += 1;
+      recordWordReview(word, correctOnFirstTry);
+    });
+    cardGame.message = 'Все пары найдены!';
+    cardGame.result = 'correct';
+  }
+
+  function flipCardPair(key, keyboard = false) {
+    if (session.phase !== 'play' || session.mechanic !== 'memory' || session.answered || cardGame.pendingWrong) return;
+    const card = cardGame.cards.find((entry) => entry.key === key);
+    if (!card || cardGame.matchedIds.has(card.word.id) || cardGame.openKeys.includes(key)) return;
+    cardGame.openKeys.push(key);
+    if (cardGame.openKeys.length === 1) {
+      cardGame.message = 'Выберите вторую карточку.';
+      cardGame.result = '';
+      updateCardRound();
+      return;
+    }
+    const first = cardGame.cards.find((entry) => entry.key === cardGame.openKeys[0]);
+    if (first.word.id === card.word.id && first.side !== card.side) {
+      cardGame.matchedIds.add(card.word.id);
+      cardGame.openKeys = [];
+      cardGame.message = 'Пара найдена!';
+      cardGame.result = 'correct';
+      if (cardGame.matchedIds.size === currentCardWords().length) completeCardRound();
+      updateCardRound();
+      speakWord(card.word, { silent: true });
+      if (keyboard) {
+        const next = session.answered
+          ? $('memory-next-button')
+          : $('memory-board').querySelector('.memory-card:not(:disabled)');
+        next?.focus();
+      }
+      return;
+    }
+    cardGame.mistakeIds.add(first.word.id);
+    cardGame.mistakeIds.add(card.word.id);
+    cardGame.pendingWrong = true;
+    cardGame.message = 'Не пара. Запомните карточки.';
+    cardGame.result = 'incorrect';
+    updateCardRound();
+    const roundKey = cardGame.roundKey;
+    cardGame.feedbackTimer = setTimeout(() => {
+      if (session.phase !== 'play' || session.mechanic !== 'memory' || cardGame.roundKey !== roundKey) return;
+      cardGame.openKeys = [];
+      cardGame.pendingWrong = false;
+      cardGame.message = 'Попробуйте ещё раз.';
+      cardGame.result = '';
+      updateCardRound();
+    }, 1000);
+  }
+
+  function nextCardRound() {
+    if (session.phase !== 'play' || session.mechanic !== 'memory' || !session.answered) return;
+    if (session.index + CARD_PAIR_COUNT >= session.ids.length) { setPhase('finish'); return; }
+    session.index += CARD_PAIR_COUNT;
+    session.answered = false;
+    resetCardRound();
+    renderExercise();
   }
 
   function renderQuiz(word) {
@@ -4432,11 +4608,17 @@
   $('quick-pick-add-selected').addEventListener('click', addQuickPickSelection);
   $('quick-pick-skip').addEventListener('click', () => finishQuickPick('Слова не добавлены'));
   $('flashcard').addEventListener('click', () => {
+    if (session.phase !== 'play' || session.mechanic !== 'cards') return;
     session.flipped = !session.flipped;
     if (session.flipped) session.flippedIds.add(session.ids[session.index]);
     renderExercise();
   });
+  $('memory-board').addEventListener('click', (event) => {
+    const card = event.target.closest('[data-card-key]');
+    if (card) flipCardPair(card.dataset.cardKey, event.detail === 0);
+  });
   $('next-button').addEventListener('click', nextCard);
+  $('memory-next-button').addEventListener('click', nextCardRound);
   $('quiz-next-button').addEventListener('click', nextCard);
   $('typing-next-button').addEventListener('click', nextCard);
   $('puzzle-next-button').addEventListener('click', nextPuzzleRound);
@@ -4480,6 +4662,10 @@
         inputFiveLetter(key);
       }
       return;
+    }
+    if (session.mechanic === 'memory' && session.answered && event.key === 'ArrowRight') {
+      event.preventDefault();
+      nextCardRound();
     }
     if (session.mechanic !== 'cards' || /INPUT|TEXTAREA/.test(document.activeElement.tagName)) return;
     if (event.key === 'ArrowRight') { event.preventDefault(); nextCard(); }
