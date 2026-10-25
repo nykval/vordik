@@ -76,6 +76,10 @@ export class AuctionGame extends DurableObject {
           created_at INTEGER NOT NULL
         );
       `);
+      const columns = [...this.ctx.storage.sql.exec('PRAGMA table_info(game_state)')];
+      if (!columns.some((column) => column.name === 'bot_due_at')) {
+        this.ctx.storage.sql.exec('ALTER TABLE game_state ADD COLUMN bot_due_at INTEGER');
+      }
     });
   }
 

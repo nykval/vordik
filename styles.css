@@ -1113,3 +1113,233 @@ input::placeholder { color: var(--text-muted); }
 .notification-settings .notification-toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; padding: 8px 14px; border: 1px solid #cbd5ef; border-radius: 12px; background: #fff; }
 .notification-toggle input { width: 22px; height: 22px; margin: 0; accent-color: #315cf5; flex: none; }
 .notification-settings #notifications-status { min-height: 1.4em; font-size: .9rem; }
+
+.local-preview-panel { width: min(100%, 1100px); display: grid; gap: 17px; margin: 24px auto 0; padding: 22px; border: 1px solid var(--divider); border-radius: 24px; background: #fff; }
+.local-preview-panel[hidden] { display: none; }
+.local-preview-panel > strong { color: var(--text-main); font-size: 1.3rem; }
+.local-preview-panel > p { max-width: 750px; margin: -9px 0 0; color: var(--text-muted); font-size: .85rem; line-height: 1.45; }
+.local-preview-group { display: grid; gap: 9px; }
+.local-preview-group > span { color: var(--brand-blue); font-size: .68rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.local-preview-links { display: flex; flex-wrap: wrap; gap: 8px; }
+.local-preview-links button { min-height: 36px; padding: 8px 12px; border: 1px solid var(--divider); border-radius: 999px; background: var(--app-background); color: var(--text-main); font-size: .75rem; font-weight: 700; }
+.local-preview-links button:hover { border-color: var(--brand-blue); background: var(--brand-blue-soft); }
+@media (max-width: 540px) { .local-preview-panel { margin-top: 18px; padding: 17px; border-radius: 20px; } }
+
+/* Active games use the visible viewport without document scrolling. */
+.is-studying { height: 100dvh; overflow: hidden; }
+.is-studying .app-shell { min-height: 0; height: 100%; }
+.is-studying .workspace { height: 100dvh; min-height: 0; overflow: hidden; }
+.is-studying .workspace { padding-top: calc(12px + var(--app-top-safe-area)); padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+.is-typing-studying .workspace { display: block; }
+.is-quiz-studying .study-play, .is-card-studying .study-play, .is-memory-studying .study-play, .is-typing-studying .study-play,
+.is-timed-studying .study-play, .is-five-letter-studying .study-play, .is-puzzle-studying .study-play {
+  height: calc(100dvh - var(--app-top-safe-area) - 24px - env(safe-area-inset-bottom));
+  min-height: 0;
+}
+.is-studying .play-header { flex: 0 0 42px; min-height: 42px; }
+.is-studying .exit-study-button { width: 42px; height: 42px; }
+.is-card-studying #flashcard-activity, .is-memory-studying #memory-activity,
+.is-timed-studying #timed-activity, .is-puzzle-studying #puzzle-activity { min-height: 0; }
+.is-card-studying #flashcard-activity { margin-top: 8px; }
+.is-studying .flashcard { flex: 1; min-height: 0; padding: clamp(18px, 4dvh, 35px) 20px; }
+.is-studying .card-term { font-size: clamp(1.8rem, min(7vw, 6dvh), 4.5rem); }
+.is-card-studying .card-actions, .is-memory-studying .memory-actions { flex: 0 0 auto; padding-top: 12px; }
+.is-memory-studying .memory-heading { flex: 0 0 auto; margin-bottom: 8px; }
+.is-memory-studying .memory-heading-copy p { margin-bottom: 0; }
+.is-memory-studying .memory-board { flex: 1; min-height: 0; grid-template-rows: repeat(4, minmax(0, 1fr)); gap: clamp(6px, 1dvh, 12px); }
+.is-memory-studying .memory-card { min-height: 0; }
+.is-memory-studying .memory-card-face { overflow: hidden; }
+.is-memory-studying .memory-card-back { overflow: hidden; font-size: clamp(.72rem, min(2.4vw, 1.7dvh), 1.25rem); }
+.is-memory-studying .memory-feedback { flex: 0 0 auto; min-height: 1.4em; margin: 10px 0 0; }
+.is-memory-studying .memory-actions:has(> button[hidden]) { display: none; }
+#quiz-activity { padding-top: clamp(10px, 2dvh, 24px); }
+#quiz-activity .question-word { margin: 10px auto clamp(14px, 3dvh, 30px); font-size: clamp(1.85rem, min(6vw, 5dvh), 3.3rem); }
+#quiz-activity .answer-options { gap: clamp(6px, 1dvh, 12px); }
+#quiz-activity .answer-option, .timed-options .answer-option { min-height: clamp(48px, 7dvh, 64px); padding: 8px 17px; }
+#quiz-activity .answer-feedback { min-height: 1.5em; margin: 10px 0 6px; }
+#quiz-activity .study-next-button { min-height: 50px; }
+#typing-activity { margin-top: clamp(8px, 2dvh, 24px); min-height: 0; padding: clamp(18px, 3dvh, 30px); }
+#typing-activity .question-word { margin-bottom: clamp(15px, 3dvh, 25px); }
+.timed-activity { padding-top: 2px; }
+.timed-score { min-height: 36px; }
+.timed-prompt-wrap { min-height: 60px; padding: 8px 10px; }
+.timed-question .question-word { font-size: clamp(2rem, min(7vw, 6dvh), 4.4rem); }
+.timed-options { gap: clamp(6px, 1dvh, 12px); }
+.timed-feedback { min-height: 1.3em; margin-top: 5px; }
+.is-puzzle-studying .puzzle-activity { padding-top: 4px; }
+.is-puzzle-studying .puzzle-board { gap: clamp(6px, 1dvh, 13px); }
+.is-puzzle-studying .puzzle-word, .is-puzzle-studying .puzzle-slot, .is-puzzle-studying .puzzle-piece {
+  min-height: clamp(48px, 8dvh, 76px);
+  padding: 8px 12px;
+}
+.is-puzzle-studying .puzzle-tray { margin-top: clamp(9px, 2dvh, 19px); }
+.is-puzzle-studying .puzzle-next-button { min-height: 50px; }
+.is-five-letter-studying .five-letter-board {
+  --five-letter-cell: min(12vw, 58px, max(34px, calc((100dvh - var(--app-top-safe-area) - env(safe-area-inset-bottom) - 300px) / 7)));
+}
+.is-five-letter-studying .five-letter-key { height: clamp(34px, 5dvh, 46px); }
+.is-five-letter-studying .five-letter-heading { margin-bottom: 5px; }
+.is-five-letter-studying .five-letter-feedback { margin: 5px 0; }
+.auction-screen, .word-chain-screen { overflow-y: hidden; }
+.auction-shell, .word-chain-shell { height: 100%; min-height: 0; }
+.auction-stage { min-height: 0; overflow: hidden; }
+.auction-clock { position: static; }
+.auction-topic { margin: clamp(10px, 2dvh, 22px) 0 10px; }
+.auction-topic > span { width: clamp(42px, 7dvh, 66px); height: clamp(42px, 7dvh, 66px); font-size: clamp(1.5rem, 3.5dvh, 2.2rem); }
+.auction-topic strong { margin-top: 8px; }
+.auction-bid-controls, .auction-challenge-panel { padding-top: 10px; }
+.auction-countdown { min-height: 70px; }
+.auction-word-panel { min-height: 0; gap: 8px; margin-top: 8px; }
+.auction-accepted-words { max-height: min(18dvh, 96px); overflow: hidden; }
+.auction-result, .auction-finish { padding-top: 10px; }
+.auction-result > span, .auction-finish > span { width: 50px; height: 50px; font-size: 2rem; }
+.auction-result > strong, .auction-finish > strong { margin-top: 8px; }
+.auction-finish dl { margin: 12px 0; }
+.auction-finish dl > div { padding: 9px 11px; }
+.auction-stage:has(.auction-finish:not([hidden])) .auction-clock,
+.auction-stage:has(.auction-finish:not([hidden])) .auction-topic { display: none; }
+.auction-status { flex: 0 0 auto; min-height: 16px; margin-top: 6px; }
+.word-chain-opponent { margin-top: clamp(10px, 2dvh, 20px); }
+.word-chain-turn-card { margin-top: clamp(10px, 2dvh, 18px); }
+.word-chain-current { margin-top: clamp(10px, 2dvh, 18px); }
+.word-chain-word.is-latest { min-height: clamp(82px, 14dvh, 120px); }
+.word-chain-empty { margin: 18px auto 8px; }
+.word-chain-form { margin-top: 10px; }
+.word-chain-form input { margin: 0; }
+.word-chain-status { min-height: 18px; margin-top: 6px; }
+.word-chain-history { min-height: 0; padding-top: 10px; }
+.word-chain-history .word-chain-list { max-height: none; overflow: hidden; }
+.word-chain-history .word-chain-word-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+@media (max-width: 540px) {
+  .is-studying .workspace { padding: calc(9px + var(--app-top-safe-area)) 12px calc(9px + env(safe-area-inset-bottom)); }
+  .is-quiz-studying .study-play, .is-card-studying .study-play, .is-memory-studying .study-play, .is-typing-studying .study-play,
+  .is-timed-studying .study-play, .is-five-letter-studying .study-play, .is-puzzle-studying .study-play {
+    height: calc(100dvh - var(--app-top-safe-area) - 18px - env(safe-area-inset-bottom));
+    min-height: 0;
+  }
+  .is-memory-studying .memory-board { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .is-memory-studying .memory-card-front { font-size: 1.7rem; }
+  .is-memory-studying .memory-card-back { font-size: clamp(.68rem, 2.9vw, .88rem); }
+  .is-memory-studying .memory-card-face { padding: 6px; }
+  .is-card-studying .card-actions, .is-memory-studying .memory-actions { padding-top: 9px; }
+  .is-studying .study-next-button { min-height: 50px; }
+  .is-studying .answer-option-radio { width: 24px; height: 24px; flex-basis: 24px; }
+  .auction-screen { padding: calc(9px + var(--app-top-safe-area)) 10px calc(9px + env(safe-area-inset-bottom)); }
+  .auction-players { margin-top: 10px; }
+  .auction-stage { margin-top: 8px; padding: 12px; }
+  .auction-topic { margin: 9px 0; }
+  .auction-topic > span { width: 44px; height: 44px; font-size: 1.5rem; }
+  .auction-topic strong { font-size: clamp(1.45rem, 6vw, 2rem); }
+  .auction-message { min-height: 42px; }
+  .auction-bid-controls .primary-button, .auction-challenge-button,
+  .auction-challenge-panel .primary-button { min-height: 46px; }
+  .auction-bid-stepper button { width: 42px; height: 42px; }
+  .auction-bid-stepper { grid-template-columns: 42px minmax(0, 1fr) 42px; }
+  .auction-finish dl { grid-template-columns: 1fr 1fr; }
+  .word-chain-screen { padding: calc(9px + var(--app-top-safe-area)) 10px calc(9px + env(safe-area-inset-bottom)); }
+  .word-chain-header h2 { font-size: clamp(1.7rem, 6vw, 2.4rem); }
+  .word-chain-opponent { margin-top: 10px; }
+  .word-chain-avatar { width: 42px; height: 42px; }
+  .word-chain-turn-card { margin-top: 10px; padding: 10px; }
+  .word-chain-timer { width: 48px; height: 48px; border-width: 4px; }
+  .word-chain-word.is-latest { min-height: 86px; padding: 12px; }
+  .word-chain-form { margin-top: 10px; }
+  .word-chain-form input { height: 50px; }
+  .word-chain-history { padding-top: 7px; }
+}
+
+@media (max-height: 640px) {
+  .is-studying .workspace { padding-top: calc(5px + var(--app-top-safe-area)); padding-bottom: calc(5px + env(safe-area-inset-bottom)); }
+  .is-quiz-studying .study-play, .is-card-studying .study-play, .is-memory-studying .study-play, .is-typing-studying .study-play,
+  .is-timed-studying .study-play, .is-five-letter-studying .study-play, .is-puzzle-studying .study-play { height: calc(100dvh - var(--app-top-safe-area) - 10px - env(safe-area-inset-bottom)); min-height: 0; }
+  .is-studying .play-header { min-height: 32px; flex-basis: 32px; }
+  .is-studying .exit-study-button { width: 32px; height: 32px; }
+  .is-studying .study-next-button { min-height: 40px; padding: 7px 14px; }
+  .is-card-studying .card-actions, .is-memory-studying .memory-actions { padding-top: 5px; }
+  .is-studying .flashcard { padding: 12px; }
+  .is-studying .card-term { font-size: clamp(1.45rem, 5dvh, 2.5rem); }
+  .is-memory-studying .memory-heading { margin-bottom: 4px; }
+  .is-memory-studying .memory-heading-copy p, .is-memory-studying .memory-feedback { display: none; }
+  .is-memory-studying .memory-board { gap: 4px; }
+  #quiz-activity { padding-top: 4px; }
+  #quiz-activity .question-word { margin: 4px auto 8px; font-size: clamp(1.45rem, 5dvh, 2.2rem); }
+  #quiz-activity .answer-options, .timed-options { gap: 4px; }
+  #quiz-activity .answer-option, .timed-options .answer-option { min-height: 36px; padding: 5px 12px; font-size: .78rem; }
+  #quiz-activity .answer-feedback { min-height: 1.2em; margin: 4px 0; font-size: .72rem; }
+  #typing-activity { margin-top: 4px; padding: 12px; }
+  #typing-activity .question-word { margin-bottom: 8px; font-size: clamp(1.45rem, 5dvh, 2.2rem); }
+  .timed-score { min-height: 28px; }
+  .timed-score strong { font-size: 1.5rem; }
+  .timed-prompt-wrap { min-height: 34px; padding: 4px; }
+  .timed-question .question-word { font-size: clamp(1.45rem, 5dvh, 2.3rem); }
+  .is-five-letter-studying .workspace { padding-top: calc(4px + var(--app-top-safe-area)); padding-bottom: calc(4px + env(safe-area-inset-bottom)); }
+  .is-five-letter-studying .play-header { min-height: 32px; flex-basis: 32px; }
+  .is-five-letter-studying .five-letter-activity { height: calc(100% - 32px); }
+  .is-five-letter-studying .five-letter-board { --five-letter-cell: min(9vw, 32px, max(22px, calc((100dvh - var(--app-top-safe-area) - 170px) / 7))); gap: 2px; }
+  .is-five-letter-studying .five-letter-row { gap: 2px; }
+  .is-five-letter-studying .five-letter-keyboard { gap: 2px; }
+  .is-five-letter-studying .five-letter-keyboard-row { gap: 2px; }
+  .is-five-letter-studying .five-letter-key { height: clamp(24px, 5dvh, 30px); font-size: .65rem; }
+  .is-five-letter-studying .five-letter-heading { margin-bottom: 2px; }
+  .is-five-letter-studying .five-letter-feedback { min-height: 14px; margin: 2px 0; font-size: .67rem; }
+  .is-puzzle-studying .puzzle-activity { padding-top: 0; }
+  .is-puzzle-studying .puzzle-board { gap: 4px; }
+  .is-puzzle-studying .puzzle-word, .is-puzzle-studying .puzzle-slot, .is-puzzle-studying .puzzle-piece { min-height: 38px; padding: 4px 7px; font-size: .72rem; }
+  .is-puzzle-studying .puzzle-tray { margin-top: 5px; }
+  .auction-screen, .word-chain-screen { padding-top: calc(5px + var(--app-top-safe-area)); padding-bottom: calc(5px + env(safe-area-inset-bottom)); }
+  .auction-header h2, .word-chain-header h2 { font-size: 1.45rem; }
+  .auction-players { margin-top: 5px; }
+  .auction-player { padding: 5px; }
+  .auction-player > img { width: 30px; height: 30px; }
+  .auction-stage { margin-top: 5px; padding: 7px; }
+  .auction-clock { padding: 4px 0; }
+  .auction-topic { margin: 4px 0; }
+  .auction-topic > span { display: none; }
+  .auction-topic strong { margin: 0; font-size: 1.25rem; }
+  .auction-message { min-height: 30px; }
+  .auction-message p { display: none; }
+  .auction-bid-controls, .auction-challenge-panel { gap: 5px; padding-top: 5px; }
+  .auction-bid-stepper button { width: 32px; height: 32px; }
+  .auction-bid-stepper { grid-template-columns: 32px minmax(0, 1fr) 32px; }
+  .auction-bid-controls .primary-button, .auction-challenge-button, .auction-challenge-panel .primary-button { min-height: 38px; }
+  .auction-word-panel input { height: 40px; min-height: 40px; }
+  .auction-finish dl { gap: 4px; margin: 6px 0; }
+  .auction-finish > span { display: none; }
+  .auction-finish > strong { margin-top: 0; }
+  .auction-finish dl > div { padding: 5px; }
+  .auction-finish .primary-button, .auction-finish .secondary-button { min-height: 38px; }
+  .word-chain-header button { width: 34px; height: 34px; flex-basis: 34px; }
+  .word-chain-opponent { margin-top: 5px; }
+  .word-chain-avatar { width: 32px; height: 32px; }
+  .word-chain-turn-card { grid-template-columns: 42px minmax(0, 1fr); margin-top: 5px; padding: 5px; }
+  .word-chain-timer { width: 40px; height: 40px; }
+  .word-chain-current { margin-top: 5px; }
+  .word-chain-word.is-latest { min-height: 58px; padding: 8px; }
+  .word-chain-word.is-latest .word-chain-word-text { font-size: 1.55rem; }
+  .word-chain-form { margin-top: 5px; }
+  .word-chain-form input { height: 40px; min-height: 40px; }
+  .word-chain-status { min-height: 14px; margin-top: 2px; font-size: .67rem; }
+  .word-chain-history { display: none; }
+  .word-chain-history summary { min-height: 32px; }
+  .word-chain-word.is-previous { min-height: 32px; padding: 5px 8px; }
+}
+
+@media (max-height: 420px) {
+  .is-memory-studying .memory-eyebrow { display: none; }
+  .is-memory-studying .memory-heading h3 { font-size: 1rem; }
+  #quiz-activity .answer-option, .timed-options .answer-option { min-height: 30px; padding: 3px 10px; }
+  #quiz-activity .answer-option span:first-child, .timed-options .answer-option span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #quiz-activity .study-next-button { min-height: 34px; }
+  #quiz-activity .question-word { font-size: 1.3rem; }
+  .is-five-letter-studying .five-letter-board { --five-letter-cell: min(8vw, 20px); }
+  .is-five-letter-studying .five-letter-heading { display: none; }
+  .is-five-letter-studying .five-letter-key { height: 20px; }
+  .is-five-letter-studying .five-letter-feedback { min-height: 10px; }
+  .auction-stage:has(.auction-bid-controls:not([hidden])) .auction-message { min-height: 20px; }
+  .auction-finish { grid-template-columns: 1fr 1fr; gap: 4px; }
+  .auction-finish > strong, .auction-finish dl { grid-column: 1 / -1; }
+  .auction-finish .secondary-button { margin-top: 0; }
+  .word-chain-opponent { display: none; }
+  .word-chain-word.is-latest { min-height: 46px; }
+}

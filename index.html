@@ -11,7 +11,7 @@
     <link rel="apple-touch-icon" href="./favicon.png" />
     <link rel="manifest" href="./site.webmanifest" />
     <link rel="stylesheet" href="./design-system/colors.css?v=auction-57" />
-    <link rel="stylesheet" href="./styles.css?v=mechanic-covers-rounded-2026-10-25" />
+    <link rel="stylesheet" href="./styles.css?v=local-preview-2026-10-25" />
   </head>
   <body class="is-home">
     <div class="app-shell">
@@ -36,6 +36,52 @@
               </div>
             </div>
           </div>
+
+          <section id="local-preview-panel" class="local-preview-panel" aria-label="Экраны локального просмотра" hidden>
+            <strong>Локальный просмотр</strong>
+            <p>Эти данные показаны для проверки экранов без сервера. Выберите нужный раздел или игровое состояние.</p>
+            <div class="local-preview-group">
+              <span>Разделы</span>
+              <div class="local-preview-links">
+                <button type="button" data-local-preview="dictionary">Словарь</button>
+                <button type="button" data-local-preview="cards">Учить</button>
+                <button type="button" data-local-preview="rating">Рейтинг</button>
+                <button type="button" data-local-preview="profile">Профиль и друзья</button>
+                <button type="button" data-local-preview="quick-pick">Быстрый подбор</button>
+              </div>
+            </div>
+            <div class="local-preview-group">
+              <span>Механики</span>
+              <div class="local-preview-links">
+                <button type="button" data-local-preview="study:cards">Флеш-карточки</button>
+                <button type="button" data-local-preview="study:memory">Плитки</button>
+                <button type="button" data-local-preview="study:quiz">Выбор перевода</button>
+                <button type="button" data-local-preview="study:typing">Написать слово</button>
+                <button type="button" data-local-preview="study:timed">Перевод на время</button>
+                <button type="button" data-local-preview="study:five-letter">5 букв</button>
+                <button type="button" data-local-preview="study:puzzle">Пазлы</button>
+              </div>
+            </div>
+            <div class="local-preview-group">
+              <span>Игры с другом или ботом</span>
+              <div class="local-preview-links">
+                <button type="button" data-local-preview="lobby:word_chain">Выбор соперника — цепочка</button>
+                <button type="button" data-local-preview="lobby:auction">Выбор соперника — аукцион</button>
+                <button type="button" data-local-preview="tutorial:auction">Правила аукциона</button>
+                <button type="button" data-local-preview="chain:waiting">Цепочка — ожидание</button>
+                <button type="button" data-local-preview="chain:active">Цепочка — ход</button>
+                <button type="button" data-local-preview="chain:finished">Цепочка — итог</button>
+                <button type="button" data-local-preview="auction:waiting">Аукцион — ожидание</button>
+                <button type="button" data-local-preview="auction:topic">Аукцион — тема</button>
+                <button type="button" data-local-preview="auction:auction">Аукцион — ставки</button>
+                <button type="button" data-local-preview="auction:challenge">Аукцион — проверка</button>
+                <button type="button" data-local-preview="auction:countdown">Аукцион — отсчёт</button>
+                <button type="button" data-local-preview="auction:naming">Аукцион — слова</button>
+                <button type="button" data-local-preview="auction:result">Аукцион — раунд</button>
+                <button type="button" data-local-preview="auction:finished">Аукцион — итог</button>
+              </div>
+            </div>
+          </section>
 
           <section class="home-quick-pick" aria-label="Быстрый подбор слов">
             <div class="quick-pick-entry">
@@ -608,7 +654,7 @@
             </form>
             <p id="word-chain-status" class="word-chain-status" role="status" aria-live="polite"></p>
             <details id="word-chain-history" class="word-chain-history" hidden>
-              <summary>Предыдущие ходы <span id="word-chain-history-count">0</span></summary>
+              <summary>Последние ходы <span id="word-chain-history-count">0</span></summary>
               <ol id="word-chain-list" class="word-chain-list" aria-label="Предыдущие слова"></ol>
             </details>
           </section>
@@ -774,7 +820,7 @@
     <script src="./audio-manifest.js?v=common-audio-39" defer></script>
     <script src="./collections.js?v=topics-2026-10-12" defer></script>
     <script src="./quick-pick-words.js?v=common-dictionary-32" defer></script>
-    <script src="./app.js?v=bot-games-2026-10-25" defer></script>
+    <script src="./app.js?v=local-preview-2026-10-25" defer></script>
     <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
   </body>
 </html>

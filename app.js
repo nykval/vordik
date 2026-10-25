@@ -14,6 +14,7 @@
   const PENDING_GAME_TYPE_KEY = 'vordik.pendingGameType.v1';
   const AUCTION_TUTORIAL_KEY = 'vordik.auctionTutorial.v1';
   const GAME_BOT = Object.freeze({ id: 'bot:vordik', name: 'Бот Вордик', avatarId: 'avatar-14-owl' });
+  const isLocalPreview = window.location.protocol === 'file:';
   const TELEGRAM_BOT_USERNAME = 'vordikforyou_bot';
   const QUICK_PICK_WORD_COUNT = 15;
   const STUDY_SERIES_SIZE = 15;
@@ -127,7 +128,27 @@
     };
   }).filter(Boolean);
   const $ = (id) => document.getElementById(id);
+  if (isLocalPreview) {
+    ['apple', 'house', 'water', 'book', 'chair', 'table', 'light', 'smile', 'world', 'green', 'river', 'bread', 'happy', 'dream', 'music']
+      .forEach((english, index) => {
+        const commonWord = commonWordsByWord.get(english)?.[0];
+        if (commonWord) sampleWords.push({
+          id: `local-preview-${index}`,
+          english: commonWord.word,
+          russian: commonWord.translations.join(', '),
+          common_word_id: commonWord.id,
+          knowledge: Math.min(10, index + 2),
+          knowledge_scale: KNOWLEDGE_SCALE_VERSION,
+        });
+      });
+  }
   const words = loadWords();
+  if (isLocalPreview) {
+    const existingCommonIds = new Set(words.map((word) => word.common_word_id));
+    sampleWords.forEach((sample) => {
+      if (!existingCommonIds.has(sample.common_word_id)) words.push(normalizeWordRecord(sample));
+    });
+  }
   const studyDays = loadStudyDays();
   let profileStorageKey = PROFILE_KEY;
   const userProfile = loadProfile();
@@ -198,6 +219,7 @@
   let auctionBidValue = 3;
   let auctionTutorialStep = 0;
   let auctionLastLoserId = '';
+  let localPreviewOpponent = GAME_BOT;
   const audioGenerationPolls = new Map();
 
   function localDateKey(date) {
@@ -890,6 +912,7 @@
   }
 
   function saveWords() {
+    if (isLocalPreview) return true;
     if (!commonWords.length || words.some((word) => {
       const commonWord = commonWordById.get(word.common_word_id);
       if (!commonWord || word.english !== commonWord.word || word.russian !== commonWord.translations.join(', ')) return true;
@@ -1471,7 +1494,39 @@
     return configuredRatingApiBase ? `${configuredRatingApiBase}${path}` : path;
   }
 
+  function localPreviewRatingResult() {
+    const me = { rank: 4, name: userProfile.name, avatarId: userProfile.avatarId, score: vocabularyScore(),
+      vocabularySize: words.length, averageDifficulty: averageVocabularyDifficulty(), isMe: true };
+    const leaders = [
+      { rank: 1, name: 'Аня', avatarId: 'avatar-02-curly-hair', score: 164, vocabularySize: 72, averageDifficulty: 4 },
+      { rank: 2, name: 'Марк', avatarId: 'avatar-04-cap-and-beard', score: 138, vocabularySize: 61, averageDifficulty: 4 },
+      { rank: 3, name: 'Соня', avatarId: 'avatar-07-silver-moustache', score: 112, vocabularySize: 54, averageDifficulty: 3 },
+      me,
+      { rank: 5, name: 'Дима', avatarId: 'avatar-05-red-hair', score: 42, vocabularySize: 24, averageDifficulty: 3 },
+    ];
+    return { player: me, totalPlayers: 24, leaders };
+  }
+
+  function localPreviewSocialState() {
+    return {
+      me: { id: 'local-preview-me', name: userProfile.name, avatarId: userProfile.avatarId,
+        friendCode: 'PREVW', inviteUrl: '' },
+      friends: [{ id: 'local-preview-friend', name: 'Маша', avatarId: 'avatar-02-curly-hair',
+        auctionScore: { myWins: 2, opponentWins: 1 } }],
+      incomingRequests: [], outgoingRequests: [], gameInvites: [], outgoingGameInvites: [], games: [],
+    };
+  }
+
+  function localPreviewApi(path, payload = {}) {
+    if (path === '/api/ratings/sync') return localPreviewRatingResult();
+    if (path === '/api/social/state') return localPreviewSocialState();
+    if (path === '/api/games/bot') return { gameId: 'local-preview-game', gameType: payload.gameType ?? gameLobbyType };
+    if (path === '/api/notifications/settings') return { mode: 'paused', weeklyGoal: 3, chatAccess: 'unavailable' };
+    throw new Error('Это действие доступно в опубликованной версии Вордика.');
+  }
+
   async function postProfileApi(path, payload, fallbackError) {
+    if (isLocalPreview) return localPreviewApi(path, payload);
     const send = (body) => fetch(ratingApiUrl(path), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1526,6 +1581,7 @@
   }
 
   async function requestGeneratedAudio(word) {
+    if (isLocalPreview) return;
     if (!word || word.audio) return;
     word.audio_pending = true;
     saveWords();
@@ -1550,6 +1606,7 @@
   }
 
   function resumePendingAudioGeneration() {
+    if (isLocalPreview) return;
     words.filter((word) => !word.audio && word.audio_pending).forEach((word) => {
       void requestGeneratedAudio(word);
     });
@@ -1669,7 +1726,7 @@
       if (requestVersion !== ratingRequestVersion) return;
       adoptServerAvatar(result?.player);
       renderRatingLeaderboard(result);
-      status.textContent = 'Рейтинг обновлён';
+      status.textContent = isLocalPreview ? 'Демонстрационные данные — локальный просмотр' : 'Рейтинг обновлён';
     } catch (error) {
       if (requestVersion !== ratingRequestVersion) return;
       if (!silent) status.textContent = error instanceof TypeError
@@ -1917,6 +1974,13 @@
 
   function friendGameAction(state, player, gameType, { lobby = false } = {}) {
     const title = gameType === 'auction' ? 'Аукцион' : 'Цепочка';
+    if (isLocalPreview) return {
+      label: lobby ? 'Открыть' : `${title} ↗`,
+      ariaLabel: `Посмотреть локальную игру «${title}» с ${player.name}`,
+      type: lobby ? 'lobby-open-game' : 'open-friend-game',
+      data: { gameId: 'local-preview-game', opponentId: player.id, gameType },
+      primary: 'is-primary',
+    };
     const active = (state.games ?? []).find((game) => game.status !== 'finished'
       && game.gameType === gameType && game.opponent.id === player.id);
     if (active) return {
@@ -2117,6 +2181,55 @@
     if (socialUpdatesEnabled) void loadSocialState({ quiet: true });
   }
 
+  function showLocalWordChain(status = 'active', opponent = localPreviewOpponent) {
+    if (!$('auction-screen').hidden) closeAuction({ forfeit: false });
+    localPreviewOpponent = opponent ?? GAME_BOT;
+    wordChainGameId = 'local-preview-game';
+    wordChainSocket = null;
+    $('word-chain-history').open = false;
+    $('word-chain-screen').hidden = false;
+    document.body.classList.add('is-word-chain-open');
+    $('word-chain-opponent-avatar').src = avatarSource(localPreviewOpponent.avatarId, localPreviewOpponent.id);
+    $('word-chain-status').textContent = '';
+    $('word-chain-status').removeAttribute('data-result');
+    const me = localPreviewSocialState().me;
+    renderWordChainState({
+      players: [me, localPreviewOpponent],
+      moves: status === 'waiting' ? [] : [{ word: 'cat', userId: me.id }, { word: 'table', userId: localPreviewOpponent.id }],
+      status,
+      turnUserId: me.id,
+      winnerId: status === 'finished' ? me.id : null,
+      finishReason: status === 'finished' ? 'bot_stuck' : null,
+      requiredLetter: 'e',
+      serverNow: Date.now(),
+      deadline: Date.now() + 15_000,
+    });
+    if (status === 'active') $('word-chain-status').textContent = 'Локальный просмотр — матч с ботом';
+  }
+
+  function playLocalWordChain(word) {
+    const state = wordChainSnapshot;
+    if (!state || state.status !== 'active') return;
+    const normalized = word.toLocaleLowerCase('en-US');
+    if (!/^[a-z]+$/.test(normalized) || !normalized.startsWith(state.requiredLetter)) {
+      $('word-chain-status').textContent = `Нужно английское слово на «${state.requiredLetter.toUpperCase()}».`;
+      $('word-chain-status').dataset.result = 'error';
+      return;
+    }
+    const me = localPreviewSocialState().me;
+    const moves = [...state.moves, { word: normalized, userId: me.id }];
+    const lastLetter = normalized.at(-1);
+    const botWord = commonWords.find((entry) => entry.word.startsWith(lastLetter)
+      && /^[a-z]+$/.test(entry.word) && !moves.some((move) => move.word === entry.word));
+    if (botWord) moves.push({ word: botWord.word, userId: localPreviewOpponent.id });
+    $('word-chain-input').value = '';
+    $('word-chain-status').textContent = '';
+    $('word-chain-status').removeAttribute('data-result');
+    renderWordChainState({ ...state, moves, requiredLetter: botWord?.word.at(-1) ?? '',
+      status: botWord ? 'active' : 'finished', winnerId: botWord ? null : me.id,
+      finishReason: botWord ? null : 'bot_stuck', serverNow: Date.now(), deadline: Date.now() + 15_000 });
+  }
+
   function updateWordChainClock() {
     const deadline = Number(wordChainSnapshot?.deadline) || 0;
     const seconds = deadline && wordChainSnapshot?.status === 'active'
@@ -2139,6 +2252,7 @@
     const previousMoves = document.createDocumentFragment();
     [...state.moves].reverse().forEach((move, index) => {
       const latest = index === 0;
+      if (index > 2) return;
       const item = document.createElement('li');
       item.className = 'word-chain-word';
       item.classList.toggle('is-latest', latest);
@@ -2164,7 +2278,10 @@
     });
     $('word-chain-current').replaceChildren(currentMove);
     $('word-chain-list').replaceChildren(previousMoves);
-    $('word-chain-history-count').textContent = String(Math.max(0, state.moves.length - 1));
+    const previousMoveCount = Math.max(0, state.moves.length - 1);
+    $('word-chain-history-count').textContent = previousMoveCount > 2
+      ? `2 из ${previousMoveCount}`
+      : String(previousMoveCount);
     $('word-chain-history').hidden = state.moves.length < 2;
     $('word-chain-empty').hidden = state.moves.length > 0;
     $('word-chain-letter-label').textContent = state.requiredLetter
@@ -2188,7 +2305,7 @@
     $('word-chain-submit').disabled = !myTurn;
     if (myTurn && !wasMyTurn) {
       $('word-chain-history').open = false;
-      requestAnimationFrame(() => {
+      if (!isLocalPreview) requestAnimationFrame(() => {
         $('word-chain-screen').scrollTop = 0;
         $('word-chain-input').focus({ preventScroll: true });
       });
@@ -2197,6 +2314,7 @@
   }
 
   async function openWordChain(gameId, opponent = null) {
+    if (isLocalPreview) { showLocalWordChain('active', opponent ?? GAME_BOT); return; }
     try {
       if (wordChainSocket) wordChainSocket.close(1000, 'Opening another game');
       clearInterval(wordChainClockTimer);
@@ -2344,6 +2462,42 @@
     if (socialUpdatesEnabled) void loadSocialState({ quiet: true });
   }
 
+  function showLocalAuction(phase = 'auction', opponent = localPreviewOpponent) {
+    if (!$('word-chain-screen').hidden) closeWordChain();
+    localPreviewOpponent = opponent ?? GAME_BOT;
+    auctionGameId = 'local-preview-game';
+    auctionSocket = null;
+    auctionSnapshot = null;
+    auctionClockOffset = -Infinity;
+    $('auction-screen').hidden = false;
+    document.body.classList.add('is-auction-open');
+    if (phase === 'topic') {
+      $('auction-message-kicker').textContent = 'НОВАЯ ТЕМА';
+      $('auction-message-title').textContent = 'Путешествия';
+    }
+    const me = localPreviewSocialState().me;
+    renderAuctionState({
+      phase,
+      status: phase === 'finished' ? 'finished' : phase === 'waiting' ? 'waiting' : 'active',
+      players: [{ ...me, lives: 3 }, { ...localPreviewOpponent, lives: 2 }],
+      turnUserId: me.id,
+      leaderUserId: me.id,
+      challengerUserId: localPreviewOpponent.id,
+      roundNumber: 2,
+      bid: 5,
+      acceptedCount: 3,
+      acceptedWords: ['apple', 'house', 'water'],
+      topic: { emoji: '✈️', name: 'Путешествия' },
+      lastResult: { successfulBid: true, target: 5, acceptedCount: 5, winnerId: me.id },
+      winnerId: me.id,
+      stats: { bestRound: 7, correctWords: 18, maxBid: 8, roundsPlayed: 4 },
+      serverNow: Date.now(),
+      deadline: phase === 'waiting' || phase === 'finished' ? 0 : Date.now() + (phase === 'countdown' ? 3000 : 15_000),
+      phaseDurationMs: phase === 'countdown' ? 3000 : 15_000,
+    });
+    $('auction-status').textContent = 'Локальный просмотр — данные примера';
+  }
+
   function setAuctionPhaseVisibility(phase) {
     $('auction-bid-controls').hidden = phase !== 'auction';
     $('auction-challenge-panel').hidden = phase !== 'challenge';
@@ -2484,7 +2638,13 @@
       $('auction-word-submit').disabled = !iAmLeader;
       $('auction-word-input').placeholder = iAmLeader ? 'Слово' : 'Ход соперника';
       const accepted = document.createDocumentFragment();
-      state.acceptedWords.forEach((word) => {
+      const earlierWordCount = Math.max(0, state.acceptedWords.length - 5);
+      if (earlierWordCount) {
+        const earlier = document.createElement('span');
+        earlier.textContent = `+${earlierWordCount}`;
+        accepted.append(earlier);
+      }
+      state.acceptedWords.slice(-5).forEach((word) => {
         const chip = document.createElement('span');
         chip.textContent = `✓ ${word}`;
         accepted.append(chip);
@@ -2494,7 +2654,7 @@
         $('auction-status').textContent = 'Поехали!';
         $('auction-status').dataset.result = 'success';
       }
-      if (iAmLeader && previousPhase !== 'naming') requestAnimationFrame(() => $('auction-word-input').focus());
+      if (!isLocalPreview && iAmLeader && previousPhase !== 'naming') requestAnimationFrame(() => $('auction-word-input').focus());
     } else if (state.phase === 'result') {
       const result = state.lastResult ?? {};
       const roundWinner = state.players.find((player) => player.id === result.winnerId);
@@ -2519,6 +2679,7 @@
   }
 
   async function openAuction(gameId, opponent = null, { reconnecting = false } = {}) {
+    if (isLocalPreview) { showLocalAuction('auction', opponent ?? GAME_BOT); return; }
     try {
       clearTimeout(auctionReconnectTimer);
       auctionReconnectTimer = 0;
@@ -2924,6 +3085,33 @@
     window.scrollTo(0, 0);
   }
 
+  function setupLocalPreview() {
+    const panel = $('local-preview-panel');
+    panel.hidden = false;
+    renderFriends(localPreviewSocialState());
+    panel.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-local-preview]');
+      if (!button) return;
+      const target = button.dataset.localPreview;
+      if (target.startsWith('study:')) {
+        switchTab('cards');
+        startStudy(target.slice(6));
+      } else if (target.startsWith('chain:')) {
+        showLocalWordChain(target.slice(6), GAME_BOT);
+      } else if (target.startsWith('auction:')) {
+        showLocalAuction(target.slice(8), GAME_BOT);
+      } else if (target.startsWith('lobby:')) {
+        setGameLobbyOpen(true, target.slice(6));
+      } else if (target === 'tutorial:auction') {
+        setAuctionTutorialOpen(true);
+      } else if (target === 'quick-pick') {
+        requestQuickPick();
+      } else {
+        switchTab(target);
+      }
+    });
+  }
+
   function setPhase(phase) {
     if (phase !== 'play' || session.mechanic !== 'timed') stopTimedRound();
     if (phase !== 'play' && session.mechanic === 'memory') clearTimeout(cardGame.feedbackTimer);
@@ -2936,6 +3124,7 @@
     document.body.classList.toggle('is-quiz-studying', phase === 'play' && session.mechanic === 'quiz');
     document.body.classList.toggle('is-card-studying', phase === 'play' && session.mechanic === 'cards');
     document.body.classList.toggle('is-memory-studying', phase === 'play' && session.mechanic === 'memory');
+    document.body.classList.toggle('is-typing-studying', phase === 'play' && session.mechanic === 'typing');
     document.body.classList.toggle('is-timed-studying', phase === 'play' && session.mechanic === 'timed');
     document.body.classList.toggle('is-five-letter-studying', phase === 'play' && session.mechanic === 'five-letter');
     document.body.classList.toggle('is-puzzle-studying', phase === 'play' && session.mechanic === 'puzzle');
@@ -4483,6 +4672,7 @@
   $('word-chain-form').addEventListener('submit', (event) => {
     event.preventDefault();
     const word = $('word-chain-input').value.trim();
+    if (isLocalPreview) { playLocalWordChain(word); return; }
     if (!word || wordChainSocket?.readyState !== WebSocket.OPEN) return;
     wordChainSocket.send(JSON.stringify({ type: 'play', word }));
     $('word-chain-input').value = '';
@@ -4503,20 +4693,31 @@
     $('auction-bid-submit').textContent = `Назову ${auctionBidValue}`;
   });
   $('auction-bid-submit').addEventListener('click', () => {
+    if (isLocalPreview) { showLocalAuction('challenge'); return; }
     if (auctionSocket?.readyState !== WebSocket.OPEN) return;
     auctionSocket.send(JSON.stringify({ type: 'bid', amount: auctionBidValue }));
   });
   $('auction-challenge').addEventListener('click', () => {
+    if (isLocalPreview) { showLocalAuction('challenge'); return; }
     if (auctionSocket?.readyState !== WebSocket.OPEN) return;
     auctionSocket.send(JSON.stringify({ type: 'challenge' }));
   });
   $('auction-start-naming').addEventListener('click', () => {
+    if (isLocalPreview) { showLocalAuction('naming'); return; }
     if (auctionSocket?.readyState !== WebSocket.OPEN) return;
     auctionSocket.send(JSON.stringify({ type: 'start' }));
   });
   $('auction-word-form').addEventListener('submit', (event) => {
     event.preventDefault();
     const word = $('auction-word-input').value.trim();
+    if (isLocalPreview) {
+      if (!word || auctionSnapshot?.phase !== 'naming') return;
+      const acceptedWords = [...auctionSnapshot.acceptedWords, word.toLocaleLowerCase('en-US')];
+      $('auction-word-input').value = '';
+      if (acceptedWords.length >= auctionSnapshot.bid) showLocalAuction('result');
+      else renderAuctionState({ ...auctionSnapshot, acceptedWords, acceptedCount: acceptedWords.length });
+      return;
+    }
     if (!word || auctionSocket?.readyState !== WebSocket.OPEN) return;
     auctionSocket.send(JSON.stringify({ type: 'word', word }));
     $('auction-word-input').value = '';
@@ -4524,6 +4725,7 @@
     $('auction-status').removeAttribute('data-result');
   });
   $('auction-rematch').addEventListener('click', async () => {
+    if (isLocalPreview) { showLocalAuction('auction'); return; }
     const button = $('auction-rematch');
     if (!auctionGameId) return;
     button.disabled = true;
@@ -4819,4 +5021,5 @@
   renderProfile();
   updateQuickPickLaunch();
   resumePendingAudioGeneration();
+  if (isLocalPreview) setupLocalPreview();
 })();
