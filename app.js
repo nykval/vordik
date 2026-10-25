@@ -1394,7 +1394,10 @@
     $('word-list').replaceChildren(fragment);
     $('typing-start').disabled = words.length === 0;
     document.querySelector('[data-study="cards"]').disabled = words.length === 0;
-    $('memory-start').disabled = words.length === 0;
+    $('memory-start').disabled = false;
+    $('memory-start').setAttribute('aria-label', words.length
+      ? 'Плитки: найти пары слов и переводов'
+      : 'Плитки: добавьте слово в словарь, чтобы начать');
     const availableTranslations = new Set(words.flatMap((word) => wordTranslations(word)));
     const hasQuizOptions = availableTranslations.size >= 2;
     $('quiz-start').disabled = !hasQuizOptions;
@@ -3395,7 +3398,13 @@
   }
 
   function startStudy(mechanic = session.mechanic, preferredIds = null) {
-    if (!words.length) return;
+    if (!words.length) {
+      if (mechanic === 'memory') {
+        switchTab('dictionary');
+        showToast('Добавьте хотя бы одно слово, чтобы играть в Плитки');
+      }
+      return;
+    }
     const availableTranslations = new Set(words.flatMap((word) => wordTranslations(word)));
     if (mechanic === 'quiz' && availableTranslations.size < 2) return;
     if (mechanic === 'timed' && availableTranslations.size < 2) return;
@@ -3420,7 +3429,10 @@
     else session.ids = Array.isArray(preferredIds) && preferredIds.length >= 3
       ? weightedMechanicWords(words.filter((word) => preferredIds.includes(word.id)), STUDY_SERIES_SIZE, { prioritizeKnowledge: true }).map((word) => word.id)
       : mechanicStudyWordIds();
-    if (!session.ids.length) return;
+    if (!session.ids.length) {
+      if (mechanic === 'memory') showToast('Для Плиток нужны слова с переводом');
+      return;
+    }
     initializeSessionTranslations();
     session.index = 0;
     session.flipped = false;
