@@ -11,7 +11,7 @@
     <link rel="apple-touch-icon" href="./favicon.png" />
     <link rel="manifest" href="./site.webmanifest" />
     <link rel="stylesheet" href="./design-system/colors.css?v=auction-57" />
-    <link rel="stylesheet" href="./styles.css?v=tiles-study-2026-10-25" />
+    <link rel="stylesheet" href="./styles.css?v=tiles-five-pairs-2026-10-25" />
   </head>
   <body class="is-home">
     <div class="app-shell">
@@ -189,7 +189,7 @@
               <button id="memory-start" class="study-method memory-launch" type="button" data-study="memory" aria-label="Плитки: найти пары слов и переводов">
                 <span class="memory-launch-copy">
                   <strong>Плитки</strong>
-                  <small>Переворачивай и находи пары слов с переводами</small>
+                  <small>Открой 10 плиток и собери 5 пар</small>
                 </span>
                 <span class="memory-launch-art" aria-hidden="true"><i>word</i><i>слово</i></span>
               </button>
@@ -262,11 +262,16 @@
 
               <div id="memory-activity" hidden>
                 <div class="memory-heading">
-                  <h3>Плитки</h3>
-                  <span id="card-pairs-count" aria-live="polite">0 из 3</span>
+                  <div class="memory-heading-copy">
+                    <span class="memory-eyebrow">НАЙДИ 5 ПАР</span>
+                    <h3>Плитки</h3>
+                    <p>Переворачивай по две плитки и находи слово с переводом.</p>
+                  </div>
+                  <span id="card-pairs-count" class="memory-count" aria-live="polite">0 / 5</span>
                 </div>
+                <div id="memory-progress" class="memory-progress" role="progressbar" aria-label="Найденные пары" aria-valuemin="0" aria-valuemax="5" aria-valuenow="0"><span id="memory-progress-fill"></span></div>
                 <div id="memory-board" class="memory-board" role="group" aria-label="Закрытые плитки со словами и переводами"></div>
-                <p id="memory-feedback" class="memory-feedback" role="status" aria-live="polite">Откройте слово и его перевод.</p>
+                <p id="memory-feedback" class="memory-feedback" role="status" aria-live="polite">Откройте две плитки и найдите пару.</p>
                 <div class="memory-actions">
                   <button id="memory-next-button" class="primary-button study-next-button" type="button" hidden>
                     <span id="memory-next-label">Дальше</span>
@@ -778,7 +783,7 @@
     <script src="./audio-manifest.js?v=common-audio-39" defer></script>
     <script src="./collections.js?v=topics-2026-10-12" defer></script>
     <script src="./quick-pick-words.js?v=common-dictionary-32" defer></script>
-    <script src="./app.js?v=tiles-study-2026-10-25" defer></script>
+    <script src="./app.js?v=tiles-five-pairs-2026-10-25" defer></script>
     <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
   </body>
 </html>

@@ -16,7 +16,7 @@
   const TELEGRAM_BOT_USERNAME = 'vordikforyou_bot';
   const QUICK_PICK_WORD_COUNT = 15;
   const STUDY_SERIES_SIZE = 15;
-  const CARD_PAIR_COUNT = 3;
+  const CARD_PAIR_COUNT = 5;
   const FIVE_LETTER_ATTEMPTS = 7;
   const PUZZLE_WORD_COUNT = 3;
   const KNOWLEDGE_MAX = 10;
@@ -1395,9 +1395,9 @@
     $('typing-start').disabled = words.length === 0;
     document.querySelector('[data-study="cards"]').disabled = words.length === 0;
     $('memory-start').disabled = false;
-    $('memory-start').setAttribute('aria-label', words.length
+    $('memory-start').setAttribute('aria-label', words.length >= CARD_PAIR_COUNT
       ? 'Плитки: найти пары слов и переводов'
-      : 'Плитки: добавьте слово в словарь, чтобы начать');
+      : 'Плитки: добавьте пять слов с разными переводами, чтобы начать');
     const availableTranslations = new Set(words.flatMap((word) => wordTranslations(word)));
     const hasQuizOptions = availableTranslations.size >= 2;
     $('quiz-start').disabled = !hasQuizOptions;
@@ -3338,19 +3338,22 @@
       .map((word) => word.id);
   }
 
-  function cardStudyWordIds(candidates = words) {
+  function tileStudyWordIds(candidates = words) {
     const selected = [];
-    const translations = new Set();
+    let roundIds = [];
     const englishWords = new Set();
     weightedMechanicWords(candidates, candidates.length, { prioritizeKnowledge: true })
       .some((word) => {
-        const english = normalizeDictionaryText(word.english, 'en-US').toLocaleLowerCase('en-US');
+        const english = normalizeDictionaryText(word.english, 'en-US');
         if (englishWords.has(english)) return false;
-        const translation = wordTranslations(word).find((value) => !translations.has(value));
-        if (!translation) return false;
+        const nextRound = [...roundIds, word.id];
+        if (!assignDistinctPuzzleTranslations(nextRound, 0, new Map(), new Set())) return false;
         englishWords.add(english);
-        translations.add(translation);
-        selected.push(word.id);
+        roundIds = nextRound;
+        if (roundIds.length === CARD_PAIR_COUNT) {
+          selected.push(...roundIds);
+          roundIds = [];
+        }
         return selected.length >= STUDY_SERIES_SIZE;
       });
     return selected;
@@ -3401,7 +3404,7 @@
     if (!words.length) {
       if (mechanic === 'memory') {
         switchTab('dictionary');
-        showToast('Добавьте хотя бы одно слово, чтобы играть в Плитки');
+        showToast('Для Плиток нужны пять слов с разными переводами');
       }
       return;
     }
@@ -3416,7 +3419,7 @@
     clearTimeout(cardGame.feedbackTimer);
     session.mechanic = mechanic;
     if (mechanic === 'timed') session.ids = mechanicStudyWordIds(words.length);
-    else if (mechanic === 'memory') session.ids = cardStudyWordIds(
+    else if (mechanic === 'memory') session.ids = tileStudyWordIds(
       Array.isArray(preferredIds) && preferredIds.length
         ? words.filter((word) => preferredIds.includes(word.id))
         : words,
@@ -3430,7 +3433,10 @@
       ? weightedMechanicWords(words.filter((word) => preferredIds.includes(word.id)), STUDY_SERIES_SIZE, { prioritizeKnowledge: true }).map((word) => word.id)
       : mechanicStudyWordIds();
     if (!session.ids.length) {
-      if (mechanic === 'memory') showToast('Для Плиток нужны слова с переводом');
+      if (mechanic === 'memory') {
+        switchTab('dictionary');
+        showToast('Для Плиток нужны пять слов с разными переводами');
+      }
       return;
     }
     initializeSessionTranslations();
@@ -3455,6 +3461,10 @@
     if (session.phase !== 'play') return;
     session.ids = session.ids.filter((id) => words.some((word) => word.id === id));
     if (session.mechanic === 'puzzle' && session.ids.length < PUZZLE_WORD_COUNT) { setPhase('feed'); return; }
+    if (session.mechanic === 'memory') {
+      session.ids = session.ids.slice(0, Math.floor(session.ids.length / CARD_PAIR_COUNT) * CARD_PAIR_COUNT);
+      if (session.ids.length < CARD_PAIR_COUNT) { setPhase('feed'); return; }
+    }
     if (!session.ids.length) { setPhase('feed'); return; }
     session.index = Math.min(session.index, session.ids.length - 1);
     if (session.mechanic === 'memory') session.index = Math.floor(session.index / CARD_PAIR_COUNT) * CARD_PAIR_COUNT;
@@ -3517,7 +3527,7 @@
     cardGame.matchedIds = new Set();
     cardGame.mistakeIds = new Set();
     cardGame.pendingWrong = false;
-    cardGame.message = 'Откройте слово и его перевод.';
+    cardGame.message = 'Откройте две плитки и найдите пару.';
     cardGame.result = '';
   }
 
@@ -3534,21 +3544,25 @@
       button.disabled = matched || cardGame.pendingWrong;
       button.setAttribute('aria-label', revealed
         ? `${matched ? 'Найдена пара. ' : ''}${card.side === 'en' ? 'Слово' : 'Перевод'}: ${value}`
-        : `Закрытая карточка ${index + 1}`);
+        : `Закрытая плитка ${index + 1}`);
     });
-    $('card-pairs-count').textContent = `${cardGame.matchedIds.size} из ${currentCardWords().length}`;
+    const matchedCount = cardGame.matchedIds.size;
+    $('card-pairs-count').textContent = `${matchedCount} / ${CARD_PAIR_COUNT}`;
+    $('memory-progress-fill').style.width = `${matchedCount / CARD_PAIR_COUNT * 100}%`;
+    $('memory-progress').setAttribute('aria-valuenow', String(matchedCount));
+    $('memory-progress').setAttribute('aria-valuetext', `${matchedCount} из ${CARD_PAIR_COUNT} пар`);
     $('memory-feedback').textContent = cardGame.message;
     if (cardGame.result) $('memory-feedback').dataset.result = cardGame.result;
     else $('memory-feedback').removeAttribute('data-result');
     $('memory-next-button').hidden = !session.answered;
-    $('memory-next-label').textContent = session.index + CARD_PAIR_COUNT >= session.ids.length ? 'Завершить' : 'Дальше';
+    $('memory-next-label').textContent = session.index + CARD_PAIR_COUNT >= session.ids.length ? 'Завершить' : 'Следующий раунд';
   }
 
   function renderCardRound() {
     const roundWords = currentCardWords();
     if (cardGame.roundKey !== roundWords.map((word) => word.id).join('|')) resetCardRound();
     const board = document.createDocumentFragment();
-    cardGame.cards.forEach((card) => {
+    cardGame.cards.forEach((card, index) => {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'memory-card';
@@ -3558,6 +3572,7 @@
       const front = document.createElement('span');
       front.className = 'memory-card-face memory-card-front';
       front.setAttribute('aria-hidden', 'true');
+      front.dataset.position = String(index + 1).padStart(2, '0');
       front.textContent = '?';
       const back = document.createElement('span');
       back.className = 'memory-card-face memory-card-back';
@@ -3581,7 +3596,7 @@
       if (correctOnFirstTry) session.correctCount += 1;
       recordWordReview(word, correctOnFirstTry);
     });
-    cardGame.message = 'Все пары найдены!';
+    cardGame.message = 'Все пять пар найдены!';
     cardGame.result = 'correct';
   }
 
@@ -3591,7 +3606,7 @@
     if (!card || cardGame.matchedIds.has(card.word.id) || cardGame.openKeys.includes(key)) return;
     cardGame.openKeys.push(key);
     if (cardGame.openKeys.length === 1) {
-      cardGame.message = 'Выберите вторую карточку.';
+      cardGame.message = 'Выберите вторую плитку.';
       cardGame.result = '';
       updateCardRound();
       return;
@@ -3610,13 +3625,18 @@
           ? $('memory-next-button')
           : $('memory-board').querySelector('.memory-card:not(:disabled)');
         next?.focus();
+      } else if (session.answered) {
+        requestAnimationFrame(() => $('memory-next-button').scrollIntoView({
+          block: 'nearest',
+          behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+        }));
       }
       return;
     }
     cardGame.mistakeIds.add(first.word.id);
     cardGame.mistakeIds.add(card.word.id);
     cardGame.pendingWrong = true;
-    cardGame.message = 'Не пара. Запомните карточки.';
+    cardGame.message = 'Не пара. Запомните эти плитки.';
     cardGame.result = 'incorrect';
     updateCardRound();
     const roundKey = cardGame.roundKey;
@@ -3627,7 +3647,7 @@
       cardGame.message = 'Попробуйте ещё раз.';
       cardGame.result = '';
       updateCardRound();
-    }, 1000);
+    }, 1400);
   }
 
   function nextCardRound() {
