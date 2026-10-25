@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="600" viewBox="0 0 1000 600">
+  <rect width="1000" height="600" fill="#DCD0FF"/>
+
+  <!-- Sparse celebratory marks -->
+  <path d="M178 133 C184 162 192 170 221 176 C192 182 184 190 178 219 C172 190 164 182 135 176 C164 170 172 162 178 133Z" fill="#FFD43B"/>
+  <path d="M782 182 C786 201 792 207 811 211 C792 215 786 221 782 240 C778 221 772 215 753 211 C772 207 778 201 782 182Z" fill="#FFD43B"/>
+  <circle cx="258" cy="243" r="8" fill="#355CFF"/>
+  <circle cx="742" cy="331" r="6" fill="#2039B4"/>
+
+  <!-- Bid paddles and simplified hands -->
+  <path d="M137 315 L153 443" fill="none" stroke="#FFFFFF" stroke-width="20" stroke-linecap="round"/>
+  <circle cx="130" cy="304" r="69" fill="#FFFFFF"/>
+  <circle cx="130" cy="304" r="42" fill="#FFD43B"/>
+  <path d="M0 510 L75 425 Q89 408 104 420 L129 441 Q140 452 153 445 L167 432 Q178 424 187 432 Q196 441 187 451 L170 471 Q166 478 174 480 Q191 482 192 495 Q193 506 177 510 L132 522 L81 600 L0 600Z" fill="#FFD4AC"/>
+  <path d="M0 501 L58 455 L110 499 L36 600 L0 600Z" fill="#2039B4"/>
+
+  <path d="M870 306 L852 446" fill="none" stroke="#FFFFFF" stroke-width="20" stroke-linecap="round"/>
+  <circle cx="876" cy="295" r="69" fill="#FFFFFF"/>
+  <circle cx="876" cy="295" r="42" fill="#FFD43B"/>
+  <path d="M1000 519 L931 428 Q919 412 903 424 L875 446 Q862 456 850 448 L837 438 Q826 430 818 439 Q810 449 820 458 L840 478 Q844 485 836 488 Q820 490 820 503 Q820 514 837 518 L879 528 L930 600 L1000 600Z" fill="#FFD4AC"/>
+  <path d="M1000 507 L946 459 L894 502 L966 600 L1000 600Z" fill="#2039B4"/>
+
+  <!-- Auction gavel, angled toward the lot -->
+  <path d="M590 161 L760 249" fill="none" stroke="#FF943D" stroke-width="45" stroke-linecap="round"/>
+  <path d="M751 244 L773 255" fill="none" stroke="#2039B4" stroke-width="47" stroke-linecap="round"/>
+  <g transform="rotate(25 536 162)">
+    <rect x="476" y="69" width="120" height="190" rx="16" fill="#FF943D"/>
+    <rect x="474" y="65" width="124" height="26" rx="13" fill="#2039B4"/>
+    <rect x="474" y="237" width="124" height="26" rx="13" fill="#2039B4"/>
+    <rect x="476" y="220" width="120" height="13" fill="#2039B4"/>
+  </g>
+  <path d="M405 243 L388 221" stroke="#FFD43B" stroke-width="13" stroke-linecap="round"/>
+  <path d="M435 226 L429 200" stroke="#FFD43B" stroke-width="13" stroke-linecap="round"/>
+
+  <!-- Word lot, blue face with a separate deep-blue side -->
+  <path d="M355 308 L333 336 L333 455 L355 444Z" fill="#2039B4"/>
+  <path d="M355 308 H661 Q673 308 673 320 V444 H355Z" fill="#355CFF"/>
+  <text x="514" y="403" text-anchor="middle" font-family="Arial Rounded MT Bold, Arial, sans-serif" font-size="67" font-weight="800" letter-spacing="2" fill="#FFFFFF">СЛОВО</text>
+
+  <!-- Auction stand -->
+  <rect x="293" y="444" width="414" height="24" rx="6" fill="#2039B4"/>
+  <path d="M342 468 H658 L676 556 H324Z" fill="#355CFF"/>
+  <path d="M324 556 H676 L684 568 H316Z" fill="#2039B4"/>
+</svg>

@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="700" height="525" viewBox="0 0 700 525">
+  <rect width="700" height="525" fill="#B9EFFF"/>
+
+  <!-- Word cards form the shared lot. -->
+  <g transform="rotate(-8 359 195)">
+    <rect x="266" y="123" width="193" height="154" rx="18" fill="#2039B4"/>
+    <rect x="254" y="109" width="193" height="154" rx="18" fill="#355CFF"/>
+    <path d="M289 158h122M289 188h91M289 218h112" fill="none" stroke="#FFFFFF" stroke-width="13" stroke-linecap="round"/>
+  </g>
+
+  <!-- Two competing bids are the whole mechanism, shown as a rising pair. -->
+  <g transform="rotate(-12 230 329)">
+    <rect x="168" y="240" width="137" height="159" rx="18" fill="#D9940B"/>
+    <rect x="159" y="228" width="137" height="159" rx="18" fill="#FFD43B"/>
+    <text x="227" y="342" text-anchor="middle" font-family="Arial Rounded MT Bold, Arial, sans-serif" font-size="91" font-weight="800" fill="#2039B4">5</text>
+  </g>
+  <g transform="rotate(9 456 322)">
+    <rect x="387" y="232" width="143" height="168" rx="18" fill="#2039B4"/>
+    <rect x="377" y="220" width="143" height="168" rx="18" fill="#355CFF"/>
+    <text x="448" y="337" text-anchor="middle" font-family="Arial Rounded MT Bold, Arial, sans-serif" font-size="99" font-weight="800" fill="#FFFFFF">8</text>
+  </g>
+
+  <!-- Bid rises, echoing the blue hand-drawn arrow in the user's reference. -->
+  <path d="M239 434c90 42 213 18 285-41" fill="none" stroke="#2039B4" stroke-width="13" stroke-linecap="round"/>
+  <path d="m500 393 29-8-5 30" fill="none" stroke="#2039B4" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M111 205c5-20 11-26 31-31-20-5-26-11-31-31-5 20-11 26-31 31 20 5 26 11 31 31Z" fill="#FF943D"/>
+  <path d="M577 187c5-18 10-23 28-28-18-5-23-10-28-28-5 18-10 23-28 28 18 5 23 10 28 28Z" fill="#FFD43B"/>
+  <circle cx="586" cy="387" r="10" fill="#FF943D"/>
+</svg>

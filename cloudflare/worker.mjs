@@ -5,6 +5,7 @@ import {
   dispatchInvite, runNotificationSchedule,
 } from './notifications.mjs';
 import { verifyTelegramInitData } from './telegram-auth.mjs';
+import { GAME_BOT_ID, GAME_BOT_NAME, GAME_BOT_AVATAR } from './game-bot.mjs';
 export { verifyTelegramInitData } from './telegram-auth.mjs';
 
 const MAX_BODY_BYTES = 16 * 1024;
@@ -170,9 +171,10 @@ async function listLeaderboard(database, limit, currentUserId = '') {
   const { results } = await database.prepare(`
     SELECT user_id, name, avatar_id, avatar_customized, score, vocabulary_size, average_difficulty, updated_at
     FROM ratings
+    WHERE user_id <> ?
     ORDER BY score DESC, vocabulary_size DESC, name ASC, user_id ASC
     LIMIT ?
-  `).bind(limit).all();
+  `).bind(GAME_BOT_ID, limit).all();
   return results.map((row, index) => publicPlayer(row, index + 1, currentUserId));
 }
 
@@ -212,12 +214,12 @@ async function upsertRating(database, identity, avatarId, avatarCustomized, scor
       SELECT COUNT(*) AS higher
       FROM ratings AS candidate
       JOIN ratings AS current_user ON current_user.user_id = ?
-      WHERE candidate.score > current_user.score
+      WHERE candidate.user_id <> ? AND (candidate.score > current_user.score
          OR (candidate.score = current_user.score AND candidate.vocabulary_size > current_user.vocabulary_size)
          OR (candidate.score = current_user.score AND candidate.vocabulary_size = current_user.vocabulary_size AND candidate.name < current_user.name)
-         OR (candidate.score = current_user.score AND candidate.vocabulary_size = current_user.vocabulary_size AND candidate.name = current_user.name AND candidate.user_id < current_user.user_id)
-    `).bind(identity.id).first(),
-    database.prepare('SELECT COUNT(*) AS total FROM ratings').first(),
+         OR (candidate.score = current_user.score AND candidate.vocabulary_size = current_user.vocabulary_size AND candidate.name = current_user.name AND candidate.user_id < current_user.user_id))
+    `).bind(identity.id, GAME_BOT_ID).first(),
+    database.prepare('SELECT COUNT(*) AS total FROM ratings WHERE user_id <> ?').bind(GAME_BOT_ID).first(),
     listLeaderboard(database, 20, identity.id),
   ]);
   const rank = Number(rankRow?.higher ?? 0) + 1;
@@ -647,6 +649,26 @@ async function handleApi(request, env, context) {
     return json({ ok: true, inviteId, gameType }, 200, headers);
   }
 
+  if (url.pathname === '/api/games/bot' && request.method === 'POST') {
+    const { payload, identity } = await authenticateSocialRequest(request, env);
+    const gameType = String(payload.gameType ?? '');
+    if (!['word_chain', 'auction'].includes(gameType)) throw httpError('Неизвестная игровая механика', 400);
+    const existing = await env.DB.prepare(`
+      SELECT id FROM games
+      WHERE player_one_id = ? AND player_two_id = ? AND game_type = ? AND status IN ('waiting', 'active')
+      ORDER BY created_at DESC LIMIT 1
+    `).bind(identity.id, GAME_BOT_ID, gameType).first();
+    if (existing) return json({ ok: true, gameId: existing.id, gameType }, 200, headers);
+    await env.DB.prepare(`
+      INSERT OR IGNORE INTO ratings (user_id, name, avatar_id) VALUES (?, ?, ?)
+    `).bind(GAME_BOT_ID, GAME_BOT_NAME, GAME_BOT_AVATAR).run();
+    const gameId = crypto.randomUUID();
+    await env.DB.prepare(`
+      INSERT INTO games (id, player_one_id, player_two_id, game_type) VALUES (?, ?, ?, ?)
+    `).bind(gameId, identity.id, GAME_BOT_ID, gameType).run();
+    return json({ ok: true, gameId, gameType }, 200, headers);
+  }
+
   if (url.pathname === '/api/games/respond' && request.method === 'POST') {
     const { payload, identity } = await authenticateSocialRequest(request, env);
     const inviteId = String(payload.inviteId ?? '');
@@ -686,6 +708,13 @@ async function handleApi(request, env, context) {
     `).bind(previousGameId, identity.id, identity.id).first();
     if (!previous) throw httpError('Завершённый матч не найден', 404);
     const friendId = previous.player_one_id === identity.id ? previous.player_two_id : previous.player_one_id;
+    if (friendId === GAME_BOT_ID) {
+      const gameId = crypto.randomUUID();
+      await env.DB.prepare(`
+        INSERT INTO games (id, player_one_id, player_two_id, game_type) VALUES (?, ?, ?, ?)
+      `).bind(gameId, identity.id, GAME_BOT_ID, previous.game_type).run();
+      return json({ ok: true, gameId, gameType: previous.game_type, bot: true }, 200, headers);
+    }
     const existing = await env.DB.prepare(`
       SELECT id FROM game_invites WHERE status = 'pending' AND game_type = ?
         AND ((inviter_id = ? AND invitee_id = ?) OR (inviter_id = ? AND invitee_id = ?)) LIMIT 1

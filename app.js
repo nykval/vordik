@@ -13,6 +13,7 @@
   const PENDING_GAME_FRIEND_KEY = 'vordik.pendingGameFriend.v1';
   const PENDING_GAME_TYPE_KEY = 'vordik.pendingGameType.v1';
   const AUCTION_TUTORIAL_KEY = 'vordik.auctionTutorial.v1';
+  const GAME_BOT = Object.freeze({ id: 'bot:vordik', name: 'Бот Вордик', avatarId: 'avatar-14-owl' });
   const TELEGRAM_BOT_USERNAME = 'vordikforyou_bot';
   const QUICK_PICK_WORD_COUNT = 15;
   const STUDY_SERIES_SIZE = 15;
@@ -1397,7 +1398,7 @@
     $('memory-start').disabled = false;
     $('memory-start').setAttribute('aria-label', words.length >= CARD_PAIR_COUNT
       ? 'Плитки: найти пары слов и переводов'
-      : 'Плитки: добавьте пять слов с разными переводами, чтобы начать');
+      : 'Плитки: добавьте пять разных слов с переводами, чтобы начать');
     const availableTranslations = new Set(words.flatMap((word) => wordTranslations(word)));
     const hasQuizOptions = availableTranslations.size >= 2;
     $('quiz-start').disabled = !hasQuizOptions;
@@ -1846,9 +1847,7 @@
     if (!open) return;
     $('word-chain-lobby-title').textContent = gameTypeTitle(gameLobbyType);
     $('word-chain-lobby-overlay').querySelector('.word-chain-lobby-heading span').textContent = gameLobbyType === 'auction' ? 'СЛОВАРНЫЙ АУКЦИОН' : 'ЦЕПОЧКА СЛОВ';
-    $('word-chain-lobby-overlay').querySelector('.word-chain-lobby > p').textContent = gameLobbyType === 'auction'
-      ? 'Выберите друга.'
-      : 'Выберите друга — приглашение появится у него прямо в приложении.';
+    $('word-chain-lobby-overlay').querySelector('.word-chain-lobby > p').textContent = 'Сыграйте с ботом или пригласите друга.';
     $('word-chain-lobby-status').textContent = socialState ? '' : 'Загружаем друзей…';
     $('word-chain-lobby-status').removeAttribute('data-result');
     if (socialState) renderGameLobby(socialState);
@@ -2069,6 +2068,13 @@
     return result;
   }
 
+  async function startBotGame(gameType) {
+    const result = await socialPost('/api/games/bot', { gameType });
+    setGameLobbyOpen(false);
+    await openSocialGame(result.gameId, GAME_BOT, result.gameType);
+    void loadSocialState({ quiet: true });
+  }
+
   function socialPlayerById(userId) {
     if (!socialState) return null;
     return [
@@ -2173,6 +2179,7 @@
       $('word-chain-turn-label').textContent = won ? 'Вы победили!' : `${opponent?.name ?? 'Друг'} победил`;
       $('word-chain-status').textContent = state.finishReason === 'timeout'
         ? (won ? 'У соперника закончилось время.' : 'Время на ваш ход закончилось.')
+        : state.finishReason === 'bot_stuck' ? 'Бот не нашёл подходящее слово.'
         : 'Матч завершён.';
       $('word-chain-status').dataset.result = won ? 'success' : 'error';
       void loadSocialState({ quiet: true });
@@ -3404,7 +3411,7 @@
     if (!words.length) {
       if (mechanic === 'memory') {
         switchTab('dictionary');
-        showToast('Для Плиток нужны пять слов с разными переводами');
+        showToast('Для Плиток нужны пять разных слов с переводами');
       }
       return;
     }
@@ -3435,7 +3442,7 @@
     if (!session.ids.length) {
       if (mechanic === 'memory') {
         switchTab('dictionary');
-        showToast('Для Плиток нужны пять слов с разными переводами');
+        showToast('Для Плиток нужны пять разных слов с переводами');
       }
       return;
     }
@@ -3550,7 +3557,6 @@
     $('card-pairs-count').textContent = `${matchedCount} / ${CARD_PAIR_COUNT}`;
     $('memory-progress-fill').style.width = `${matchedCount / CARD_PAIR_COUNT * 100}%`;
     $('memory-progress').setAttribute('aria-valuenow', String(matchedCount));
-    $('memory-progress').setAttribute('aria-valuetext', `${matchedCount} из ${CARD_PAIR_COUNT} пар`);
     $('memory-feedback').textContent = cardGame.message;
     if (cardGame.result) $('memory-feedback').dataset.result = cardGame.result;
     else $('memory-feedback').removeAttribute('data-result');
@@ -3562,7 +3568,7 @@
     const roundWords = currentCardWords();
     if (cardGame.roundKey !== roundWords.map((word) => word.id).join('|')) resetCardRound();
     const board = document.createDocumentFragment();
-    cardGame.cards.forEach((card, index) => {
+    cardGame.cards.forEach((card) => {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'memory-card';
@@ -3572,7 +3578,6 @@
       const front = document.createElement('span');
       front.className = 'memory-card-face memory-card-front';
       front.setAttribute('aria-hidden', 'true');
-      front.dataset.position = String(index + 1).padStart(2, '0');
       front.textContent = '?';
       const back = document.createElement('span');
       back.className = 'memory-card-face memory-card-back';
@@ -3606,7 +3611,7 @@
     if (!card || cardGame.matchedIds.has(card.word.id) || cardGame.openKeys.includes(key)) return;
     cardGame.openKeys.push(key);
     if (cardGame.openKeys.length === 1) {
-      cardGame.message = 'Выберите вторую плитку.';
+      cardGame.message = 'Выберите вторую карточку.';
       cardGame.result = '';
       updateCardRound();
       return;
@@ -3625,11 +3630,6 @@
           ? $('memory-next-button')
           : $('memory-board').querySelector('.memory-card:not(:disabled)');
         next?.focus();
-      } else if (session.answered) {
-        requestAnimationFrame(() => $('memory-next-button').scrollIntoView({
-          block: 'nearest',
-          behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
-        }));
       }
       return;
     }
@@ -3647,7 +3647,7 @@
       cardGame.message = 'Попробуйте ещё раз.';
       cardGame.result = '';
       updateCardRound();
-    }, 1400);
+    }, 1000);
   }
 
   function nextCardRound() {
@@ -4387,6 +4387,15 @@
     setWordChainLobbyOpen(false);
     switchTab('profile');
   });
+  $('word-chain-play-bot').addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    try { await startBotGame(gameLobbyType); }
+    catch (error) {
+      $('word-chain-lobby-status').textContent = error.message || 'Не удалось начать игру с ботом.';
+      $('word-chain-lobby-status').dataset.result = 'error';
+    } finally { button.disabled = false; }
+  });
   $('word-chain-lobby-overlay').addEventListener('click', async (event) => {
     const button = event.target.closest('[data-friend-action]');
     if (!button) return;
@@ -4519,9 +4528,10 @@
     if (!auctionGameId) return;
     button.disabled = true;
     try {
-      await socialPost('/api/games/rematch', { gameId: auctionGameId });
-      showToast('Приглашение на реванш отправлено');
+      const result = await socialPost('/api/games/rematch', { gameId: auctionGameId });
       closeAuction({ forfeit: false });
+      if (result.bot) await openAuction(result.gameId, GAME_BOT);
+      else showToast('Приглашение на реванш отправлено');
     } catch (error) {
       $('auction-status').textContent = error.message || 'Не удалось отправить реванш';
       $('auction-status').dataset.result = 'error';

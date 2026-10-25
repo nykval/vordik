@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="700" height="525" viewBox="0 0 700 525">
+  <rect width="700" height="525" fill="#FFC6BD"/>
+
+  <!-- The topic card offered as the lot. -->
+  <g transform="rotate(-13 297 278)">
+    <rect x="218" y="170" width="158" height="215" rx="21" fill="#FFD43B"/>
+    <circle cx="269" cy="239" r="16" fill="#FFFFFF"/>
+    <path d="M299 229h42M299 247h30M252 291h89M252 319h72" fill="none" stroke="#FFFFFF" stroke-width="14" stroke-linecap="round"/>
+  </g>
+
+  <!-- Two spoken bids. -->
+  <g transform="rotate(-7 444 154)">
+    <path d="M377 101h138c16 0 27 11 27 27v69c0 16-11 27-27 27h-39l-29 27-1-27h-69c-16 0-27-11-27-27v-69c0-16 11-27 27-27Z" fill="#355CFF"/>
+    <path d="M391 148h105M391 177h71" fill="none" stroke="#FFFFFF" stroke-width="14" stroke-linecap="round"/>
+  </g>
+  <g transform="rotate(9 587 193)">
+    <path d="M532 143h111c14 0 24 10 24 24v64c0 14-10 24-24 24h-53l-27 25-1-25h-30c-14 0-24-10-24-24v-64c0-14 10-24 24-24Z" fill="#6240A7"/>
+    <path d="M546 187h82M546 212h54" fill="none" stroke="#FFFFFF" stroke-width="13" stroke-linecap="round"/>
+  </g>
+
+  <!-- Auction gavel, built as overlapping planes. -->
+  <path d="M469 323 615 386" fill="none" stroke="#2039B4" stroke-width="42" stroke-linecap="round"/>
+  <path d="M471 317 612 377" fill="none" stroke="#355CFF" stroke-width="27" stroke-linecap="round"/>
+  <g transform="rotate(24 428 330)">
+    <rect x="385" y="254" width="86" height="150" rx="15" fill="#355CFF"/>
+    <rect x="377" y="256" width="102" height="18" fill="#2039B4"/>
+    <rect x="364" y="239" width="128" height="37" rx="18.5" fill="#355CFF"/>
+    <rect x="379" y="376" width="101" height="18" fill="#2039B4"/>
+    <rect x="365" y="379" width="128" height="37" rx="18.5" fill="#355CFF"/>
+  </g>
+
+  <!-- The strike block and a few small project-style accents. -->
+  <path d="M342 430c0-13 14-23 31-23h156c17 0 31 10 31 23v25H342Z" fill="#355CFF"/>
+  <path d="M326 452c0-12 14-21 31-21h189c17 0 31 9 31 21v20H326Z" fill="#2039B4"/>
+  <path d="M197 394c4-20 9-25 25-29-16-4-21-9-25-29-4 20-9 25-25 29 16 4 21 9 25 29Z" fill="#FFFFFF"/>
+  <circle cx="608" cy="446" r="10" fill="#FFD43B"/>
+</svg>

@@ -1,7 +1,10 @@
 import { DurableObject } from 'cloudflare:workers';
 import { WORD_GAME_WORDS } from './word-game-dictionary.mjs';
+import { GAME_BOT_ID, isBotGame } from './game-bot.mjs';
 
 const TURN_DURATION_MS = 15_000;
+const BOT_THINK_MS = 1_400;
+const BOT_WORDS = 'apple book cat dog elephant fish garden house island jacket key lemon moon night orange paper queen river school table umbrella village water yellow zebra animal beach car dance earth family game hand ice jump kitchen lamp music nose ocean park question rain snow tea uncle voice window year zoo'.split(' ');
 
 function firstRow(cursor) {
   return [...cursor][0] ?? null;
@@ -38,7 +41,8 @@ export class WordChainGame extends DurableObject {
           turn_user_id TEXT,
           deadline INTEGER,
           winner_id TEXT,
-          finish_reason TEXT
+          finish_reason TEXT,
+          bot_due_at INTEGER
         );
         CREATE TABLE IF NOT EXISTS moves (
           position INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -129,7 +133,7 @@ export class WordChainGame extends DurableObject {
     const row = this.stateRow();
     if (!row || row.status !== 'waiting') return;
     const connected = this.connectedPlayerIds();
-    if (!connected.has(row.player_one_id) || !connected.has(row.player_two_id)) return;
+    if (!connected.has(row.player_one_id) || (!isBotGame(row) && !connected.has(row.player_two_id))) return;
     const deadline = Date.now() + TURN_DURATION_MS;
     this.ctx.storage.sql.exec(
       "UPDATE game_state SET status = 'active', turn_user_id = ?, deadline = ? WHERE singleton = 1 AND status = 'waiting'",
@@ -156,6 +160,7 @@ export class WordChainGame extends DurableObject {
     const [client, server] = Object.values(pair);
     server.serializeAttachment({ userId, name: player.name });
     this.ctx.acceptWebSocket(server);
+    if (row.deadline && (Number(row.deadline) <= Date.now() || (Number(row.bot_due_at) > 0 && Number(row.bot_due_at) <= Date.now()))) await this.alarm();
     this.send(server, this.publicState());
     await this.startIfReady();
     return new Response(null, { status: 101, webSocket: client });
@@ -195,23 +200,40 @@ export class WordChainGame extends DurableObject {
       return;
     }
 
-    const nextUserId = this.otherPlayerId(row, attachment.userId);
-    const deadline = Date.now() + TURN_DURATION_MS;
+    await this.playWord(row, attachment.userId, word);
+  }
+
+  async playWord(row, userId, word) {
+    const nextUserId = this.otherPlayerId(row, userId);
+    const now = Date.now();
+    const deadline = now + TURN_DURATION_MS;
+    const botDueAt = isBotGame(row) && nextUserId === GAME_BOT_ID ? now + BOT_THINK_MS : null;
     this.ctx.storage.transactionSync(() => {
       this.ctx.storage.sql.exec(
         'INSERT INTO moves (user_id, word, created_at) VALUES (?, ?, ?)',
-        attachment.userId,
+        userId,
         word,
-        Date.now(),
+        now,
       );
       this.ctx.storage.sql.exec(
-        'UPDATE game_state SET turn_user_id = ?, deadline = ? WHERE singleton = 1',
+        'UPDATE game_state SET turn_user_id = ?, deadline = ?, bot_due_at = ? WHERE singleton = 1',
         nextUserId,
         deadline,
+        botDueAt,
       );
     });
-    await this.ctx.storage.setAlarm(deadline);
+    await this.ctx.storage.setAlarm(botDueAt ?? deadline);
     this.broadcastState();
+  }
+
+  async playBot(row) {
+    const moves = this.moveRows();
+    const used = new Set(moves.map((move) => move.word));
+    const required = edgeLetter(moves.at(-1)?.word ?? '', true);
+    const candidates = BOT_WORDS.filter((word) => WORD_GAME_WORDS.has(word) && !used.has(word) && (!required || edgeLetter(word) === required));
+    if (!candidates.length) return this.finish(row.player_one_id, 'bot_stuck');
+    const index = crypto.getRandomValues(new Uint32Array(1))[0] % candidates.length;
+    await this.playWord(row, GAME_BOT_ID, candidates[index]);
   }
 
   async webSocketClose(socket, code, reason) {
@@ -226,6 +248,13 @@ export class WordChainGame extends DurableObject {
   async alarm() {
     const row = this.stateRow();
     if (!row || row.status !== 'active') return;
+    if (isBotGame(row) && row.turn_user_id === GAME_BOT_ID && Number(row.bot_due_at) > 0) {
+      if (Number(row.bot_due_at) > Date.now()) {
+        await this.ctx.storage.setAlarm(Number(row.bot_due_at));
+        return;
+      }
+      if (Number(row.deadline) > Date.now()) return this.playBot(row);
+    }
     const deadline = Number(row.deadline);
     if (deadline > Date.now()) {
       await this.ctx.storage.setAlarm(deadline);
@@ -238,7 +267,7 @@ export class WordChainGame extends DurableObject {
     const row = this.stateRow();
     if (!row || row.status === 'finished') return;
     this.ctx.storage.sql.exec(
-      "UPDATE game_state SET status = 'finished', winner_id = ?, finish_reason = ?, deadline = NULL WHERE singleton = 1",
+      "UPDATE game_state SET status = 'finished', winner_id = ?, finish_reason = ?, deadline = NULL, bot_due_at = NULL WHERE singleton = 1",
       winnerId,
       reason,
     );

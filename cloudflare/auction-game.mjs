@@ -1,6 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import { WORD_GAME_WORDS } from './word-game-dictionary.mjs';
 import { AUCTION_TOPICS, AUCTION_TOPIC_BY_ID } from './auction-topics.mjs';
+import { GAME_BOT_ID, isBotGame } from './game-bot.mjs';
 
 const TOPIC_REVEAL_MS = 2_500;
 const AUCTION_TURN_MS = 10_000;
@@ -8,6 +9,7 @@ const CHALLENGE_START_MS = 15_000;
 const COUNTDOWN_MS = 3_000;
 const RESULT_MS = 2_500;
 const STARTING_LIVES = 3;
+const BOT_ACTION_MS = 1_400;
 
 function firstRow(cursor) {
   return [...cursor][0] ?? null;
@@ -66,7 +68,8 @@ export class AuctionGame extends DurableObject {
           last_result TEXT,
           correct_words INTEGER NOT NULL DEFAULT 0,
           max_bid INTEGER NOT NULL DEFAULT 0,
-          best_round INTEGER NOT NULL DEFAULT 0
+          best_round INTEGER NOT NULL DEFAULT 0,
+          bot_due_at INTEGER
         );
         CREATE TABLE IF NOT EXISTS accepted_words (
           word TEXT PRIMARY KEY,
@@ -155,6 +158,7 @@ export class AuctionGame extends DurableObject {
   }
 
   send(socket, message) {
+    if (!socket) return;
     try { socket.send(JSON.stringify(message)); } catch { /* Closed sockets are removed by the runtime. */ }
   }
 
@@ -164,8 +168,8 @@ export class AuctionGame extends DurableObject {
     this.ctx.getWebSockets().forEach((socket) => this.send(socket, state));
   }
 
-  schedule(deadline) {
-    return this.ctx.storage.setAlarm(deadline);
+  schedule(deadline, botDueAt = null) {
+    return this.ctx.storage.setAlarm(botDueAt ? Math.min(deadline, botDueAt) : deadline);
   }
 
   chooseTopic(row) {
@@ -208,7 +212,7 @@ export class AuctionGame extends DurableObject {
           status = 'active', phase = 'topic', round_number = round_number + 1,
           starter_user_id = ?, turn_user_id = NULL, leader_user_id = NULL,
           challenger_user_id = NULL, bid = 0, topic_id = ?, used_topic_ids = ?,
-          deadline = ?, phase_duration_ms = ?, last_result = NULL
+          deadline = ?, phase_duration_ms = ?, last_result = NULL, bot_due_at = NULL
         WHERE singleton = 1
       `, nextStarter, topic.id, JSON.stringify(used), deadline, TOPIC_REVEAL_MS);
     });
@@ -220,7 +224,7 @@ export class AuctionGame extends DurableObject {
     const row = this.stateRow();
     if (!row || row.status !== 'waiting') return;
     const connected = this.connectedPlayerIds();
-    if (!connected.has(row.player_one_id) || !connected.has(row.player_two_id)) return;
+    if (!connected.has(row.player_one_id) || (!isBotGame(row) && !connected.has(row.player_two_id))) return;
     await this.beginRound();
   }
 
@@ -234,7 +238,7 @@ export class AuctionGame extends DurableObject {
     const [client, server] = Object.values(pair);
     server.serializeAttachment({ userId, name: player.name });
     this.ctx.acceptWebSocket(server);
-    if (row.deadline && Number(row.deadline) <= Date.now()) await this.alarm();
+    if (row.deadline && (Number(row.deadline) <= Date.now() || (Number(row.bot_due_at) > 0 && Number(row.bot_due_at) <= Date.now()))) await this.alarm();
     this.send(server, this.publicState());
     await this.startIfReady();
     return new Response(null, { status: 101, webSocket: client });
@@ -244,10 +248,11 @@ export class AuctionGame extends DurableObject {
     const current = this.stateRow();
     if (!current || current.phase !== 'topic' || Number(current.deadline) > Date.now()) return;
     const deadline = Date.now() + AUCTION_TURN_MS;
+    const botDueAt = isBotGame(current) && current.starter_user_id === GAME_BOT_ID ? Date.now() + BOT_ACTION_MS : null;
     this.ctx.storage.sql.exec(`
-      UPDATE game_state SET phase = 'auction', turn_user_id = ?, deadline = ?, phase_duration_ms = ? WHERE singleton = 1
-    `, current.starter_user_id, deadline, AUCTION_TURN_MS);
-    await this.schedule(deadline);
+      UPDATE game_state SET phase = 'auction', turn_user_id = ?, deadline = ?, phase_duration_ms = ?, bot_due_at = ? WHERE singleton = 1
+    `, current.starter_user_id, deadline, AUCTION_TURN_MS, botDueAt);
+    await this.schedule(deadline, botDueAt);
     this.broadcastState();
   }
 
@@ -260,11 +265,13 @@ export class AuctionGame extends DurableObject {
       return this.send(socket, { type: 'error', message: `Минимальная ставка — ${minimum} слов.` });
     }
     const deadline = Date.now() + AUCTION_TURN_MS;
+    const nextUserId = this.otherPlayerId(row, userId);
+    const botDueAt = isBotGame(row) && nextUserId === GAME_BOT_ID ? Date.now() + BOT_ACTION_MS : null;
     this.ctx.storage.sql.exec(`
-      UPDATE game_state SET bid = ?, leader_user_id = ?, turn_user_id = ?, deadline = ?, phase_duration_ms = ?, max_bid = MAX(max_bid, ?)
+      UPDATE game_state SET bid = ?, leader_user_id = ?, turn_user_id = ?, deadline = ?, phase_duration_ms = ?, bot_due_at = ?, max_bid = MAX(max_bid, ?)
       WHERE singleton = 1
-    `, bid, userId, this.otherPlayerId(row, userId), deadline, AUCTION_TURN_MS, bid);
-    await this.schedule(deadline);
+    `, bid, userId, nextUserId, deadline, AUCTION_TURN_MS, botDueAt, bid);
+    await this.schedule(deadline, botDueAt);
     this.broadcastState();
   }
 
@@ -274,11 +281,12 @@ export class AuctionGame extends DurableObject {
     }
     if (Number(row.deadline) <= Date.now()) return this.resolveRound(userId, 'auction_timeout');
     const deadline = Date.now() + CHALLENGE_START_MS;
+    const botDueAt = isBotGame(row) && row.leader_user_id === GAME_BOT_ID ? Date.now() + BOT_ACTION_MS : null;
     this.ctx.storage.sql.exec(`
-      UPDATE game_state SET phase = 'challenge', challenger_user_id = ?, turn_user_id = ?, deadline = ?, phase_duration_ms = ?
+      UPDATE game_state SET phase = 'challenge', challenger_user_id = ?, turn_user_id = ?, deadline = ?, phase_duration_ms = ?, bot_due_at = ?
       WHERE singleton = 1
-    `, userId, row.leader_user_id, deadline, CHALLENGE_START_MS);
-    await this.schedule(deadline);
+    `, userId, row.leader_user_id, deadline, CHALLENGE_START_MS, botDueAt);
+    await this.schedule(deadline, botDueAt);
     this.broadcastState();
   }
 
@@ -289,7 +297,7 @@ export class AuctionGame extends DurableObject {
     if (Number(row.deadline) <= Date.now()) return this.resolveRound(userId, 'start_timeout');
     const deadline = Date.now() + COUNTDOWN_MS;
     this.ctx.storage.sql.exec(`
-      UPDATE game_state SET phase = 'countdown', turn_user_id = ?, deadline = ?, phase_duration_ms = ? WHERE singleton = 1
+      UPDATE game_state SET phase = 'countdown', turn_user_id = ?, deadline = ?, phase_duration_ms = ?, bot_due_at = NULL WHERE singleton = 1
     `, row.leader_user_id, deadline, COUNTDOWN_MS);
     await this.schedule(deadline);
     this.broadcastState();
@@ -323,6 +331,11 @@ export class AuctionGame extends DurableObject {
       await this.resolveRound(row.challenger_user_id, 'bid_confirmed');
       return;
     }
+    if (isBotGame(row) && userId === GAME_BOT_ID) {
+      const botDueAt = Date.now() + BOT_ACTION_MS;
+      this.ctx.storage.sql.exec('UPDATE game_state SET bot_due_at = ? WHERE singleton = 1', botDueAt);
+      await this.schedule(Number(row.deadline), botDueAt);
+    }
     this.broadcastState();
   }
 
@@ -347,7 +360,7 @@ export class AuctionGame extends DurableObject {
     this.ctx.storage.sql.exec(`
       UPDATE game_state SET
         ${loserColumn} = ?, phase = 'result', turn_user_id = NULL, deadline = ?, phase_duration_ms = ?,
-        last_result = ?, best_round = MAX(best_round, ?)
+        last_result = ?, best_round = MAX(best_round, ?), bot_due_at = NULL
       WHERE singleton = 1
     `, nextLives, deadline, RESULT_MS, JSON.stringify(result), successfulBid ? acceptedCount : 0);
     await this.schedule(deadline);
@@ -356,7 +369,7 @@ export class AuctionGame extends DurableObject {
 
   async finishMatch(row, winnerId, reason) {
     this.ctx.storage.sql.exec(`
-      UPDATE game_state SET status = 'finished', phase = 'finished', winner_id = ?, finish_reason = ?, deadline = NULL, phase_duration_ms = NULL
+      UPDATE game_state SET status = 'finished', phase = 'finished', winner_id = ?, finish_reason = ?, deadline = NULL, phase_duration_ms = NULL, bot_due_at = NULL
       WHERE singleton = 1
     `, winnerId, reason);
     const final = this.stateRow();
@@ -402,12 +415,35 @@ export class AuctionGame extends DurableObject {
     try { socket.close(1011, 'Connection error'); } catch { /* Already closed. */ }
   }
 
+  async actBot(row) {
+    if (!isBotGame(row)) return;
+    if (row.phase === 'auction' && row.turn_user_id === GAME_BOT_ID) {
+      const bid = Number(row.bid);
+      if (row.leader_user_id && bid >= 5) return this.handleChallenge(null, row, GAME_BOT_ID);
+      return this.handleBid(null, row, GAME_BOT_ID, Math.max(3, bid + 1));
+    }
+    if (row.phase === 'challenge' && row.leader_user_id === GAME_BOT_ID) {
+      return this.handleStart(null, row, GAME_BOT_ID);
+    }
+    if (row.phase === 'naming' && row.leader_user_id === GAME_BOT_ID) {
+      const accepted = new Set(this.acceptedRows().map((item) => item.word));
+      const wordLimit = 3 + Number(row.round_number) % 4;
+      if (accepted.size >= wordLimit) return this.resolveRound(GAME_BOT_ID, 'bid_failed');
+      const topic = AUCTION_TOPIC_BY_ID.get(row.topic_id);
+      const candidates = (topic?.words ?? []).filter((word) => !accepted.has(word) && !this.wordError(row, GAME_BOT_ID, word));
+      if (!candidates.length) return this.resolveRound(GAME_BOT_ID, 'bid_failed');
+      return this.handleWord(null, row, GAME_BOT_ID, candidates[randomIndex(candidates.length)]);
+    }
+  }
+
   async alarm() {
     const row = this.stateRow();
     if (!row || row.status === 'finished') return;
     const deadline = Number(row.deadline);
     if (deadline > Date.now()) {
-      await this.schedule(deadline);
+      const botDueAt = Number(row.bot_due_at) || null;
+      if (botDueAt && botDueAt <= Date.now()) return this.actBot(row);
+      await this.schedule(deadline, botDueAt);
       return;
     }
     if (row.phase === 'topic') return this.setAuctionPhase(row);
@@ -416,10 +452,11 @@ export class AuctionGame extends DurableObject {
     if (row.phase === 'countdown') {
       const duration = namingDurationMs(row.bid);
       const namingDeadline = Date.now() + duration;
+      const botDueAt = isBotGame(row) && row.leader_user_id === GAME_BOT_ID ? Date.now() + BOT_ACTION_MS : null;
       this.ctx.storage.sql.exec(`
-        UPDATE game_state SET phase = 'naming', turn_user_id = ?, deadline = ?, phase_duration_ms = ? WHERE singleton = 1
-      `, row.leader_user_id, namingDeadline, duration);
-      await this.schedule(namingDeadline);
+        UPDATE game_state SET phase = 'naming', turn_user_id = ?, deadline = ?, phase_duration_ms = ?, bot_due_at = ? WHERE singleton = 1
+      `, row.leader_user_id, namingDeadline, duration, botDueAt);
+      await this.schedule(namingDeadline, botDueAt);
       this.broadcastState();
       return;
     }

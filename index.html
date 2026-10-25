@@ -11,7 +11,7 @@
     <link rel="apple-touch-icon" href="./favicon.png" />
     <link rel="manifest" href="./site.webmanifest" />
     <link rel="stylesheet" href="./design-system/colors.css?v=auction-57" />
-    <link rel="stylesheet" href="./styles.css?v=tiles-five-pairs-2026-10-25" />
+    <link rel="stylesheet" href="./styles.css?v=mechanic-covers-rounded-2026-10-25" />
   </head>
   <body class="is-home">
     <div class="app-shell">
@@ -184,7 +184,7 @@
 
             <div class="study-method-list" aria-label="Способы тренировки">
               <button class="study-method study-method-cover" type="button" data-study="cards" aria-label="Флеш-карточки: начать тренировку">
-                <img src="./icons/flashcards-cover.png?v=2" alt="" width="3888" height="1264" />
+                <img src="./icons/mechanic-covers/flashcards.png?v=1" alt="" width="2592" height="843" draggable="false" />
               </button>
               <button id="memory-start" class="study-method memory-launch" type="button" data-study="memory" aria-label="Плитки: найти пары слов и переводов">
                 <span class="memory-launch-copy">
@@ -194,38 +194,25 @@
                 <span class="memory-launch-art" aria-hidden="true"><i>word</i><i>слово</i></span>
               </button>
               <button id="quiz-start" class="study-method study-method-cover" type="button" data-study="quiz" aria-label="Выбрать перевод: начать тренировку">
-                <img src="./icons/quiz-cover.png?v=2" alt="" width="3888" height="1264" />
+                <img src="./icons/mechanic-covers/choose-translation.png?v=1" alt="" width="2592" height="843" draggable="false" />
               </button>
               <button id="typing-start" class="study-method study-method-cover" type="button" data-study="typing" aria-label="Написать слово: начать тренировку">
-                <img src="./icons/typing-cover.png?v=2" alt="" width="3888" height="1264" />
+                <img src="./icons/mechanic-covers/typing.png?v=1" alt="" width="2592" height="843" draggable="false" />
               </button>
               <button id="timed-start" class="study-method study-method-cover" type="button" data-study="timed" aria-label="Перевод на время: начать тренировку с запасом 15 секунд">
-                <img src="./icons/timed-translation-cover.png?v=2" alt="" width="3888" height="1264" />
+                <img src="./icons/mechanic-covers/timed-translation.png?v=1" alt="" width="2592" height="843" draggable="false" />
               </button>
               <button id="five-letter-start" class="study-method study-method-cover five-letter-cover" type="button" data-study="five-letter" aria-label="Пять букв: начать игру">
-                <img src="./icons/five-letter-cover.png?v=3" alt="" width="3888" height="1264" draggable="false" />
+                <img src="./icons/mechanic-covers/five-letters.png?v=1" alt="" width="2592" height="843" draggable="false" />
               </button>
               <button id="puzzle-start" class="study-method study-method-cover" type="button" data-study="puzzle" aria-label="Пазлы: соединить три слова с переводами">
-                <img src="./icons/puzzle-cover.png?v=1" alt="" width="3888" height="1264" draggable="false" />
+                <img src="./icons/mechanic-covers/puzzles.png?v=1" alt="" width="2592" height="843" draggable="false" />
               </button>
-              <button id="auction-start" class="study-method auction-launch" type="button" aria-label="Словарный аукцион: пригласить друга">
-                <span class="auction-launch-copy">
-                  <strong>Словарный аукцион</strong>
-                  <small>Ставь · проверяй · побеждай</small>
-                </span>
-                <span class="auction-launch-art" aria-hidden="true">
-                  <i>5</i>
-                  <b>8</b>
-                </span>
+              <button id="auction-start" class="study-method study-method-cover" type="button" aria-label="Аукцион слов: пригласить друга">
+                <img src="./icons/mechanic-covers/word-auction.png?v=1" alt="" width="2592" height="843" draggable="false" />
               </button>
-              <button id="word-chain-start" class="study-method word-chain-launch" type="button" aria-label="Цепочка слов: пригласить друга">
-                <span class="word-chain-launch-copy">
-                  <strong>Цепочка слов</strong>
-                  <small>Играй с другом по очереди</small>
-                </span>
-                <span class="word-chain-launch-art" aria-hidden="true">
-                  <span>WORD</span><i></i><span>GAME</span>
-                </span>
+              <button id="word-chain-start" class="study-method study-method-cover" type="button" aria-label="Цепочка слов: пригласить друга">
+                <img src="./icons/mechanic-covers/word-chain.png?v=1" alt="" width="2592" height="843" draggable="false" />
               </button>
             </div>
             <div id="study-empty-hint" class="study-empty-hint" hidden>
@@ -545,8 +532,12 @@
               </div>
               <button type="button" data-word-chain-lobby-close aria-label="Закрыть"><img src="./icons/close.svg" alt="" aria-hidden="true" /></button>
             </header>
-            <p>Выберите друга — приглашение появится у него прямо в приложении.</p>
+            <p>Сыграйте с ботом или пригласите друга.</p>
             <p id="word-chain-lobby-status" class="word-chain-lobby-status" role="status" aria-live="polite"></p>
+            <div class="word-chain-lobby-group word-chain-bot-group">
+              <h3>Быстрая игра</h3>
+              <button id="word-chain-play-bot" class="word-chain-play-bot" type="button"><span aria-hidden="true">🤖</span><span>Играть с ботом<small>Начать матч сразу</small></span><span aria-hidden="true">→</span></button>
+            </div>
             <div id="word-chain-active-group" class="word-chain-lobby-group" hidden>
               <h3>Текущие игры</h3>
               <div id="word-chain-active-list" class="word-chain-lobby-list"></div>
@@ -555,7 +546,7 @@
               <h3>Ваши друзья</h3>
               <div id="word-chain-friend-list" class="word-chain-lobby-list"></div>
               <div id="word-chain-no-friends" class="word-chain-no-friends" hidden>
-                <p>Сначала добавьте хотя бы одного друга.</p>
+                <p>Чтобы играть с другом, сначала добавьте его.</p>
                 <button id="word-chain-open-friends" type="button">Открыть раздел друзей</button>
               </div>
             </div>
@@ -783,7 +774,7 @@
     <script src="./audio-manifest.js?v=common-audio-39" defer></script>
     <script src="./collections.js?v=topics-2026-10-12" defer></script>
     <script src="./quick-pick-words.js?v=common-dictionary-32" defer></script>
-    <script src="./app.js?v=tiles-five-pairs-2026-10-25" defer></script>
+    <script src="./app.js?v=bot-games-2026-10-25" defer></script>
     <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
   </body>
 </html>

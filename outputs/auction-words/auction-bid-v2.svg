@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="700" height="525" viewBox="0 0 700 525">
+  <rect width="700" height="525" fill="#DCD0FF"/>
+
+  <!-- The word lot: three layered cards, as in the project's card illustrations. -->
+  <g transform="rotate(-10 330 248)">
+    <rect x="176" y="105" width="282" height="260" rx="19" fill="#2039B4"/>
+    <rect x="188" y="91" width="282" height="260" rx="19" fill="#355CFF"/>
+    <path d="M246 165h154M246 204h116M246 243h146" fill="none" stroke="#FFFFFF" stroke-width="18" stroke-linecap="round"/>
+    <circle cx="424" cy="292" r="17" fill="#FFD43B"/>
+  </g>
+
+  <!-- A higher offer: the clear auction number takes priority over decoration. -->
+  <g transform="rotate(12 481 275)">
+    <rect x="400" y="174" width="152" height="171" rx="18" fill="#D65A1C"/>
+    <rect x="392" y="162" width="152" height="171" rx="18" fill="#FF943D"/>
+    <text x="468" y="278" text-anchor="middle" font-family="Arial Rounded MT Bold, Arial, sans-serif" font-size="104" font-weight="800" fill="#FFFFFF">8</text>
+  </g>
+
+  <!-- The gavel and its simple two-plane head. -->
+  <g transform="rotate(-28 481 102)">
+    <rect x="470" y="40" width="24" height="117" rx="12" fill="#2039B4"/>
+    <rect x="425" y="41" width="113" height="57" rx="14" fill="#355CFF"/>
+    <rect x="424" y="37" width="114" height="15" rx="7.5" fill="#2039B4"/>
+  </g>
+  <path d="M545 139c8 12 11 23 10 35M568 127c11 10 17 20 19 32" fill="none" stroke="#FFD43B" stroke-width="9" stroke-linecap="round"/>
+
+  <!-- A few restrained accents from the reference series. -->
+  <path d="M116 281c6-22 13-29 35-35-22-6-29-13-35-35-6 22-13 29-35 35 22 6 29 13 35 35Z" fill="#FFD43B"/>
+  <circle cx="133" cy="350" r="11" fill="#355CFF"/>
+  <path d="M575 359c5-18 10-23 28-28-18-5-23-10-28-28-5 18-10 23-28 28 18 5 23 10 28 28Z" fill="#FFFFFF"/>
+</svg>
