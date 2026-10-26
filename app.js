@@ -1,24 +1,27 @@
-(() => {
+(async () => {
   'use strict';
 
-  const STORAGE_KEY = 'vordik.words.v1';
-  const STUDY_DAYS_KEY = 'vordik.studyDays.v1';
-  const STUDY_EVENT_QUEUE_KEY = 'vordik.studyEvents.v1';
-  const LEGACY_DAYS_SYNCED_KEY = 'vordik.legacyDaysSynced.v1';
-  const PROFILE_KEY = 'vordik.profile.v1';
-  const PROFILE_STATS_KEY = 'vordik.profileStats.v1';
-  const RATING_GUEST_ID_KEY = 'vordik.ratingGuestId.v1';
-  const QUICK_PICK_KNOWN_KEY = 'vordik.quickPickKnown.v1';
-  const QUICK_PICK_SESSION_KEY = 'vordik.quickPickSession.v1';
-  const PENDING_GAME_FRIEND_KEY = 'vordik.pendingGameFriend.v1';
-  const PENDING_GAME_TYPE_KEY = 'vordik.pendingGameType.v1';
-  const AUCTION_TUTORIAL_KEY = 'vordik.auctionTutorial.v1';
+  const account = window.VORDIK_ACCOUNT;
+  await account?.ready;
+  const accountKey = (key) => account?.storageKey(key) ?? key;
+  const STORAGE_KEY = accountKey('vordik.words.v1');
+  const STUDY_DAYS_KEY = accountKey('vordik.studyDays.v1');
+  const STUDY_EVENT_QUEUE_KEY = accountKey('vordik.studyEvents.v1');
+  const LEGACY_DAYS_SYNCED_KEY = accountKey('vordik.legacyDaysSynced.v1');
+  const PROFILE_KEY = accountKey('vordik.profile.v1');
+  const PROFILE_STATS_KEY = accountKey('vordik.profileStats.v1');
+  const RATING_GUEST_ID_KEY = accountKey('vordik.ratingGuestId.v1');
+  const QUICK_PICK_KNOWN_KEY = accountKey('vordik.quickPickKnown.v1');
+  const QUICK_PICK_SESSION_KEY = accountKey('vordik.quickPickSession.v1');
+  const PENDING_GAME_FRIEND_KEY = accountKey('vordik.pendingGameFriend.v1');
+  const PENDING_GAME_TYPE_KEY = accountKey('vordik.pendingGameType.v1');
+  const AUCTION_TUTORIAL_KEY = accountKey('vordik.auctionTutorial.v1');
   const GAME_BOT = Object.freeze({ id: 'bot:vordik', name: 'Бот Вордик', avatarId: 'avatar-14-owl' });
   const isLocalPreview = window.location.protocol === 'file:';
   const TELEGRAM_BOT_USERNAME = 'vordikforyou_bot';
   const QUICK_PICK_WORD_COUNT = 15;
   const STUDY_SERIES_SIZE = 15;
-  const CARD_PAIR_COUNT = 5;
+  const CARD_PAIR_COUNT = 6;
   const FIVE_LETTER_ATTEMPTS = 7;
   const PUZZLE_WORD_COUNT = 3;
   const KNOWLEDGE_MAX = 10;
@@ -154,7 +157,7 @@
   const userProfile = loadProfile();
   const profileStats = loadProfileStats();
   const ratingGuestId = loadRatingGuestId();
-  const configuredRatingApiBase = document.querySelector('meta[name="vordik-api-base"]')?.content.trim().replace(/\/+$/, '') ?? '';
+  const configuredRatingApiBase = account?.apiBase ?? document.querySelector('meta[name="vordik-api-base"]')?.content.trim().replace(/\/+$/, '') ?? '';
   let appVisibleStartedAt = document.hidden ? 0 : Date.now();
   const quickPickKnown = loadQuickPickKnown();
   let quickPickSession = loadQuickPickSession();
@@ -194,6 +197,7 @@
   let quickPickAnimating = false;
   let quickPickFlipped = false;
   let quickPickSuppressClick = false;
+  let studyTextFitFrame = 0;
   let ratingRequestVersion = 0;
   let socialRequestVersion = 0;
   let socialState = null;
@@ -493,7 +497,7 @@
   }
 
   function loadProfile(storageKey = profileStorageKey, fallbackAvatarId = randomAvatarId()) {
-    const fallback = { name: 'Пользователь Вордик', joinedAt: new Date().toISOString(), avatarId: fallbackAvatarId };
+    const fallback = { name: account?.user?.name || 'Пользователь Вордик', joinedAt: account?.user?.joinedAt || new Date().toISOString(), avatarId: fallbackAvatarId };
     try {
       const saved = JSON.parse(localStorage.getItem(storageKey) ?? 'null');
       const profile = {
@@ -638,25 +642,11 @@
   }
 
   function syncTelegramProfile(webApp) {
+    if (account?.user) return;
     const telegramUser = webApp?.initDataUnsafe?.user;
     if (!telegramUser) return;
     const telegramId = String(telegramUser.id ?? '');
     if (!/^\d+$/.test(telegramId)) return;
-    const telegramStorageKey = `${PROFILE_KEY}.telegram.${telegramId}`;
-    const accountEventKey = `${STUDY_EVENT_QUEUE_KEY}.telegram.${telegramId}`;
-    if (studyEventStorageKey !== accountEventKey) {
-      const oldQueue = studyEventQueue;
-      studyEventStorageKey = accountEventKey;
-      legacyDaysSyncedKey = `${LEGACY_DAYS_SYNCED_KEY}.telegram.${telegramId}`;
-      const merged = new Map([...loadStudyEventQueue(accountEventKey), ...oldQueue].map((event) => [event.id, event]));
-      studyEventQueue = [...merged.values()].slice(-100);
-      saveStudyEventQueue();
-      try { localStorage.removeItem(STUDY_EVENT_QUEUE_KEY); } catch { /* No data is lost if removal fails. */ }
-    }
-    if (profileStorageKey !== telegramStorageKey) {
-      profileStorageKey = telegramStorageKey;
-      Object.assign(userProfile, loadProfile(telegramStorageKey, deterministicAvatarId(`telegram:${telegramId}`)));
-    }
     const telegramName = [telegramUser.first_name, telegramUser.last_name].filter(Boolean).join(' ').trim();
     if (telegramName) userProfile.name = telegramName.slice(0, 80);
     saveProfile();
@@ -848,7 +838,7 @@
   }
 
   async function flushStudyEvents() {
-    if (studyEventSyncing || !navigator.onLine || !window.Telegram?.WebApp?.initData) return;
+    if (studyEventSyncing || !navigator.onLine || (!account?.user && !window.Telegram?.WebApp?.initData)) return;
     studyEventSyncing = true;
     try {
       let legacyUploaded = Boolean(localStorage.getItem(legacyDaysSyncedKey));
@@ -874,7 +864,7 @@
     if (active) studyActivityTimer = window.setInterval(() => {
       void socialPost('/api/notifications/activity', { active: true }).catch(() => {});
     }, 120_000);
-    if (window.Telegram?.WebApp?.initData) void socialPost('/api/notifications/activity', { active }).catch(() => {});
+    if (account?.user || window.Telegram?.WebApp?.initData) void socialPost('/api/notifications/activity', { active }).catch(() => {});
   }
 
   function loadWords() {
@@ -1421,7 +1411,7 @@
     $('memory-start').disabled = false;
     $('memory-start').setAttribute('aria-label', words.length >= CARD_PAIR_COUNT
       ? 'Плитки: найти пары слов и переводов'
-      : 'Плитки: добавьте пять разных слов с переводами, чтобы начать');
+      : 'Плитки: добавьте шесть разных слов с переводами, чтобы начать');
     const availableTranslations = new Set(words.flatMap((word) => wordTranslations(word)));
     const hasQuizOptions = availableTranslations.size >= 2;
     $('quiz-start').disabled = !hasQuizOptions;
@@ -1529,7 +1519,7 @@
     if (isLocalPreview) return localPreviewApi(path, payload);
     const send = (body) => fetch(ratingApiUrl(path), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...account?.headers() },
       body: JSON.stringify(body),
     });
     let response = await send(payload);
@@ -1713,7 +1703,7 @@
     if (!silent) status.textContent = 'Обновляем рейтинг…';
     try {
       const payload = {
-        telegramInitData: window.Telegram?.WebApp?.initData ?? '',
+        telegramInitData: account?.user ? '' : window.Telegram?.WebApp?.initData ?? '',
         guestId: ratingGuestId,
         name: userProfile.name,
         avatarId: userProfile.avatarId,
@@ -1739,7 +1729,7 @@
 
   function socialAuthPayload(extra = {}) {
     return {
-      telegramInitData: window.Telegram?.WebApp?.initData ?? '',
+      telegramInitData: account?.user ? '' : window.Telegram?.WebApp?.initData ?? '',
       guestId: ratingGuestId,
       name: userProfile.name,
       avatarId: userProfile.avatarId,
@@ -1752,36 +1742,11 @@
     return postProfileApi(path, socialAuthPayload(extra), 'Не удалось связаться с сервером');
   }
 
-  function renderNotificationSettings(settings) {
-    if (!settings) return;
-    $('notifications-enabled').disabled = false;
-    $('notifications-goal').disabled = false;
-    $('notifications-enabled').checked = settings.mode !== 'paused';
-    $('notifications-goal').value = settings.weeklyGoal;
-    $('notifications-status').textContent = settings.chatAccess === 'blocked'
-      ? 'Telegram не принимает сообщения от бота. Откройте чат с ним и нажмите «Старт», затем включите напоминания здесь.'
-      : settings.mode === 'paused'
-        ? 'Напоминания выключены.'
-        : 'Напоминания включены автоматически. Отправим их по вашему местному времени, если чат с ботом доступен.';
-  }
-
-  async function loadNotificationSettings() {
-    if (!window.Telegram?.WebApp?.initData) return;
-    try {
-      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Moscow';
-      const settings = await socialPost('/api/notifications/settings', { timezone });
-      renderNotificationSettings(settings);
-    } catch (error) { $('notifications-status').textContent = error.message || 'Не удалось загрузить настройки.'; }
-  }
-
-  async function saveNotificationSettings(change) {
-    try {
-      const result = await socialPost('/api/notifications/settings', change);
-      renderNotificationSettings(result);
-    } catch (error) {
-      $('notifications-status').textContent = error.message || 'Не удалось сохранить настройки.';
-      void loadNotificationSettings();
-    }
+  async function syncNotificationTimezone() {
+    if (account?.user || !window.Telegram?.WebApp?.initData) return;
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Moscow';
+    try { await socialPost('/api/notifications/settings', { timezone }); }
+    catch { /* Настройки напоминаний пока не отображаются в профиле. */ }
   }
 
   function loadPendingGameFriendId() {
@@ -2048,13 +2013,9 @@
     $('friend-outgoing-block').hidden = state.outgoingRequests.length === 0;
 
     const friends = document.createDocumentFragment();
-    state.friends.forEach((player) => friends.append(friendRow(player, 'Играйте вместе', [
-      friendGameAction(state, player, 'word_chain'),
-      friendGameAction(state, player, 'auction'),
-    ])));
+    state.friends.forEach((player) => friends.append(friendRow(player, 'В друзьях')));
     $('friend-list').replaceChildren(friends);
     $('friends-empty').hidden = state.friends.length > 0;
-    $('friends-play-hint').hidden = state.friends.length === 0;
     renderGameLobby(state);
   }
 
@@ -2074,6 +2035,13 @@
     if (!socialUpdatesEnabled) return;
     clearTimeout(socialPollTimer);
     try {
+      if (account?.user) {
+        void fetch(ratingApiUrl('/api/social/offline'), {
+          method: 'POST', headers: { 'Content-Type': 'application/json', ...account.headers() },
+          body: JSON.stringify(socialAuthPayload()), keepalive: true,
+        }).catch(() => {});
+        return;
+      }
       navigator.sendBeacon(ratingApiUrl('/api/social/offline'), JSON.stringify(socialAuthPayload()));
     } catch { /* Presence also expires when polling stops. */ }
   }
@@ -2311,6 +2279,7 @@
       });
     }
     updateWordChainClock();
+    scheduleStudyTextFit();
   }
 
   async function openWordChain(gameId, opponent = null) {
@@ -2676,6 +2645,7 @@
       void loadSocialState({ quiet: true });
     }
     updateAuctionClock();
+    scheduleStudyTextFit();
   }
 
   async function openAuction(gameId, opponent = null, { reconnecting = false } = {}) {
@@ -3079,7 +3049,7 @@
     if (tab === 'profile') {
       renderProfile();
       void loadSocialState();
-      void loadNotificationSettings();
+      void syncNotificationTimezone();
     }
     if (tab === 'rating') void syncRating();
     window.scrollTo(0, 0);
@@ -3095,7 +3065,12 @@
       const target = button.dataset.localPreview;
       if (target.startsWith('study:')) {
         switchTab('cards');
-        startStudy(target.slice(6));
+        if (target === 'study:finish') {
+          session.mechanic = 'cards';
+          session.ids = words.slice(0, 5).map((word) => word.id);
+          session.startedAt = 0;
+          setPhase('finish');
+        } else startStudy(target.slice(6));
       } else if (target.startsWith('chain:')) {
         showLocalWordChain(target.slice(6), GAME_BOT);
       } else if (target.startsWith('auction:')) {
@@ -3292,6 +3267,7 @@
     $('quick-pick-progress').textContent = `${quickPickSession.index + 1} из ${quickPickSession.deck.length}`;
     $('quick-pick-deck-view').hidden = false;
     $('quick-pick-review').hidden = true;
+    scheduleStudyTextFit();
     speakWord(word, { silent: true });
   }
 
@@ -3301,6 +3277,7 @@
     $('quick-pick-translation').hidden = !quickPickFlipped;
     $('quick-pick-card-hint').textContent = quickPickFlipped ? 'Нажмите, чтобы скрыть перевод' : 'Нажмите, чтобы увидеть перевод';
     $('quick-pick-card').classList.toggle('is-flipped', quickPickFlipped);
+    scheduleStudyTextFit();
   }
 
   function commitQuickPickChoice(choice) {
@@ -3536,23 +3513,17 @@
 
   function tileStudyWordIds(candidates = words) {
     const selected = [];
-    let roundIds = [];
     const englishWords = new Set();
     weightedMechanicWords(candidates, candidates.length, { prioritizeKnowledge: true })
       .some((word) => {
         const english = normalizeDictionaryText(word.english, 'en-US');
         if (englishWords.has(english)) return false;
-        const nextRound = [...roundIds, word.id];
-        if (!assignDistinctPuzzleTranslations(nextRound, 0, new Map(), new Set())) return false;
+        if (!assignDistinctPuzzleTranslations([...selected, word.id], 0, new Map(), new Set())) return false;
         englishWords.add(english);
-        roundIds = nextRound;
-        if (roundIds.length === CARD_PAIR_COUNT) {
-          selected.push(...roundIds);
-          roundIds = [];
-        }
-        return selected.length >= STUDY_SERIES_SIZE;
+        selected.push(word.id);
+        return selected.length === CARD_PAIR_COUNT;
       });
-    return selected;
+    return selected.length === CARD_PAIR_COUNT ? selected : [];
   }
 
   function fiveLetterStudyWords() {
@@ -3600,7 +3571,7 @@
     if (!words.length) {
       if (mechanic === 'memory') {
         switchTab('dictionary');
-        showToast('Для Плиток нужны пять разных слов с переводами');
+        showToast('Для Плиток нужны шесть разных слов с переводами');
       }
       return;
     }
@@ -3631,7 +3602,7 @@
     if (!session.ids.length) {
       if (mechanic === 'memory') {
         switchTab('dictionary');
-        showToast('Для Плиток нужны пять разных слов с переводами');
+        showToast('Для Плиток нужны шесть разных слов с переводами');
       }
       return;
     }
@@ -3669,7 +3640,7 @@
 
   function renderProgress() {
     if (session.mechanic === 'timed') $('progress-text').textContent = `${session.correctCount} верных`;
-    else if (session.mechanic === 'memory') $('progress-text').textContent = `${Math.floor(session.index / CARD_PAIR_COUNT) + 1}/${Math.ceil(session.ids.length / CARD_PAIR_COUNT)}`;
+    else if (session.mechanic === 'memory') $('progress-text').textContent = `${Math.min(CARD_PAIR_COUNT, cardGame.matchedIds.size + 1)}/${CARD_PAIR_COUNT}`;
     else if (session.mechanic === 'five-letter') {
       const attempt = Math.min(FIVE_LETTER_ATTEMPTS, fiveLetterGame.guesses.length + (fiveLetterGame.finished ? 0 : 1));
       $('progress-text').textContent = `${attempt}/${FIVE_LETTER_ATTEMPTS}`;
@@ -3678,6 +3649,40 @@
       const rounds = Math.ceil(session.ids.length / PUZZLE_WORD_COUNT);
       $('progress-text').textContent = `${round}/${rounds}`;
     } else $('progress-text').textContent = `${session.index + 1}/${session.ids.length}`;
+  }
+
+  const studyTextSelector = [
+    '#card-term', '.memory-card-back', '#quiz-prompt', '#typing-prompt', '#timed-prompt',
+    '.answer-option > span:first-child', '.puzzle-word', '.puzzle-slot', '.puzzle-piece',
+    '#quick-pick-word', '#quick-pick-translation', '.word-chain-word-text',
+    '#auction-topic-name', '.auction-accepted-words span',
+  ].join(', ');
+
+  function fitStudyText(element) {
+    if (!element.getClientRects().length || !element.textContent.trim()) return;
+    element.style.removeProperty('font-size');
+    const originalSize = parseFloat(getComputedStyle(element).fontSize);
+    if (!originalSize || !element.clientWidth || !element.clientHeight) return;
+    const fits = () => element.scrollWidth <= element.clientWidth + 1
+      && element.scrollHeight <= element.clientHeight + 1;
+    if (fits()) return;
+    let low = 1;
+    let high = originalSize;
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      const middle = (low + high) / 2;
+      element.style.fontSize = `${middle}px`;
+      if (fits()) low = middle;
+      else high = middle;
+    }
+    element.style.fontSize = `${Math.max(1, Math.floor(low * 10) / 10)}px`;
+  }
+
+  function scheduleStudyTextFit() {
+    cancelAnimationFrame(studyTextFitFrame);
+    studyTextFitFrame = requestAnimationFrame(() => {
+      studyTextFitFrame = 0;
+      document.querySelectorAll(studyTextSelector).forEach(fitStudyText);
+    });
   }
 
   function renderExercise() {
@@ -3691,6 +3696,7 @@
     if (session.mechanic === 'timed') renderTimed(word);
     if (session.mechanic === 'five-letter') renderFiveLetter(word);
     if (session.mechanic === 'puzzle') renderPuzzle();
+    scheduleStudyTextFit();
   }
 
   function renderCard(word) {
@@ -3743,14 +3749,12 @@
         : `Закрытая плитка ${index + 1}`);
     });
     const matchedCount = cardGame.matchedIds.size;
-    $('card-pairs-count').textContent = `${matchedCount} / ${CARD_PAIR_COUNT}`;
+    $('progress-text').textContent = `${Math.min(CARD_PAIR_COUNT, matchedCount + 1)}/${CARD_PAIR_COUNT}`;
     $('memory-progress-fill').style.width = `${matchedCount / CARD_PAIR_COUNT * 100}%`;
     $('memory-progress').setAttribute('aria-valuenow', String(matchedCount));
     $('memory-feedback').textContent = cardGame.message;
     if (cardGame.result) $('memory-feedback').dataset.result = cardGame.result;
     else $('memory-feedback').removeAttribute('data-result');
-    $('memory-next-button').hidden = !session.answered;
-    $('memory-next-label').textContent = session.index + CARD_PAIR_COUNT >= session.ids.length ? 'Завершить' : 'Следующий раунд';
   }
 
   function renderCardRound() {
@@ -3790,7 +3794,7 @@
       if (correctOnFirstTry) session.correctCount += 1;
       recordWordReview(word, correctOnFirstTry);
     });
-    cardGame.message = 'Все пять пар найдены!';
+    cardGame.message = 'Все шесть пар найдены!';
     cardGame.result = 'correct';
   }
 
@@ -3814,12 +3818,10 @@
       if (cardGame.matchedIds.size === currentCardWords().length) completeCardRound();
       updateCardRound();
       speakWord(card.word, { silent: true });
-      if (keyboard) {
-        const next = session.answered
-          ? $('memory-next-button')
-          : $('memory-board').querySelector('.memory-card:not(:disabled)');
-        next?.focus();
-      }
+      if (session.answered) cardGame.feedbackTimer = setTimeout(() => {
+        if (session.phase === 'play' && session.mechanic === 'memory') setPhase('finish');
+      }, 550);
+      else if (keyboard) $('memory-board').querySelector('.memory-card:not(:disabled)')?.focus();
       return;
     }
     cardGame.mistakeIds.add(first.word.id);
@@ -3833,19 +3835,10 @@
       if (session.phase !== 'play' || session.mechanic !== 'memory' || cardGame.roundKey !== roundKey) return;
       cardGame.openKeys = [];
       cardGame.pendingWrong = false;
-      cardGame.message = 'Попробуйте ещё раз.';
+      cardGame.message = '';
       cardGame.result = '';
       updateCardRound();
     }, 1000);
-  }
-
-  function nextCardRound() {
-    if (session.phase !== 'play' || session.mechanic !== 'memory' || !session.answered) return;
-    if (session.index + CARD_PAIR_COUNT >= session.ids.length) { setPhase('finish'); return; }
-    session.index += CARD_PAIR_COUNT;
-    session.answered = false;
-    resetCardRound();
-    renderExercise();
   }
 
   function renderQuiz(word) {
@@ -4147,6 +4140,7 @@
     else $('puzzle-feedback').removeAttribute('data-result');
     $('puzzle-next-button').hidden = !session.answered;
     $('puzzle-next-button').textContent = session.index + PUZZLE_WORD_COUNT >= session.ids.length ? 'Завершить' : 'Дальше';
+    scheduleStudyTextFit();
   }
 
   function nextPuzzleRound() {
@@ -4454,8 +4448,6 @@
   }
 
   $('profile-button').addEventListener('click', () => switchTab(activeTab === 'profile' ? 'home' : 'profile'));
-  $('notifications-enabled').addEventListener('change', (event) => void saveNotificationSettings({ mode: event.target.checked ? 'all' : 'paused' }));
-  $('notifications-goal').addEventListener('change', (event) => void saveNotificationSettings({ weeklyGoal: Number(event.target.value) }));
   document.querySelectorAll('[data-profile-close]').forEach((button) => button.addEventListener('click', () => switchTab('home')));
   $('profile-avatar-button').addEventListener('click', () => setAvatarPickerOpen(true));
   document.querySelectorAll('[data-avatar-close]').forEach((button) => button.addEventListener('click', () => setAvatarPickerOpen(false)));
@@ -4862,7 +4854,6 @@
     if (card) flipCardPair(card.dataset.cardKey, event.detail === 0);
   });
   $('next-button').addEventListener('click', nextCard);
-  $('memory-next-button').addEventListener('click', nextCardRound);
   $('quiz-next-button').addEventListener('click', nextCard);
   $('typing-next-button').addEventListener('click', nextCard);
   $('puzzle-next-button').addEventListener('click', nextPuzzleRound);
@@ -4907,10 +4898,6 @@
       }
       return;
     }
-    if (session.mechanic === 'memory' && session.answered && event.key === 'ArrowRight') {
-      event.preventDefault();
-      nextCardRound();
-    }
     if (session.mechanic !== 'cards' || /INPUT|TEXTAREA/.test(document.activeElement.tagName)) return;
     if (event.key === 'ArrowRight') { event.preventDefault(); nextCard(); }
     if (event.key === ' ' && document.activeElement === document.body) { event.preventDefault(); $('flashcard').click(); }
@@ -4925,7 +4912,7 @@
   }, { passive: false });
 
   // Telegram provides this object when the page is opened from a bot's Web App button.
-  window.addEventListener('load', () => {
+  function initializeTelegramApp() {
     const webApp = window.Telegram?.WebApp;
     if (!webApp) {
       handleNotificationLaunch();
@@ -4962,10 +4949,14 @@
     setTimeout(syncTelegramSafeArea, 300);
     startSocialUpdates();
     void flushStudyEvents();
-    void loadNotificationSettings();
+    void syncNotificationTimezone();
     void acceptPendingFriendInvite();
-  });
+  }
+  if (document.readyState === 'complete') initializeTelegramApp();
+  else window.addEventListener('load', initializeTelegramApp);
   window.addEventListener('online', () => void flushStudyEvents());
+  window.addEventListener('resize', scheduleStudyTextFit);
+  document.fonts?.ready?.then(scheduleStudyTextFit);
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) void flushStudyEvents();
   });
@@ -5021,5 +5012,10 @@
   renderProfile();
   updateQuickPickLaunch();
   resumePendingAudioGeneration();
+  if (account?.user) {
+    startSocialUpdates();
+    void flushStudyEvents();
+    void acceptPendingFriendInvite();
+  }
   if (isLocalPreview) setupLocalPreview();
 })();

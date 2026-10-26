@@ -12,7 +12,7 @@
     "db:migrate:local": "wrangler d1 migrations apply vordik-ratings --local",
     "db:migrate:remote": "wrangler d1 migrations apply vordik-ratings --remote",
     "audio:missing": "python3 generate_missing_audio.py",
-    "test": "node --test server.test.mjs cloudflare/worker.test.mjs cloudflare/notifications.test.mjs"
+    "test": "node --test server.test.mjs cloudflare/worker.test.mjs cloudflare/notifications.test.mjs cloudflare/phone-auth.test.mjs cloudflare/messenger-auth.test.mjs"
   },
   "devDependencies": {
     "wrangler": "4.145.0"

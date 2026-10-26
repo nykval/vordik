@@ -8,6 +8,7 @@ const files = [
   'index.html',
   'styles.css',
   'app.js',
+  'account.js',
   'word-catalog.js',
   'audio-manifest.js',
   'collections.js',

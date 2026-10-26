@@ -5,6 +5,7 @@ import {
   dispatchInvite, runNotificationSchedule,
 } from './notifications.mjs';
 import { verifyTelegramInitData } from './telegram-auth.mjs';
+import { handleAccountAuth, resolveAccountSession, cleanExpiredAccounts } from './messenger-auth.mjs';
 import { GAME_BOT_ID, GAME_BOT_NAME, GAME_BOT_AVATAR } from './game-bot.mjs';
 export { verifyTelegramInitData } from './telegram-auth.mjs';
 
@@ -85,7 +86,7 @@ function corsHeaders(request, env) {
   return {
     'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
   };
@@ -130,14 +131,16 @@ async function sha256Hex(value) {
   return [...digest].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-async function resolveIdentity(payload, env) {
+async function resolveIdentity(payload, env, request) {
+  const accountIdentity = await resolveAccountSession(request, env);
+  if (accountIdentity) return { id: accountIdentity.id, name: accountIdentity.name };
   const telegramIdentity = await verifyTelegramInitData(payload.telegramInitData, env.BOT_TOKEN);
   if (telegramIdentity) return telegramIdentity;
   if (payload.telegramInitData && env.BOT_TOKEN) {
     throw httpError('Не удалось подтвердить Telegram-профиль', 401);
   }
   if (String(env.ALLOW_GUEST_RATINGS) !== 'true') {
-    throw httpError('Рейтинг доступен только внутри Telegram', 401);
+    throw httpError('Войдите с кодом от Telegram-бота или откройте Вордик в Telegram', 401);
   }
   const guestId = String(payload.guestId ?? '');
   if (!/^[a-zA-Z0-9_-]{8,100}$/.test(guestId)) throw httpError('Не удалось определить пользователя', 400);
@@ -293,7 +296,7 @@ async function ensureSocialProfile(database, identity, payload) {
 
 async function authenticateSocialRequest(request, env) {
   const payload = await readJsonBody(request);
-  const identity = await resolveIdentity(payload, env);
+  const identity = await resolveIdentity(payload, env, request);
   const profile = await ensureSocialProfile(env.DB, identity, payload);
   return { payload, identity, profile };
 }
@@ -494,6 +497,12 @@ async function handleApi(request, env, context) {
   }
   if (!env.DB) throw httpError('База рейтинга не подключена', 500);
 
+  if (url.pathname.startsWith('/api/auth/')) {
+    const payload = request.method === 'POST' ? await readJsonBody(request) : {};
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw httpError('Некорректный запрос', 400);
+    return json(await handleAccountAuth(request, env, payload), 200, headers);
+  }
+
   if (/^\/api\/games\/[a-f\d-]{20,80}\/ws$/i.test(url.pathname) && request.method === 'GET') {
     return connectToGame(request, env, url);
   }
@@ -508,7 +517,7 @@ async function handleApi(request, env, context) {
   }
   if (url.pathname === '/api/ratings/sync' && request.method === 'POST') {
     const payload = await readJsonBody(request);
-    const identity = await resolveIdentity(payload, env);
+    const identity = await resolveIdentity(payload, env, request);
     const avatarId = cleanAvatarId(payload.avatarId, identity.id);
     const score = integerInRange(payload.score, 0, MAX_RATING_SCORE, 'score');
     const vocabularySize = integerInRange(payload.vocabularySize, 0, MAX_VOCABULARY_SIZE, 'vocabularySize');
@@ -758,6 +767,7 @@ async function handleApi(request, env, context) {
 export default {
   async scheduled(controller, env, context) {
     context.waitUntil(runNotificationSchedule(env, controller.scheduledTime || Date.now()));
+    context.waitUntil(cleanExpiredAccounts(env.DB));
   },
   async fetch(request, env, context) {
     try {

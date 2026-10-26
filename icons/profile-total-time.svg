@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="700" height="525" viewBox="0 0 700 525" role="img" aria-label="Общее время">
+  <rect width="700" height="525" fill="#FFFFFF"/>
+  <circle cx="350" cy="263" r="199" fill="#2039B4"/>
+  <circle cx="350" cy="252" r="199" fill="#355CFF"/>
+  <circle cx="350" cy="252" r="146" fill="#BFCFFF"/>
+  <path d="M350 106 A146 146 0 0 1 496 252 H350Z" fill="#39C9F4"/>
+  <path d="M350 252 V153" stroke="#192D86" stroke-width="28" stroke-linecap="round"/>
+  <path d="M350 252 L422 292" stroke="#192D86" stroke-width="28" stroke-linecap="round"/>
+  <circle cx="350" cy="252" r="22" fill="#192D86"/>
+</svg>

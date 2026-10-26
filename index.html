@@ -11,7 +11,7 @@
     <link rel="apple-touch-icon" href="./favicon.png" />
     <link rel="manifest" href="./site.webmanifest" />
     <link rel="stylesheet" href="./design-system/colors.css?v=auction-57" />
-    <link rel="stylesheet" href="./styles.css?v=local-preview-2026-10-25" />
+    <link rel="stylesheet" href="./styles.css?v=telegram-code-login-2026-10-25" />
   </head>
   <body class="is-home">
     <div class="app-shell">
@@ -60,6 +60,7 @@
                 <button type="button" data-local-preview="study:timed">Перевод на время</button>
                 <button type="button" data-local-preview="study:five-letter">5 букв</button>
                 <button type="button" data-local-preview="study:puzzle">Пазлы</button>
+                <button type="button" data-local-preview="study:finish">Итог тренировки</button>
               </div>
             </div>
             <div class="local-preview-group">
@@ -232,12 +233,8 @@
               <button class="study-method study-method-cover" type="button" data-study="cards" aria-label="Флеш-карточки: начать тренировку">
                 <img src="./icons/mechanic-covers/flashcards.png?v=1" alt="" width="2592" height="843" draggable="false" />
               </button>
-              <button id="memory-start" class="study-method memory-launch" type="button" data-study="memory" aria-label="Плитки: найти пары слов и переводов">
-                <span class="memory-launch-copy">
-                  <strong>Плитки</strong>
-                  <small>Открой 10 плиток и собери 5 пар</small>
-                </span>
-                <span class="memory-launch-art" aria-hidden="true"><i>word</i><i>слово</i></span>
+              <button id="memory-start" class="study-method study-method-cover" type="button" data-study="memory" aria-label="Плитки: найти 6 пар слов и переводов">
+                <img src="./icons/mechanic-covers/memory-tiles.png?v=1" alt="" width="2592" height="843" draggable="false" />
               </button>
               <button id="quiz-start" class="study-method study-method-cover" type="button" data-study="quiz" aria-label="Выбрать перевод: начать тренировку">
                 <img src="./icons/mechanic-covers/choose-translation.png?v=1" alt="" width="2592" height="843" draggable="false" />
@@ -270,7 +267,7 @@
           <div class="study-stage">
             <div id="study-play" class="study-play" hidden>
               <div class="play-header">
-                <span id="progress-text" class="progress-text">1/3</span>
+                <span id="progress-text" class="progress-text" aria-live="polite">1/3</span>
                 <button id="exit-study-button" class="exit-study-button" type="button" aria-label="Закрыть тренировку" title="Закрыть тренировку">
                   <img src="./icons/close.svg" alt="" aria-hidden="true" width="24" height="24" />
                 </button>
@@ -294,22 +291,9 @@
               </div>
 
               <div id="memory-activity" hidden>
-                <div class="memory-heading">
-                  <div class="memory-heading-copy">
-                    <span class="memory-eyebrow">НАЙДИ 5 ПАР</span>
-                    <h3>Плитки</h3>
-                    <p>Переворачивай по две плитки и находи слово с переводом.</p>
-                  </div>
-                  <span id="card-pairs-count" class="memory-count" aria-live="polite">0 / 5</span>
-                </div>
-                <div id="memory-progress" class="memory-progress" role="progressbar" aria-label="Найденные пары" aria-valuemin="0" aria-valuemax="5" aria-valuenow="0"><span id="memory-progress-fill"></span></div>
+                <div id="memory-progress" class="memory-progress" role="progressbar" aria-label="Найденные пары" aria-valuemin="0" aria-valuemax="6" aria-valuenow="0"><span id="memory-progress-fill"></span></div>
                 <div id="memory-board" class="memory-board" role="group" aria-label="Закрытые плитки со словами и переводами"></div>
                 <p id="memory-feedback" class="memory-feedback" role="status" aria-live="polite">Откройте две плитки и найдите пару.</p>
-                <div class="memory-actions">
-                  <button id="memory-next-button" class="primary-button study-next-button" type="button" hidden>
-                    <span id="memory-next-label">Дальше</span>
-                  </button>
-                </div>
               </div>
 
               <div id="quiz-activity" class="question-card" hidden>
@@ -438,6 +422,56 @@
                 <p id="profile-joined">Вместе с Вордиком с сентября 2026</p>
               </div>
 
+              <section class="profile-section account-section" aria-labelledby="account-title">
+                <div class="profile-section-heading"><h2 id="account-title">Аккаунт</h2></div>
+                <div class="account-summary">
+                  <span class="account-symbol" aria-hidden="true">↗</span>
+                  <div><strong id="account-state">Вы ещё не вошли</strong><p id="account-detail">Получите код входа в Telegram-боте Вордика.</p></div>
+                </div>
+                <div class="account-actions">
+                  <button id="account-login-open" class="primary-button" type="button" aria-controls="account-login-form" aria-expanded="false">Войти или зарегистрироваться</button>
+                  <button id="account-logout" class="secondary-button" type="button" hidden>Выйти</button>
+                </div>
+                <div id="account-login-form" class="account-login" hidden>
+                  <div class="account-login-heading"><h3>Вход и регистрация</h3><button id="account-login-close" type="button" aria-label="Закрыть вход">×</button></div>
+                  <div id="account-number-step">
+                    <form id="account-password-form">
+                      <h4>Войти с паролем</h4>
+                      <label for="account-identifier">Номер телефона или @имя в Telegram</label>
+                      <input id="account-identifier" type="text" autocomplete="username" placeholder="+7 999 123-45-67 или @username" required />
+                      <label for="account-password">Пароль</label>
+                      <input id="account-password" type="password" autocomplete="current-password" required />
+                      <button id="account-password-login" class="primary-button" type="submit" disabled>Войти</button>
+                    </form>
+                    <p>Первый вход или забыли пароль? Подтвердите номер через Telegram-бота и задайте новый пароль.</p>
+                    <form id="account-phone-form">
+                      <label for="account-phone">Номер телефона</label>
+                      <input id="account-phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+7 999 123-45-67" required />
+                      <button id="account-send" class="primary-button" type="submit" disabled>Получить код в Telegram</button>
+                    </form>
+                  </div>
+                  <div id="account-code-step" hidden>
+                    <p id="account-code-destination"></p>
+                    <a id="account-bot-link" class="primary-button account-bot-link" target="_blank" rel="noopener noreferrer">Открыть бота в Telegram ↗</a>
+                    <form id="account-code-form">
+                      <label for="account-code">Код из сообщения бота</label>
+                      <input id="account-code" class="account-code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="6" placeholder="000000" required />
+                      <label for="account-new-password">Новый пароль</label>
+                      <input id="account-new-password" type="password" autocomplete="new-password" minlength="10" maxlength="128" required />
+                      <label for="account-confirm-password">Повторите пароль</label>
+                      <input id="account-confirm-password" type="password" autocomplete="new-password" minlength="10" maxlength="128" required />
+                      <button id="account-verify" class="primary-button" type="submit">Подтвердить и сохранить пароль</button>
+                    </form>
+                    <div class="account-code-actions">
+                      <button id="account-resend" type="button" disabled>Отправить код ещё раз</button>
+                      <button id="account-change-phone" type="button">Начать заново</button>
+                    </div>
+                  </div>
+                  <p class="account-local-note">У каждого аккаунта свой словарь и прогресс на этом устройстве. Данные между устройствами пока не переносятся.</p>
+                </div>
+                <p id="account-feedback" class="account-feedback" role="status" aria-live="polite"></p>
+              </section>
+
               <section class="profile-section" aria-labelledby="profile-stats-title">
                 <div class="profile-section-heading">
                   <h2 id="profile-stats-title">Статистика</h2>
@@ -445,25 +479,25 @@
                 <div class="profile-stats-card">
                   <div class="profile-stat-row">
                     <span class="profile-stat-icon" aria-hidden="true">
-                      <img src="./icons/profile-total-time.png" alt="" />
+                      <img src="./icons/profile-total-time.svg" alt="" />
                     </span>
                     <span class="profile-stat-copy"><strong id="profile-total-time">0 мин</strong><small>Общее время в приложении</small></span>
                   </div>
                   <div class="profile-stat-row">
                     <span class="profile-stat-icon" aria-hidden="true">
-                      <img src="./icons/profile-average-time.png" alt="" />
+                      <img src="./icons/profile-average-time.svg" alt="" />
                     </span>
                     <span class="profile-stat-copy"><strong id="profile-average-time">0 мин</strong><small>Среднее время обучения</small></span>
                   </div>
                   <div class="profile-stat-row">
                     <span class="profile-stat-icon" aria-hidden="true">
-                      <img src="./icons/profile-vocabulary-level.png" alt="" />
+                      <img src="./icons/profile-vocabulary-level.svg" alt="" />
                     </span>
                     <span class="profile-stat-copy"><strong id="profile-vocabulary-level">0 баллов</strong><small>Уровень словаря</small></span>
                   </div>
                   <div class="profile-stat-row">
                     <span class="profile-stat-icon" aria-hidden="true">
-                      <img src="./icons/profile-vocabulary-level.png" alt="" />
+                      <img src="./icons/profile-average-difficulty.svg" alt="" />
                     </span>
                     <span class="profile-stat-copy"><strong id="profile-average-difficulty">0</strong><small>Средняя сложность словаря</small></span>
                   </div>
@@ -516,7 +550,6 @@
                   </div>
                   <div class="friends-group">
                     <h3>Ваши друзья</h3>
-                    <p id="friends-play-hint" class="friends-group-hint" hidden>Выберите игру рядом с именем друга, чтобы отправить приглашение.</p>
                     <div id="friend-list" class="friends-list"></div>
                     <p id="friends-empty" class="friends-empty">Пока здесь никого нет. Поделитесь ссылкой или попросите у друга код.</p>
                   </div>
@@ -534,18 +567,6 @@
                     <p id="profile-streak-message">Начните занятие сегодня — первый день серии уже близко.</p>
                   </div>
                 </div>
-              </section>
-
-              <section class="profile-section notification-settings" aria-labelledby="notification-settings-title">
-                <div class="profile-section-heading"><h2 id="notification-settings-title">Напоминания</h2></div>
-                <p>Вордик сам напомнит о занятии в Telegram, когда это будет полезно.</p>
-                <label class="notification-toggle" for="notifications-enabled">
-                  <span>Получать напоминания</span>
-                  <input id="notifications-enabled" type="checkbox" checked disabled />
-                </label>
-                <label for="notifications-goal">Недельная цель, баллы словаря</label>
-                <input id="notifications-goal" type="number" min="5" max="500" step="5" value="20" disabled />
-                <p id="notifications-status" role="status" aria-live="polite">Напоминания доступны внутри Telegram.</p>
               </section>
 
             </div>
@@ -820,7 +841,8 @@
     <script src="./audio-manifest.js?v=common-audio-39" defer></script>
     <script src="./collections.js?v=topics-2026-10-12" defer></script>
     <script src="./quick-pick-words.js?v=common-dictionary-32" defer></script>
-    <script src="./app.js?v=local-preview-2026-10-25" defer></script>
     <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
+    <script src="./account.js?v=telegram-code-login-2026-10-25" defer></script>
+    <script src="./app.js?v=hide-reminders-2026-10-26" defer></script>
   </body>
 </html>

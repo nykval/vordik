@@ -1,3 +1,12 @@
 BOT_TOKEN="telegram-bot-token"
 ALLOW_GUEST_RATINGS="true"
 ALLOWED_ORIGINS=""
+
+# Set real credentials locally. Empty values keep messenger login unavailable.
+AUTH_SECRET=""
+TELEGRAM_AUTH_WEBHOOK_SECRET=""
+# Optional paid SMS fallback, disabled unless SMS_LOGIN_ENABLED=true.
+SMS_LOGIN_ENABLED="false"
+SMSRU_API_ID=""
+SMS_ALLOWED_COUNTRY_CODES="7"
+SMS_DAILY_LIMIT="100"
