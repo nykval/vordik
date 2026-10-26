@@ -1,12 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="700" height="525" viewBox="0 0 700 525" role="img" aria-label="Уровень словаря">
   <rect width="700" height="525" fill="#FFFFFF"/>
-  <path d="M350 185 C289 144 224 145 152 174 V393 C220 369 288 369 350 408 C412 369 480 369 548 393 V174 C476 145 411 144 350 185Z" fill="#208548"/>
-  <path d="M350 169 C291 132 226 135 166 161 V367 C227 346 291 350 350 386Z" fill="#45D875"/>
-  <path d="M350 169 C409 132 474 135 534 161 V367 C473 346 409 350 350 386Z" fill="#BEF4CF"/>
-  <path d="M350 169 V386" stroke="#208548" stroke-width="18" stroke-linecap="round"/>
-  <path d="M224 221 C261 210 288 213 316 229" stroke="#208548" stroke-width="18" stroke-linecap="round" fill="none"/>
-  <path d="M224 274 C261 263 288 266 316 282" stroke="#208548" stroke-width="18" stroke-linecap="round" fill="none"/>
-  <path d="M384 229 C412 213 439 210 476 221" stroke="#07856D" stroke-width="18" stroke-linecap="round" fill="none"/>
-  <path d="M384 282 C412 266 439 263 476 274" stroke="#07856D" stroke-width="18" stroke-linecap="round" fill="none"/>
-  <path d="M350 44 L367 88 L411 105 L367 122 L350 166 L333 122 L289 105 L333 88Z" fill="#FFD43B"/>
+  <path d="M329 58 Q350 37 371 58 L554 241 Q575 262 554 283 L371 466 Q350 487 329 466 L146 283 Q125 262 146 241Z" fill="#208548"/>
+  <path d="M350 149 C371 208 404 241 463 262 C404 283 371 316 350 375 C329 316 296 283 237 262 C296 241 329 208 350 149Z" fill="#FFD43B"/>
 </svg>
