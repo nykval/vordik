@@ -32,6 +32,37 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--color-focus
 .utility-greeting { min-width: 0; overflow: hidden; display: -webkit-box; color: var(--text-main); font-size: clamp(.92rem, 2vw, 1.08rem); font-weight: 800; line-height: 1.25; overflow-wrap: anywhere; white-space: normal; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .workspace { max-width: 1384px; margin: auto; padding: calc(var(--app-content-top-gap) + var(--app-top-safe-area)) 32px 80px; }
 .is-home .workspace { padding-top: 28px; }
+body:not(.is-home):not(.is-profile):not(.is-onboarding):not(.is-studying):not(.is-picking) .workspace { padding-top: 20px; }
+.is-auth-loading .app-shell { visibility: hidden; }
+.is-auth-loading::before { content: 'ВОРДИК'; position: fixed; inset: 0; display: grid; place-items: center; color: var(--brand-blue); font-size: 1.25rem; font-weight: 800; letter-spacing: .18em; }
+.is-onboarding .utility-header, .is-onboarding .bottom-nav, .is-onboarding .bottom-nav-backdrop { display: none !important; }
+.is-onboarding .workspace { max-width: 1200px; min-height: 100dvh; padding: calc(24px + var(--app-top-safe-area)) 24px max(24px, env(safe-area-inset-bottom)); }
+.is-onboarding .workspace > :not(#onboarding-view) { display: none !important; }
+.onboarding-view { width: 100%; }
+.onboarding-shell { display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, .82fr); gap: 20px; min-height: calc(100dvh - 48px - var(--app-top-safe-area)); }
+.onboarding-intro, .onboarding-auth { border-radius: 30px; }
+.onboarding-intro { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; padding: clamp(28px, 5vw, 68px); background: var(--brand-lime); }
+.onboarding-brand { margin-bottom: auto; color: var(--brand-blue); font-size: .84rem; font-weight: 800; letter-spacing: .2em; }
+.onboarding-intro .stage-kicker { margin-top: 56px; color: var(--text-main); }
+.onboarding-intro h1 { max-width: 610px; margin: 20px 0; font-size: clamp(2.35rem, 4.7vw, 4.7rem); }
+.onboarding-intro p { max-width: 450px; margin: 0 0 auto; color: var(--text-main); font-size: clamp(.95rem, 1.5vw, 1.2rem); line-height: 1.5; }
+.onboarding-auth { align-self: center; padding: clamp(24px, 4vw, 50px); border: 1px solid var(--divider); background: #fff; }
+.onboarding-auth > h2 { margin: 0 0 24px; font-size: clamp(1.5rem, 2.4vw, 2rem); line-height: 1.2; }
+.onboarding-auth .account-login { margin: 0; padding: 0; border: 0; }
+.onboarding-auth .account-login form { max-width: none; }
+.onboarding-register-intro h3 { margin: 0 0 6px; font-size: 1rem; }
+.onboarding-register-intro p { margin-bottom: 12px; }
+.onboarding-preview-back { margin-top: 12px; padding: 8px 0; border: 0; background: transparent; color: var(--brand-blue); font-size: .8rem; font-weight: 700; }
+@media (max-width: 760px) {
+  .is-onboarding .workspace { padding: calc(12px + var(--app-top-safe-area)) 12px max(20px, env(safe-area-inset-bottom)); }
+  .onboarding-shell { grid-template-columns: 1fr; gap: 12px; }
+  .onboarding-intro { min-height: 230px; padding: 24px; border-radius: 24px; }
+  .onboarding-brand { margin-bottom: 0; }
+  .onboarding-intro .stage-kicker { margin-top: 28px; font-size: .64rem; }
+  .onboarding-intro h1 { margin: 10px 0; font-size: clamp(1.8rem, 7.5vw, 2.7rem); }
+  .onboarding-intro p { margin: 0; font-size: .85rem; }
+  .onboarding-auth { align-self: stretch; padding: 24px 20px; border-radius: 24px; }
+}
 .intro { display: flex; justify-content: space-between; align-items: end; gap: 40px; margin-bottom: 35px; }
 .eyebrow, .section-number, .stage-kicker { font-size: .76rem; font-weight: 800; letter-spacing: .13em; color: var(--brand-blue); }
 .eyebrow { margin: 0 0 18px; }
@@ -697,6 +728,7 @@ input::placeholder { color: var(--text-muted); }
 .profile-avatar-edit { position: absolute; right: -1px; bottom: 3px; width: 35px; height: 35px; display: grid; place-items: center; border: 5px solid var(--app-background); border-radius: 50%; background: var(--brand-blue); color: #fff; }
 .profile-avatar-edit svg { width: 15px; height: 15px; }
 .profile-content { padding: 24px 44px 54px; }
+.profile-logout { width: 100%; margin-top: 48px; }
 .profile-identity { text-align: center; }
 .profile-kicker { color: var(--brand-blue); font-size: .68rem; font-weight: 800; letter-spacing: .16em; }
 .profile-identity h1 { margin: 10px 0 8px; color: var(--text-main); font-size: clamp(2.25rem, 6vw, 4.2rem); line-height: 1.04; letter-spacing: -.07em; }

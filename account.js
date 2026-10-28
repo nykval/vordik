@@ -1,6 +1,7 @@
 (() => {
   'use strict';
   const SESSION_KEY = 'vordik.phoneSession.v1';
+  const isLocalPreview = window.location.protocol === 'file:';
   const base = ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname) ? '' : document.querySelector('meta[name="vordik-api-base"]')?.content.trim().replace(/\/+$/, '') || '';
   const $ = (id) => document.getElementById(id);
   let saved = null;
@@ -12,6 +13,15 @@
   let countdown = 0;
   let available = false;
   let registrationAvailable = false;
+
+  function hasTelegramAccount() { return Boolean(window.Telegram?.WebApp?.initData); }
+
+  function showOnboarding(show) {
+    $('onboarding-view').hidden = !show;
+    document.body.classList.toggle('is-onboarding', show);
+    document.body.classList.remove('is-auth-loading');
+    if (show) window.scrollTo(0, 0);
+  }
 
   async function request(path, body, sessionToken = saved?.token) {
     const response = await fetch(`${base}${path}`, {
@@ -29,6 +39,11 @@
   const account = {
     user: saved?.user || null,
     apiBase: base,
+    showOnboardingPreview() {
+      if (!isLocalPreview) return;
+      showOnboarding(true);
+      $('onboarding-preview-back').hidden = false;
+    },
     headers() { return initialToken ? { Authorization: `Bearer ${initialToken}` } : {}; },
     storageKey(key) {
       const id = account.user?.id;
@@ -72,13 +87,6 @@
   }
 
   function render() {
-    const phone = Boolean(account.user);
-    const telegram = Boolean(window.Telegram?.WebApp?.initData);
-    $('account-state').textContent = phone ? 'Вход по номеру телефона' : telegram ? 'Вход через Telegram' : 'Вы ещё не вошли';
-    $('account-detail').textContent = phone ? account.user.phone : telegram ? 'Вы можете войти в другой аккаунт по номеру телефона.' : 'Войдите по номеру через Telegram-бота.';
-    $('account-login-open').textContent = phone || telegram ? 'Другой аккаунт' : 'Войти или зарегистрироваться';
-    $('account-login-open').setAttribute('aria-expanded', String(!$('account-login-form').hidden));
-    $('account-logout').hidden = !phone;
     $('account-send').disabled = busy || !registrationAvailable;
     $('account-password-login').disabled = busy || !available;
     $('account-verify').disabled = busy;
@@ -117,10 +125,7 @@
     window.location.reload();
   }
 
-  $('account-login-open').addEventListener('click', async () => {
-    $('account-login-form').hidden = false;
-    render();
-    $('account-phone').focus();
+  async function loadAvailability() {
     status('Проверяем доступность входа…');
     try {
       const result = await request('/api/auth/config', undefined, '');
@@ -129,7 +134,8 @@
       status(available ? (registrationAvailable ? 'Войдите с паролем или подтвердите номер для регистрации и восстановления доступа.' : 'Вход с паролем доступен. Подтверждение номера через Telegram пока недоступно.') : 'Вход пока недоступен. Попробуйте позже.', !available);
     } catch { status('Сервер входа недоступен. Попробуйте позже.', true); }
     render();
-  });
+  }
+  $('onboarding-preview-back').addEventListener('click', () => showOnboarding(false));
   $('account-password-form').addEventListener('submit', async (event) => {
     event.preventDefault();
     if (busy || !available) return;
@@ -155,11 +161,6 @@
     $('account-phone').focus();
     status('Введите номер, который привязан к вашему Telegram.');
   });
-  $('account-login-close').addEventListener('click', () => {
-    $('account-login-form').hidden = true;
-    render();
-    $('account-login-open').focus();
-  });
   $('account-code-form').addEventListener('submit', async (event) => {
     event.preventDefault();
     if (busy || !challenge) return;
@@ -179,6 +180,18 @@
   });
   $('account-logout').addEventListener('click', async () => {
     if (busy) return;
+    if (!account.user && !hasTelegramAccount()) {
+      if (isLocalPreview) account.showOnboardingPreview();
+      else {
+        showOnboarding(true);
+        void loadAvailability();
+      }
+      return;
+    }
+    if (!account.user && hasTelegramAccount()) {
+      window.Telegram.WebApp.close();
+      return;
+    }
     busy = true;
     $('account-logout').disabled = true;
     try {
@@ -190,5 +203,10 @@
     finally { busy = false; $('account-logout').disabled = false; }
   });
   window.addEventListener('storage', (event) => { if (event.key === SESSION_KEY) window.location.reload(); });
-  void account.ready.then(render);
+  void account.ready.then(() => {
+    render();
+    const needsOnboarding = !isLocalPreview && !account.user && !hasTelegramAccount();
+    showOnboarding(needsOnboarding);
+    if (needsOnboarding) void loadAvailability();
+  });
 })();

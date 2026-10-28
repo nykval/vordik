@@ -11,18 +11,71 @@
     <link rel="apple-touch-icon" href="./favicon.png" />
     <link rel="manifest" href="./site.webmanifest" />
     <link rel="stylesheet" href="./design-system/colors.css?v=auction-57" />
-    <link rel="stylesheet" href="./styles.css?v=password-login-2026-10-26" />
+    <link rel="stylesheet" href="./styles.css?v=profile-avatar-2026-10-28" />
   </head>
-  <body class="is-home">
+  <body class="is-home is-auth-loading">
     <div class="app-shell">
       <header class="utility-header" aria-label="Состояние приложения">
         <button id="profile-button" class="utility-button profile-button" type="button" aria-label="Профиль пользователя" title="Профиль">
-          <img id="profile-button-avatar" src="./icons/avatars-pack/avatar-01-dark-hair.png?v=1" alt="" width="46" height="46" style="width:100%;height:100%;display:block;object-fit:cover;object-position:center;border-radius:50%" />
+          <img id="profile-button-avatar" src="./icons/avatars-pack/avatar-01-dark-hair.png?v=1" alt="" width="46" height="46" />
         </button>
         <span id="home-greeting" class="utility-greeting">Привет, Пользователь Вордик!</span>
       </header>
 
       <main class="workspace">
+        <section id="onboarding-view" class="onboarding-view" aria-labelledby="onboarding-title" hidden>
+          <div class="onboarding-shell">
+            <div class="onboarding-intro">
+              <span class="onboarding-brand">ВОРДИК</span>
+              <button id="onboarding-preview-back" class="onboarding-preview-back" type="button" hidden>← К просмотру экранов</button>
+              <span class="stage-kicker">ВАШ ЛИЧНЫЙ СЛОВАРЬ</span>
+              <h1 id="onboarding-title">Слова, которые остаются с вами</h1>
+              <p>Собирайте свой словарь, повторяйте слова и играйте вместе с друзьями.</p>
+            </div>
+            <div class="onboarding-auth">
+              <h2>Войти или зарегистрироваться</h2>
+              <div id="account-login-form" class="account-login">
+                <div id="account-number-step">
+                  <form id="account-password-form">
+                    <h3>Вход с паролем</h3>
+                    <label for="account-identifier">Номер телефона или @имя в Telegram</label>
+                    <input id="account-identifier" type="text" autocomplete="username" placeholder="+7 999 123-45-67 или @username" required />
+                    <label for="account-password">Пароль</label>
+                    <input id="account-password" type="password" autocomplete="current-password" required />
+                    <button id="account-password-login" class="primary-button" type="submit" disabled>Войти</button>
+                  </form>
+                  <div class="onboarding-register-intro">
+                    <h3>Первый раз или забыли пароль?</h3>
+                    <p>Подтвердите свой номер в Telegram-боте и задайте пароль.</p>
+                  </div>
+                  <form id="account-phone-form">
+                    <label for="account-phone">Номер, привязанный к Telegram</label>
+                    <input id="account-phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+7 999 123-45-67" required />
+                    <button id="account-send" class="primary-button" type="submit" disabled>Получить код в Telegram</button>
+                  </form>
+                </div>
+                <div id="account-code-step" hidden>
+                  <p id="account-code-destination"></p>
+                  <a id="account-bot-link" class="primary-button account-bot-link" target="_blank" rel="noopener noreferrer">Открыть бота в Telegram ↗</a>
+                  <form id="account-code-form">
+                    <label for="account-code">Код из сообщения бота</label>
+                    <input id="account-code" class="account-code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="6" placeholder="000000" required />
+                    <label for="account-new-password">Новый пароль</label>
+                    <input id="account-new-password" type="password" autocomplete="new-password" minlength="10" maxlength="128" required />
+                    <label for="account-confirm-password">Повторите пароль</label>
+                    <input id="account-confirm-password" type="password" autocomplete="new-password" minlength="10" maxlength="128" required />
+                    <button id="account-verify" class="primary-button" type="submit">Подтвердить и сохранить пароль</button>
+                  </form>
+                  <div class="account-code-actions">
+                    <button id="account-resend" type="button" disabled>Отправить код ещё раз</button>
+                    <button id="account-change-phone" type="button">Начать заново</button>
+                  </div>
+                </div>
+                <p id="account-feedback" class="account-feedback" role="status" aria-live="polite"></p>
+              </div>
+            </div>
+          </div>
+        </section>
         <section id="home-view" class="view" aria-label="Главная">
           <div class="home-layout">
             <div class="home-count-card">
@@ -43,6 +96,7 @@
             <div class="local-preview-group">
               <span>Разделы</span>
               <div class="local-preview-links">
+                <button type="button" data-local-preview="onboarding">Онбординг и вход</button>
                 <button type="button" data-local-preview="dictionary">Словарь</button>
                 <button type="button" data-local-preview="cards">Учить</button>
                 <button type="button" data-local-preview="rating">Рейтинг</button>
@@ -422,56 +476,6 @@
                 <p id="profile-joined">Вместе с Вордиком с сентября 2026</p>
               </div>
 
-              <section class="profile-section account-section" aria-labelledby="account-title">
-                <div class="profile-section-heading"><h2 id="account-title">Аккаунт</h2></div>
-                <div class="account-summary">
-                  <span class="account-symbol" aria-hidden="true">↗</span>
-                  <div><strong id="account-state">Вы ещё не вошли</strong><p id="account-detail">Получите код входа в Telegram-боте Вордика.</p></div>
-                </div>
-                <div class="account-actions">
-                  <button id="account-login-open" class="primary-button" type="button" aria-controls="account-login-form" aria-expanded="false">Войти или зарегистрироваться</button>
-                  <button id="account-logout" class="secondary-button" type="button" hidden>Выйти</button>
-                </div>
-                <div id="account-login-form" class="account-login" hidden>
-                  <div class="account-login-heading"><h3>Вход и регистрация</h3><button id="account-login-close" type="button" aria-label="Закрыть вход">×</button></div>
-                  <div id="account-number-step">
-                    <form id="account-password-form">
-                      <h4>Войти с паролем</h4>
-                      <label for="account-identifier">Номер телефона или @имя в Telegram</label>
-                      <input id="account-identifier" type="text" autocomplete="username" placeholder="+7 999 123-45-67 или @username" required />
-                      <label for="account-password">Пароль</label>
-                      <input id="account-password" type="password" autocomplete="current-password" required />
-                      <button id="account-password-login" class="primary-button" type="submit" disabled>Войти</button>
-                    </form>
-                    <p>Первый вход или забыли пароль? Подтвердите номер через Telegram-бота и задайте новый пароль.</p>
-                    <form id="account-phone-form">
-                      <label for="account-phone">Номер телефона</label>
-                      <input id="account-phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+7 999 123-45-67" required />
-                      <button id="account-send" class="primary-button" type="submit" disabled>Получить код в Telegram</button>
-                    </form>
-                  </div>
-                  <div id="account-code-step" hidden>
-                    <p id="account-code-destination"></p>
-                    <a id="account-bot-link" class="primary-button account-bot-link" target="_blank" rel="noopener noreferrer">Открыть бота в Telegram ↗</a>
-                    <form id="account-code-form">
-                      <label for="account-code">Код из сообщения бота</label>
-                      <input id="account-code" class="account-code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="6" placeholder="000000" required />
-                      <label for="account-new-password">Новый пароль</label>
-                      <input id="account-new-password" type="password" autocomplete="new-password" minlength="10" maxlength="128" required />
-                      <label for="account-confirm-password">Повторите пароль</label>
-                      <input id="account-confirm-password" type="password" autocomplete="new-password" minlength="10" maxlength="128" required />
-                      <button id="account-verify" class="primary-button" type="submit">Подтвердить и сохранить пароль</button>
-                    </form>
-                    <div class="account-code-actions">
-                      <button id="account-resend" type="button" disabled>Отправить код ещё раз</button>
-                      <button id="account-change-phone" type="button">Начать заново</button>
-                    </div>
-                  </div>
-                  <p class="account-local-note">У каждого аккаунта свой словарь и прогресс на этом устройстве. Данные между устройствами пока не переносятся.</p>
-                </div>
-                <p id="account-feedback" class="account-feedback" role="status" aria-live="polite"></p>
-              </section>
-
               <section class="profile-section" aria-labelledby="profile-stats-title">
                 <div class="profile-section-heading">
                   <h2 id="profile-stats-title">Статистика</h2>
@@ -568,6 +572,8 @@
                   </div>
                 </div>
               </section>
+
+              <button id="account-logout" class="secondary-button profile-logout" type="button">Выйти</button>
 
             </div>
           </div>
@@ -842,7 +848,7 @@
     <script src="./collections.js?v=topics-2026-10-12" defer></script>
     <script src="./quick-pick-words.js?v=common-dictionary-32" defer></script>
     <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
-    <script src="./account.js?v=password-login-2026-10-26" defer></script>
-    <script src="./app.js?v=hide-reminders-2026-10-26" defer></script>
+    <script src="./account.js?v=profile-logout-2026-10-28" defer></script>
+    <script src="./app.js?v=onboarding-2026-10-28" defer></script>
   </body>
 </html>

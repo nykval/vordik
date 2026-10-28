@@ -3063,7 +3063,9 @@
       const button = event.target.closest('[data-local-preview]');
       if (!button) return;
       const target = button.dataset.localPreview;
-      if (target.startsWith('study:')) {
+      if (target === 'onboarding') {
+        account?.showOnboardingPreview?.();
+      } else if (target.startsWith('study:')) {
         switchTab('cards');
         if (target === 'study:finish') {
           session.mechanic = 'cards';
